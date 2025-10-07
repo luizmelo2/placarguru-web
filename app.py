@@ -5,8 +5,6 @@ import altair as alt
 import re
 from typing import Any, Tuple, Optional
 
-
-
 # ============================
 # Configuração da página
 # ============================
@@ -52,6 +50,18 @@ FRIENDLY_COLS = {
     "prob_H": "Prob. Casa",
     "prob_D": "Prob. Empate",
     "prob_A": "Prob. Visitante",
+    # Over/Under
+    "over_0_5": "Mais de 0.5 gols",
+    "over_1_5": "Mais de 1.5 gols",
+    "over_2_5": "Mais de 2.5 gols",
+    "over_3_5": "Mais de 3.5 gols",
+    "under_0_5": "Menos de 0.5 gols",
+    "under_1_5": "Menos de 1.5 gols",
+    "under_2_5": "Menos de 2.5 gols",
+    "under_3_5": "Menos de 3.5 gols",
+    # BTTS
+    "btts_yes": "Ambos Marcam Sim",
+    "btts_no": "Ambos Marcam Não",
     "final_score": "Resultado Final",
 }
 
@@ -189,6 +199,16 @@ def fmt_odd(x):
         if pd.isna(v):
             return "N/A"
         return f"{v:.2f}"
+    except Exception:
+        return "N/A"
+
+def fmt_prob(x):
+    try:
+        v = float(x)
+        if pd.isna(v):
+            return "N/A"
+        v = v*100
+        return f"{v:.2f}%"
     except Exception:
         return "N/A"
 
@@ -340,10 +360,10 @@ def display_list_view(df: pd.DataFrame):
         dt_txt = row["date"].strftime("%Y-%m-%d %H:%M") if ("date" in df.columns and pd.notna(row["date"])) else "N/A"
         match_title = f"{dt_txt} - {row.get('home', '?')} vs {row.get('away', '?')} ({row.get('model', '?')})"
         with st.expander(match_title):
-            st.markdown(f"**{FRIENDLY_COLS['date']}:** {dt_txt}")
-            st.markdown(f"**{FRIENDLY_COLS['status']}:** {status_label(row.get('status', 'N/A'))}")
+            st.markdown(f"**{FRIENDLY_COLS['date']}:** `{dt_txt}`")
+            st.markdown(f"**{FRIENDLY_COLS['status']}:** `{status_label(row.get('status', 'N/A'))}`")
             if "tournament_id" in df.columns:
-                st.markdown(f"**{FRIENDLY_COLS['tournament_id']}:** {tournament_label(row.get('tournament_id'))}")
+                st.markdown(f"**{FRIENDLY_COLS['tournament_id']}:** `{tournament_label(row.get('tournament_id'))}`")
 
             # Badges de acerto/erro
             badge_res = ""
@@ -360,8 +380,6 @@ def display_list_view(df: pd.DataFrame):
             elif hit_score is False:
                 badge_score = " ❌"
 
-            st.markdown(f"**{FRIENDLY_COLS['result_predicted']}:** {market_label(row.get('result_predicted'))}{badge_res}")
-            st.markdown(f"**{FRIENDLY_COLS['score_predicted']}:** {row.get('score_predicted', 'N/A')}{badge_score}")
 
             status_val = _norm_status_key(row.get("status", ""))
             if status_val in FINISHED_TOKENS:
@@ -373,16 +391,39 @@ def display_list_view(df: pd.DataFrame):
                         final_txt = f"{rh}-{ra}"
                 else:
                     final_txt = "N/A"
-                st.markdown(f"**{FRIENDLY_COLS['final_score']}:** {final_txt}")
+                st.markdown(f"**{FRIENDLY_COLS['final_score']}:** `{final_txt}`")
 
-            st.markdown(f"**{FRIENDLY_COLS['bet_suggestion']}:** {market_label(row.get('bet_suggestion'))}")
-            st.markdown(f"**{FRIENDLY_COLS['goal_bet_suggestion']}:** {market_label(row.get('goal_bet_suggestion'))}")
+            st.markdown(
+                f"**Previsões:**\n"
+                f"- {FRIENDLY_COLS['result_predicted']}: `{market_label(row.get('result_predicted'))}{badge_res}`\n"
+                f"- {FRIENDLY_COLS['score_predicted']}: `{row.get('score_predicted', 'N/A')}{badge_score}`\n"
+                f"- {FRIENDLY_COLS['bet_suggestion']}: `{market_label(row.get('bet_suggestion'))}`\n"
+                f"- {FRIENDLY_COLS['goal_bet_suggestion']}: `{market_label(row.get('goal_bet_suggestion'))}`\n"
+
+            )
 
             st.markdown(
                 f"**Odds:**\n"
                 f"- {FRIENDLY_COLS['odds_H']}: `{fmt_odd(row.get('odds_H'))}`\n"
                 f"- {FRIENDLY_COLS['odds_D']}: `{fmt_odd(row.get('odds_D'))}`\n"
                 f"- {FRIENDLY_COLS['odds_A']}: `{fmt_odd(row.get('odds_A'))}`"
+            )
+
+            st.markdown(
+                f"**Probabilidades:**\n"
+                f"- {FRIENDLY_COLS['prob_H']}: `{fmt_prob(row.get('prob_H'))} - Odd: {fmt_odd(row.get('odds_H'))}`\n"
+                f"- {FRIENDLY_COLS['prob_D']}: `{fmt_prob(row.get('prob_D'))} - Odd: {fmt_odd(row.get('odds_D'))}`\n"
+                f"- {FRIENDLY_COLS['prob_A']}: `{fmt_prob(row.get('prob_A'))} - Odd: {fmt_odd(row.get('odds_A'))}`\n"
+                f"- {FRIENDLY_COLS['under_0_5']}: `{fmt_prob(row.get('prob_under_0_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_0.5_under'))}`\n"
+                f"- {FRIENDLY_COLS['under_1_5']}: `{fmt_prob(row.get('prob_under_1_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_1.5_under'))}`\n"
+                f"- {FRIENDLY_COLS['under_2_5']}: `{fmt_prob(row.get('prob_under_2_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_2.5_under'))}`\n"
+                f"- {FRIENDLY_COLS['under_3_5']}: `{fmt_prob(row.get('prob_under_3_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_3.5_under'))}`\n"
+                f"- {FRIENDLY_COLS['over_0_5']}: `{fmt_prob(row.get('prob_over_0_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_0.5_over'))}`\n"
+                f"- {FRIENDLY_COLS['over_1_5']}: `{fmt_prob(row.get('prob_over_1_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_1.5_over'))}`\n"
+                f"- {FRIENDLY_COLS['over_2_5']}: `{fmt_prob(row.get('prob_over_2_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_2.5_over'))}`\n"
+                f"- {FRIENDLY_COLS['over_3_5']}: `{fmt_prob(row.get('prob_over_3_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_3.5_over'))}`\n"
+                f"- {FRIENDLY_COLS['btts_yes']}: `{fmt_prob(row.get('prob_btts_yes'))} - Odd: {fmt_odd(row.get('odds_btts_yes'))}`\n"
+                f"- {FRIENDLY_COLS['btts_no']}: `{fmt_prob(row.get('prob_btts_no'))} - Odd: {fmt_odd(row.get('odds_btts_no'))}`\n"
             )
 
 # ============================
