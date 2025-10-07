@@ -8,27 +8,56 @@ from typing import Any, Tuple, Optional
 # ============================
 # Configuração da página
 # ============================
-st.set_page_config(layout="wide", page_title="Análise de Previsões de Futebol")
-st.title("Análise de Previsões de Futebol")
+st.set_page_config(
+    layout="wide",
+    page_title="Análise de Previsões de Futebol",
+    initial_sidebar_state="collapsed",  # colapsa sidebar por padrão (melhor no celular)
+)
 
-# --- Tema escuro global (app + sidebar) ---
+# Toggle manual de modo mobile (controle explícito para layout responsivo)
+col_m1, col_m2 = st.columns([1, 4])
+with col_m1:
+    MODO_MOBILE = st.toggle("📱 Mobile", value=True)
+with col_m2:
+    st.title("Análise de Previsões de Futebol")
+
+# --- Estilos mobile-first ---
 st.markdown("""
 <style>
-/* fundo da app */
-#.stApp { background-color: #000000; color: #e5e7eb; }
+/* tipografia e espaçamento base */
+html, body, .stApp { font-size: 16px; }
+@media (max-width: 768px) {
+  html, body, .stApp { font-size: 17px; } /* texto um pouco maior */
+  section[data-testid="stSidebar"] { display:none !important; } /* esconde sidebar no mobile */
+}
 
-/* header transparente */
-#[data-testid="stHeader"] { background: rgba(0,0,0,0); }
+/* container base */
+.block-container { padding-top: 0.5rem !important; }
 
-/* sidebar escura */
-#[data-testid="stSidebar"] { background-color: #0b0b0b; }
+/* cards de partidas */
+.card {
+  border: 1px solid #1f2937; border-radius: 14px; padding: 12px;
+  background: #0b0b0b; box-shadow: 0 1px 8px rgba(0,0,0,.2);
+}
+.badge { padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+.badge-ok { background:#14532d; color:#d1fae5; }
+.badge-bad { background:#7f1d1d; color:#fee2e2; }
+.badge-wait { background:#334155; color:#e2e8f0; }
 
-/* links e inputs mais legíveis no escuro */
-#a { color: #60a5fa; }
+/* botões “tocáveis” */
+button, .stButton>button {
+  border-radius: 12px; padding: 10px 14px; font-weight: 600;
+}
+
+/* expanders com header maior */
+div[data-testid="stExpander"] summary {
+  padding: 10px 12px; font-size: 1.05rem; font-weight: 700;
+}
+
+/* dataframe: overflow horizontal com scroll */
+.stDataFrame { overflow-x: auto; }
 </style>
 """, unsafe_allow_html=True)
-
-
 
 # ============================
 # Dicionários Amigáveis
@@ -95,7 +124,7 @@ FRIENDLY_TOURNAMENTS = {
 }
 
 # ============================
-# Status (apenas finished / nostarted)
+# Status (apenas finished)
 # ============================
 FINISHED_TOKENS = {"finished"}  # somente 'finished' conta como finalizado
 
@@ -215,11 +244,8 @@ def fmt_prob(x):
 # ------ Placar Previsto: parser e avaliação ------
 def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
     """
-    Tenta extrair (home, away) do campo score_predicted.
-    Aceita formatos:
-      - '2-1', '2x1', '2 : 1', '2 – 1' etc
-      - lista/tupla [2,1]
-      - dict {'home':2, 'away':1} ou {'h':2,'a':1}
+    Extrai (home, away) do campo score_predicted.
+    Aceita: '2-1', '2x1', lista [2,1], dict {'home':2,'away':1} etc.
     """
     if x is None or (isinstance(x, float) and np.isnan(x)):
         return (None, None)
@@ -240,7 +266,7 @@ def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
         except Exception:
             return (None, None)
 
-    # string: usar regex para "n algo n"
+    # string: regex "n algo n"
     s = str(x)
     m = re.search(r"(\d+)\D+(\d+)", s)
     if m:
@@ -252,7 +278,7 @@ def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
     return (None, None)
 
 def eval_result_pred_row(row) -> Optional[bool]:
-    """Acerto/erro do Resultado Previsto (H/D/A) para usar na lista (expanders)."""
+    """Acerto/erro do Resultado Previsto (H/D/A) para usar na lista (cards)."""
     status_val = _norm_status_key(row.get("status", ""))
     if status_val not in FINISHED_TOKENS:
         return None
@@ -268,7 +294,7 @@ def eval_result_pred_row(row) -> Optional[bool]:
     return pred == real
 
 def eval_score_pred_row(row) -> Optional[bool]:
-    """Acerto/erro do Placar Previsto para usar na lista (expanders)."""
+    """Acerto/erro do Placar Previsto para usar na lista (cards)."""
     status_val = _norm_status_key(row.get("status", ""))
     if status_val not in FINISHED_TOKENS:
         return None
@@ -282,6 +308,14 @@ def eval_score_pred_row(row) -> Optional[bool]:
         return (int(rh) == int(ph)) and (int(ra) == int(pa))
     except Exception:
         return None
+
+# ===== helpers para exibir probabilidade + odd e checagem de colunas =====
+def _po(row, prob_key: str, odd_key: str) -> str:
+    """Formata 'Prob - Odd' com segurança."""
+    return f"{fmt_prob(row.get(prob_key))} - Odd: {fmt_odd(row.get(odd_key))}"
+
+def _exists(df: pd.DataFrame, *cols) -> bool:
+    return all(c in df.columns for c in cols)
 
 # ============================
 # Carregamento e normalização
@@ -354,77 +388,180 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     out = out.rename(columns=FRIENDLY_COLS)
     return out
 
+# ============================
+# UI de Filtros (sidebar no desktop / gaveta no mobile)
+# ============================
+def filtros_ui(df: pd.DataFrame) -> dict:
+    # helpers de options
+    status_opts = sorted(df["status"].dropna().unique()) if "status" in df.columns else []
+    tourn_opts  = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
+    model_opts  = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
+
+    if {"home", "away"}.issubset(df.columns):
+        team_opts = pd.concat([df["home"], df["away"]], ignore_index=True).dropna()
+        team_opts = sorted(team_opts.astype(str).unique())
+    else:
+        team_opts = []
+
+    bet_opts   = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
+    goal_opts  = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
+
+    # datas
+    if "date" in df.columns and df["date"].notna().any():
+        min_date = df["date"].dropna().min().date()
+        max_date = df["date"].dropna().max().date()
+    else:
+        min_date = max_date = None
+
+    target = st.sidebar if not MODO_MOBILE else st
+    container = target.expander("🔎 Filtros", expanded=not MODO_MOBILE)
+
+    with container:
+        # linha de filtros rápidos (chips)
+        c1, c2 = st.columns(2) if MODO_MOBILE else st.columns(4)
+        with c1:
+            status_sel = st.multiselect(FRIENDLY_COLS["status"], status_opts, default=status_opts, format_func=status_label)
+        with c2:
+            models_sel = st.multiselect(FRIENDLY_COLS["model"], model_opts, default=model_opts)
+
+        c3, c4 = st.columns(2)
+        with c3:
+            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
+        with c4:
+            teams_sel = st.multiselect("Equipe (Casa ou Visitante)", team_opts, default=[] if MODO_MOBILE else team_opts)
+
+        c5, c6 = st.columns(2)
+        with c5:
+            bet_sel = st.multiselect(
+                FRIENDLY_COLS["bet_suggestion"],
+                bet_opts,
+                default=[],
+                format_func=market_label,  # ⬅️ nomes amigáveis
+            )
+        with c6:
+            goal_sel = st.multiselect(
+                FRIENDLY_COLS["goal_bet_suggestion"],
+                goal_opts,
+                default=[],
+                format_func=market_label,  # ⬅️ nomes amigáveis
+            )
+
+        # período e odds num segundo nível
+        with st.expander("Ajustes finos (período e odds)", expanded=False):
+            if min_date:
+                selected_date_range = st.date_input("Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+            else:
+                selected_date_range = ()
+
+            def _range(series: pd.Series, default=(0.0, 1.0)):
+                s = series.dropna()
+                return (float(s.min()), float(s.max())) if not s.empty else default
+
+            selH = selD = selA = (0.0, 1.0)
+            if "odds_H" in df.columns:
+                minH, maxH = _range(df["odds_H"]); selH = st.slider(FRIENDLY_COLS["odds_H"], minH, maxH, (minH, maxH))
+            if "odds_D" in df.columns:
+                minD, maxD = _range(df["odds_D"]); selD = st.slider(FRIENDLY_COLS["odds_D"], minD, maxD, (minD, maxD))
+            if "odds_A" in df.columns:
+                minA, maxA = _range(df["odds_A"]); selA = st.slider(FRIENDLY_COLS["odds_A"], minA, maxA, (minA, maxA))
+
+    return dict(
+        status_sel=status_sel, tournaments_sel=tournaments_sel, models_sel=models_sel, teams_sel=teams_sel,
+        bet_sel=bet_sel, goal_sel=goal_sel, selected_date_range=selected_date_range, selH=selH, selD=selD, selA=selA
+    )
+
+# ============================
+# Cards (lista mobile-first) — com probabilidades de gols + odds
+# ============================
 def display_list_view(df: pd.DataFrame):
-    """Lista (expanders) com rótulos amigáveis, placar final e badge ✅/❌ nas previsões."""
     for _, row in df.iterrows():
-        dt_txt = row["date"].strftime("%Y-%m-%d %H:%M") if ("date" in df.columns and pd.notna(row["date"])) else "N/A"
-        match_title = f"{dt_txt} - {row.get('home', '?')} vs {row.get('away', '?')} ({row.get('model', '?')})"
-        with st.expander(match_title):
-            st.markdown(f"**{FRIENDLY_COLS['date']}:** `{dt_txt}`")
-            st.markdown(f"**{FRIENDLY_COLS['status']}:** `{status_label(row.get('status', 'N/A'))}`")
-            if "tournament_id" in df.columns:
-                st.markdown(f"**{FRIENDLY_COLS['tournament_id']}:** `{tournament_label(row.get('tournament_id'))}`")
+        dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in df.columns and pd.notna(row["date"])) else "N/A"
+        title = f"{row.get('home','?')} vs {row.get('away','?')}"
+        status_txt = status_label(row.get("status","N/A"))
 
-            # Badges de acerto/erro
-            badge_res = ""
-            hit_res = eval_result_pred_row(row)
-            if hit_res is True:
-                badge_res = " ✅"
-            elif hit_res is False:
-                badge_res = " ❌"
+        # badges
+        hit_res = eval_result_pred_row(row)
+        hit_score = eval_score_pred_row(row)
+        badge_res   = "✅" if hit_res is True else ("❌" if hit_res is False else "⏳")
+        badge_score = "✅" if hit_score is True else ("❌" if hit_score is False else "⏳")
 
-            badge_score = ""
-            hit_score = eval_score_pred_row(row)
-            if hit_score is True:
-                badge_score = " ✅"
-            elif hit_score is False:
-                badge_score = " ❌"
+        # Sugestões principais
+        aposta_txt = market_label(row.get('bet_suggestion', '—'))
+        gols_txt = market_label(row.get('goal_bet_suggestion', '—'))
+
+        with st.container():
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                # título e cabeçalho
+                st.markdown(f"**{title}**")
+                st.caption(f"{dt_txt} • {tournament_label(row.get('tournament_id'))} • {row.get('model','—')}")
+
+                # Previsão principal
+                st.markdown(
+                    f"**Prev.:** {market_label(row.get('result_predicted'))} {badge_res}  "
+                    f"•  **Placar:** {row.get('score_predicted','—')} {badge_score}"
+                )
+
+                # 💡 Sugestão de Aposta e ⚽ Sugestão de Gols com destaque
+                st.markdown(
+                    f"**💡 {FRIENDLY_COLS['bet_suggestion']}:** {aposta_txt}\n\n"
+                    f"**⚽ {FRIENDLY_COLS['goal_bet_suggestion']}:** {gols_txt}"
+                )
+
+            with c2:
+                # status e resultado final
+                st.markdown(f'<span class="badge badge-wait">{status_txt}</span>', unsafe_allow_html=True)
+                if _norm_status_key(row.get("status","")) in FINISHED_TOKENS:
+                    rh, ra = row.get("result_home"), row.get("result_away")
+                    final_txt = f"{int(rh)}-{int(ra)}" if pd.notna(rh) and pd.notna(ra) else "—"
+                    st.markdown(f"**Final:** {final_txt}")
+
+            # expander com detalhes completos
+            with st.expander("Detalhes, Probabilidades & Odds"):
+                # Sugestões e 1x2
+                st.markdown(
+                    f"- **Sugestão:** {aposta_txt}\n"
+                    f"- **Sugestão de Gols:** {gols_txt}\n"
+                    f"- **Odds 1x2:** {fmt_odd(row.get('odds_H'))} / {fmt_odd(row.get('odds_D'))} / {fmt_odd(row.get('odds_A'))}\n"
+                    f"- **Prob. (H/D/A):** {fmt_prob(row.get('prob_H'))} / {fmt_prob(row.get('prob_D'))} / {fmt_prob(row.get('prob_A'))}"
+                )
+
+                # Probabilidades de Gols — Over/Under + BTTS (com odds)
+                st.markdown("---")
+                st.markdown("**Over/Under (Prob. — Odd)**")
+
+                # UNDER
+                under_lines = []
+                if _exists(df, "prob_under_0_5"): under_lines.append(f"- **Under 0.5:** {_po(row, 'prob_under_0_5', 'odds_match_goals_0.5_under')}")
+                if _exists(df, "prob_under_1_5"): under_lines.append(f"- **Under 1.5:** {_po(row, 'prob_under_1_5', 'odds_match_goals_1.5_under')}")
+                if _exists(df, "prob_under_2_5"): under_lines.append(f"- **Under 2.5:** {_po(row, 'prob_under_2_5', 'odds_match_goals_2.5_under')}")
+                if _exists(df, "prob_under_3_5"): under_lines.append(f"- **Under 3.5:** {_po(row, 'prob_under_3_5', 'odds_match_goals_3.5_under')}")
+                if under_lines:
+                    st.markdown("\n".join(under_lines))
+
+                # OVER
+                over_lines = []
+                if _exists(df, "prob_over_0_5"): over_lines.append(f"- **Over 0.5:** {_po(row, 'prob_over_0_5', 'odds_match_goals_0.5_over')}")
+                if _exists(df, "prob_over_1_5"): over_lines.append(f"- **Over 1.5:** {_po(row, 'prob_over_1_5', 'odds_match_goals_1.5_over')}")
+                if _exists(df, "prob_over_2_5"): over_lines.append(f"- **Over 2.5:** {_po(row, 'prob_over_2_5', 'odds_match_goals_2.5_over')}")
+                if _exists(df, "prob_over_3_5"): over_lines.append(f"- **Over 3.5:** {_po(row, 'prob_over_3_5', 'odds_match_goals_3.5_over')}")
+                if over_lines:
+                    st.markdown("\n".join(over_lines))
+
+                # BTTS
+                if _exists(df, "prob_btts_yes") or _exists(df, "prob_btts_no"):
+                    st.markdown("---")
+                    st.markdown("**BTTS (Prob. — Odd)**")
+                    if _exists(df, "prob_btts_yes"):
+                        st.markdown(f"- **Ambos marcam — Sim:** {_po(row, 'prob_btts_yes', 'odds_btts_yes')}")
+                    if _exists(df, "prob_btts_no"):
+                        st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}")
+
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.write("")  # espaçamento
 
 
-            status_val = _norm_status_key(row.get("status", ""))
-            if status_val in FINISHED_TOKENS:
-                rh = row.get("result_home"); ra = row.get("result_away")
-                if pd.notna(rh) and pd.notna(ra):
-                    try:
-                        final_txt = f"{int(rh)}-{int(ra)}"
-                    except Exception:
-                        final_txt = f"{rh}-{ra}"
-                else:
-                    final_txt = "N/A"
-                st.markdown(f"**{FRIENDLY_COLS['final_score']}:** `{final_txt}`")
-
-            st.markdown(
-                f"**Previsões:**\n"
-                f"- {FRIENDLY_COLS['result_predicted']}: `{market_label(row.get('result_predicted'))}{badge_res}`\n"
-                f"- {FRIENDLY_COLS['score_predicted']}: `{row.get('score_predicted', 'N/A')}{badge_score}`\n"
-                f"- {FRIENDLY_COLS['bet_suggestion']}: `{market_label(row.get('bet_suggestion'))}`\n"
-                f"- {FRIENDLY_COLS['goal_bet_suggestion']}: `{market_label(row.get('goal_bet_suggestion'))}`\n"
-
-            )
-
-            st.markdown(
-                f"**Odds:**\n"
-                f"- {FRIENDLY_COLS['odds_H']}: `{fmt_odd(row.get('odds_H'))}`\n"
-                f"- {FRIENDLY_COLS['odds_D']}: `{fmt_odd(row.get('odds_D'))}`\n"
-                f"- {FRIENDLY_COLS['odds_A']}: `{fmt_odd(row.get('odds_A'))}`"
-            )
-
-            st.markdown(
-                f"**Probabilidades:**\n"
-                f"- {FRIENDLY_COLS['prob_H']}: `{fmt_prob(row.get('prob_H'))} - Odd: {fmt_odd(row.get('odds_H'))}`\n"
-                f"- {FRIENDLY_COLS['prob_D']}: `{fmt_prob(row.get('prob_D'))} - Odd: {fmt_odd(row.get('odds_D'))}`\n"
-                f"- {FRIENDLY_COLS['prob_A']}: `{fmt_prob(row.get('prob_A'))} - Odd: {fmt_odd(row.get('odds_A'))}`\n"
-                f"- {FRIENDLY_COLS['under_0_5']}: `{fmt_prob(row.get('prob_under_0_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_0.5_under'))}`\n"
-                f"- {FRIENDLY_COLS['under_1_5']}: `{fmt_prob(row.get('prob_under_1_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_1.5_under'))}`\n"
-                f"- {FRIENDLY_COLS['under_2_5']}: `{fmt_prob(row.get('prob_under_2_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_2.5_under'))}`\n"
-                f"- {FRIENDLY_COLS['under_3_5']}: `{fmt_prob(row.get('prob_under_3_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_3.5_under'))}`\n"
-                f"- {FRIENDLY_COLS['over_0_5']}: `{fmt_prob(row.get('prob_over_0_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_0.5_over'))}`\n"
-                f"- {FRIENDLY_COLS['over_1_5']}: `{fmt_prob(row.get('prob_over_1_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_1.5_over'))}`\n"
-                f"- {FRIENDLY_COLS['over_2_5']}: `{fmt_prob(row.get('prob_over_2_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_2.5_over'))}`\n"
-                f"- {FRIENDLY_COLS['over_3_5']}: `{fmt_prob(row.get('prob_over_3_5'))} - Odd: {fmt_odd(row.get('odds_match_goals_3.5_over'))}`\n"
-                f"- {FRIENDLY_COLS['btts_yes']}: `{fmt_prob(row.get('prob_btts_yes'))} - Odd: {fmt_odd(row.get('odds_btts_yes'))}`\n"
-                f"- {FRIENDLY_COLS['btts_no']}: `{fmt_prob(row.get('prob_btts_no'))} - Odd: {fmt_odd(row.get('odds_btts_no'))}`\n"
-            )
 
 # ============================
 # App principal
@@ -434,73 +571,16 @@ try:
     if df.empty:
         st.error("O arquivo `PrevisaoJogos.xlsx` está vazio ou não pôde ser lido.")
     else:
-        st.sidebar.header("Filtros")
-        use_list_view = st.sidebar.checkbox("Usar visualização em lista (mobile)", value=False)
+        # -------- Filtros (mobile: gaveta no topo / desktop: sidebar) --------
+        flt = filtros_ui(df)
+        status_sel, tournaments_sel, models_sel = flt["status_sel"], flt["tournaments_sel"], flt["models_sel"]
+        teams_sel, bet_sel, goal_sel = flt["teams_sel"], flt["bet_sel"], flt["goal_sel"]
+        selected_date_range, selH, selD, selA = flt["selected_date_range"], flt["selH"], flt["selD"], flt["selA"]
 
-        # STATUS (exibe amigável, filtra por código original)
-        status_opts = sorted(df["status"].dropna().unique()) if "status" in df.columns else []
-        status_sel = st.sidebar.multiselect(
-            FRIENDLY_COLS["status"],
-            options=status_opts,
-            default=status_opts,
-            format_func=status_label
-        )
+        # Visualização: lista é padrão no mobile
+        use_list_view = True if MODO_MOBILE else st.sidebar.checkbox("Usar visualização em lista (mobile)", value=False)
 
-        # TORNEIOS
-        tourn_opts = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
-        tournaments_sel = st.sidebar.multiselect(
-            FRIENDLY_COLS["tournament_id"], options=tourn_opts, default=tourn_opts, format_func=tournament_label
-        )
-
-        # MODELOS
-        model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
-        models_sel = st.sidebar.multiselect(FRIENDLY_COLS["model"], options=model_opts, default=model_opts)
-
-        # EQUIPES
-        if {"home", "away"}.issubset(df.columns):
-            team_opts = pd.concat([df["home"], df["away"]], ignore_index=True).dropna()
-            team_opts = sorted(team_opts.astype(str).unique())
-        else:
-            team_opts = []
-        teams_sel = st.sidebar.multiselect("Equipe (Casa ou Visitante)", options=team_opts, default=team_opts)
-
-        # SUGESTÕES
-        bet_opts = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
-        bet_sel = st.sidebar.multiselect(FRIENDLY_COLS["bet_suggestion"], options=bet_opts, default=bet_opts, format_func=market_label)
-
-        goal_opts = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
-        goal_sel = st.sidebar.multiselect(FRIENDLY_COLS["goal_bet_suggestion"], options=goal_opts, default=goal_opts, format_func=market_label)
-
-        # Datas
-        if "date" in df.columns and df["date"].notna().any():
-            min_date = df["date"].dropna().min().date()
-            max_date = df["date"].dropna().max().date()
-            selected_date_range = st.sidebar.date_input("Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-        else:
-            selected_date_range = ()
-
-        # Odds
-        def _range(series: pd.Series, default=(0.0, 1.0)):
-            s = series.dropna()
-            return (float(s.min()), float(s.max())) if not s.empty else default
-
-        if "odds_H" in df.columns:
-            minH, maxH = _range(df["odds_H"])
-            selH = st.sidebar.slider(FRIENDLY_COLS["odds_H"], minH, maxH, (minH, maxH))
-        else:
-            selH = (0.0, 1.0)
-        if "odds_D" in df.columns:
-            minD, maxD = _range(df["odds_D"])
-            selD = st.sidebar.slider(FRIENDLY_COLS["odds_D"], minD, maxD, (minD, maxD))
-        else:
-            selD = (0.0, 1.0)
-        if "odds_A" in df.columns:
-            minA, maxA = _range(df["odds_A"])
-            selA = st.sidebar.slider(FRIENDLY_COLS["odds_A"], minA, maxA, (minA, maxA))
-        else:
-            selA = (0.0, 1.0)
-
-        # Filtros combinados
+        # -------- Filtros combinados --------
         final_mask = pd.Series(True, index=df.index)
         if status_sel and "status" in df.columns:
             final_mask &= df["status"].isin(status_sel)
@@ -534,7 +614,7 @@ try:
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
-            # ---------- Lógica de acerto/erro (para tabela e gráficos) ----------
+            # ---------- Lógica de acerto/erro (para KPIs e destaques) ----------
             status_norm = df_filtered["status"].astype(str).map(_norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
             is_finished = status_norm.isin(FINISHED_TOKENS) if "status" in df_filtered.columns else pd.Series(False, index=df_filtered.index)
 
@@ -588,7 +668,7 @@ try:
             score_correct = score_eval == True
             score_wrong   = score_eval == False
 
-            # ---------- TABELA ----------
+            # ---------- LISTA (cards) ou TABELA ----------
             if use_list_view:
                 display_list_view(df_filtered)
             else:
@@ -619,37 +699,14 @@ try:
                 ]
                 display_df = display_df_full[[c for c in desired_order if c in display_df_full.columns]]
 
-                # Estilo: verde/vermelho + odds com 2 casas
-                color_ok = "#d4f8ce"
-                color_bad = "#ffd7d7"
-
-                def style_row(row: pd.Series):
-                    styles = [""] * len(row)
-                    idx = row.name
-                    def paint(col_name, ok_series, bad_series):
-                        nonlocal styles
-                        if col_name in row.index:
-                            col_idx = row.index.get_loc(col_name)
-                            if idx in ok_series.index and bool(ok_series.loc[idx]):
-                                styles[col_idx] = f"background-color: {color_ok}; font-weight: 600"
-                            elif idx in bad_series.index and bool(bad_series.loc[idx]):
-                                styles[col_idx] = f"background-color: {color_bad}; font-weight: 600"
-                    paint("Resultado Previsto",  pred_correct,  pred_wrong)
-                    paint("Placar Previsto",     score_correct, score_wrong)  # ⬅️ novo destaque
-                    paint("Sugestão de Aposta",  bet_correct,   bet_wrong)
-                    paint("Sugestão de Gols",    goal_correct,  goal_wrong)
-                    return styles
-
-                fmt_map = {c: "{:.2f}" for c in ["Odd Casa", "Odd Empate", "Odd Visitante"] if c in display_df.columns}
-                styled = (
-                    display_df
-                    .style
-                    .format(fmt_map, na_rep="—")
-                    .apply(style_row, axis=1)
+                # Dataframe simples e responsivo (sem Styler pesado)
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
                 )
-                st.dataframe(styled, use_container_width=True)
 
-            # ---------- KPIs e gráfico (mantidos para Resultado / Aposta / Gols) ----------
+            # ---------- KPIs e gráfico ----------
             def compute_acc(ok_mask: pd.Series, bad_mask: pd.Series):
                 total = int((ok_mask | bad_mask).sum())
                 correct = int(ok_mask.sum())
@@ -660,8 +717,14 @@ try:
             acc_bet,  c_bet,  t_bet  = compute_acc(bet_correct,  bet_wrong)
             acc_goal, c_goal, t_goal = compute_acc(goal_correct, goal_wrong)
 
-            st.subheader("Percentual de acerto (apenas jogos finalizados com placar válido)")
-            k1, k2, k3 = st.columns(3)
+            st.subheader("Percentual de acerto (jogos finalizados)")
+            if MODO_MOBILE:
+                k1 = st.container()
+                k2 = st.container()
+                k3 = st.container()
+            else:
+                k1, k2, k3 = st.columns(3)
+
             k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
             k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
             k3.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
@@ -681,7 +744,7 @@ try:
                 x=alt.X('Métrica:N', title=''),
                 y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
                 tooltip=['Métrica:N', 'Acertos:Q', 'Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
-            ).properties(height=260)
+            ).properties(height=220 if MODO_MOBILE else 260)
 
             text = alt.Chart(metrics_df).mark_text(dy=-8).encode(
                 x='Métrica:N',
