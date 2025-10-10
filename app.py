@@ -4,7 +4,7 @@ import numpy as np
 import altair as alt
 import re
 from datetime import timedelta, date
-from typing import Any, Tuple, Optional, List, Union
+from typing import Any, Tuple, Optional, List
 
 # ============================
 # Configuração da página
@@ -22,7 +22,7 @@ with col_m1:
 with col_m2:
     st.title("Análise de Previsões de Futebol")
 
-# --- Estilos mobile-first ---
+# --- Estilos mobile-first + cores ---
 st.markdown("""
 <style>
 html, body, .stApp { font-size: 16px; }
@@ -42,6 +42,18 @@ html, body, .stApp { font-size: 16px; }
 button, .stButton>button { border-radius: 12px; padding: 10px 14px; font-weight: 600; }
 div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; font-weight: 700; }
 .stDataFrame { overflow-x: auto; }
+
+/* ---------- Tipografia/cores dentro dos cards ---------- */
+.text-label { color:#9CA3AF; font-weight:600; }   /* rótulos (Prev., Placar, etc.) */
+.text-muted { color:#9CA3AF; }
+.text-strong { color:#E5E7EB; font-weight:700; }
+
+/* ÚNICA cor destaque (verde) para previsão, placar e sugestões */
+.accent-green { color:#22C55E; font-weight:700; }
+
+.value-soft { color:#E5E7EB; }                   /* claro suave */
+.info-line { margin-top:.25rem; }
+.info-line > .sep { color:#6B7280; margin: 0 .35rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -400,7 +412,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
     )
 
 # ============================
-# Cards (lista) — com avaliação + confiança
+# Cards (lista) — tudo verde nos valores
 # ============================
 def display_list_view(df: pd.DataFrame):
     for _, row in df.iterrows():
@@ -433,13 +445,32 @@ def display_list_view(df: pd.DataFrame):
                 if conf_txt: cap_line += f" • {conf_txt}"
                 st.caption(cap_line)
 
+                # === PREVISÃO/PLACAR (tudo verde nos valores) ===
                 st.markdown(
-                    f"**Prev.:** {market_label(row.get('result_predicted'))} {badge_res}  "
-                    f"•  **Placar:** {row.get('score_predicted','—')} {badge_score}"
+                    f'''
+                    <div class="info-line">
+                      <span class="text-label">Prev.:</span>
+                      <span class="accent-green">{market_label(row.get('result_predicted'))}</span> {badge_res}
+                      <span class="sep">•</span>
+                      <span class="text-label">Placar:</span>
+                      <span class="accent-green">{row.get('score_predicted','—')}</span> {badge_score}
+                    </div>
+                    ''',
+                    unsafe_allow_html=True
                 )
+
+                # === SUGESTÕES (mesma cor verde) ===
                 st.markdown(
-                    f"**💡 {FRIENDLY_COLS['bet_suggestion']}:** {aposta_txt} {badge_bet}\n\n"
-                    f"**⚽ {FRIENDLY_COLS['goal_bet_suggestion']}:** {gols_txt} {badge_goal}"
+                    f'''
+                    <div class="info-line">
+                      <span class="text-label">💡 {FRIENDLY_COLS['bet_suggestion']}:</span>
+                      <span class="accent-green">{aposta_txt}</span> {badge_bet}
+                      <span class="sep">•</span>
+                      <span class="text-label">⚽ {FRIENDLY_COLS['goal_bet_suggestion']}:</span>
+                      <span class="accent-green">{gols_txt}</span> {badge_goal}
+                    </div>
+                    ''',
+                    unsafe_allow_html=True
                 )
 
             with c2:
