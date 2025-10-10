@@ -406,6 +406,22 @@ def filtros_ui(df: pd.DataFrame) -> dict:
     bet_opts   = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
     goal_opts  = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
 
+    # --- DEFAULTS desejados ---
+    # Status: somente "Agendado" (normalizando chaves para cobrir nostarted/not_started/notstarted)
+    if status_opts:
+        agend_keys = {"nostarted", "not_started", "notstarted"}
+        status_default = [s for s in status_opts if _norm_status_key(s) in agend_keys]
+        status_default = status_default if status_default else status_opts  # fallback seguro
+    else:
+        status_default = []
+
+    # Modelo: somente "Combo"
+    if model_opts:
+        models_default = [m for m in model_opts if str(m).strip().lower() == "combo"]
+        models_default = models_default if models_default else model_opts  # fallback seguro
+    else:
+        models_default = []
+
     # datas
     if "date" in df.columns and df["date"].notna().any():
         min_date = df["date"].dropna().min().date()
@@ -420,15 +436,33 @@ def filtros_ui(df: pd.DataFrame) -> dict:
         # linha de filtros rápidos (chips)
         c1, c2 = st.columns(2) if MODO_MOBILE else st.columns(4)
         with c1:
-            status_sel = st.multiselect(FRIENDLY_COLS["status"], status_opts, default=status_opts, format_func=status_label)
+            status_sel = st.multiselect(
+                FRIENDLY_COLS["status"],
+                status_opts,
+                default=status_default,
+                format_func=status_label
+            )
         with c2:
-            models_sel = st.multiselect(FRIENDLY_COLS["model"], model_opts, default=model_opts)
+            models_sel = st.multiselect(
+                FRIENDLY_COLS["model"],
+                model_opts,
+                default=models_default
+            )
 
         c3, c4 = st.columns(2)
         with c3:
-            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
+            tournaments_sel = st.multiselect(
+                FRIENDLY_COLS["tournament_id"],
+                tourn_opts,
+                default=tourn_opts,
+                format_func=tournament_label
+            )
         with c4:
-            teams_sel = st.multiselect("Equipe (Casa ou Visitante)", team_opts, default=[] if MODO_MOBILE else team_opts)
+            teams_sel = st.multiselect(
+                "Equipe (Casa ou Visitante)",
+                team_opts,
+                default=[] if MODO_MOBILE else team_opts
+            )
 
         c5, c6 = st.columns(2)
         with c5:
@@ -436,20 +470,25 @@ def filtros_ui(df: pd.DataFrame) -> dict:
                 FRIENDLY_COLS["bet_suggestion"],
                 bet_opts,
                 default=[],
-                format_func=market_label,  # ⬅️ nomes amigáveis
+                format_func=market_label,
             )
         with c6:
             goal_sel = st.multiselect(
                 FRIENDLY_COLS["goal_bet_suggestion"],
                 goal_opts,
                 default=[],
-                format_func=market_label,  # ⬅️ nomes amigáveis
+                format_func=market_label,
             )
 
         # período e odds num segundo nível
         with st.expander("Ajustes finos (período e odds)", expanded=False):
             if min_date:
-                selected_date_range = st.date_input("Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+                selected_date_range = st.date_input(
+                    "Período",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date
+                )
             else:
                 selected_date_range = ()
 
@@ -560,7 +599,6 @@ def display_list_view(df: pd.DataFrame):
 
             st.markdown('</div>', unsafe_allow_html=True)
             st.write("")  # espaçamento
-
 
 
 # ============================
