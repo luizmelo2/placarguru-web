@@ -309,6 +309,25 @@ def eval_score_pred_row(row) -> Optional[bool]:
     except Exception:
         return None
 
+# --- helpers de avaliação por linha (jogo precisa estar finalizado) ---
+def _row_is_finished(row) -> bool:
+    if _norm_status_key(row.get("status", "")) not in FINISHED_TOKENS:
+        return False
+    rh, ra = row.get("result_home"), row.get("result_away")
+    return pd.notna(rh) and pd.notna(ra)
+
+def eval_bet_row(row) -> Optional[bool]:
+    """Avalia se a Sugestão de Aposta bateu (True), errou (False) ou não avaliável (None)."""
+    if not _row_is_finished(row):
+        return None
+    return evaluate_market(row.get("bet_suggestion"), row.get("result_home"), row.get("result_away"))
+
+def eval_goal_row(row) -> Optional[bool]:
+    """Avalia se a Sugestão de Gols bateu (True), errou (False) ou não avaliável (None)."""
+    if not _row_is_finished(row):
+        return None
+    return evaluate_market(row.get("goal_bet_suggestion"), row.get("result_home"), row.get("result_away"))
+
 # ===== helpers para exibir probabilidade + odd e checagem de colunas =====
 def _po(row, prob_key: str, odd_key: str) -> str:
     """Formata 'Prob - Odd' com segurança."""
@@ -518,15 +537,20 @@ def display_list_view(df: pd.DataFrame):
         title = f"{row.get('home','?')} vs {row.get('away','?')}"
         status_txt = status_label(row.get("status","N/A"))
 
-        # badges
-        hit_res = eval_result_pred_row(row)
+        # badges (resultado e placar)
+        hit_res   = eval_result_pred_row(row)
         hit_score = eval_score_pred_row(row)
         badge_res   = "✅" if hit_res is True else ("❌" if hit_res is False else "⏳")
         badge_score = "✅" if hit_score is True else ("❌" if hit_score is False else "⏳")
 
-        # Sugestões principais
+        # sugestões principais + avaliação
         aposta_txt = market_label(row.get('bet_suggestion', '—'))
-        gols_txt = market_label(row.get('goal_bet_suggestion', '—'))
+        gols_txt   = market_label(row.get('goal_bet_suggestion', '—'))
+
+        hit_bet  = eval_bet_row(row)
+        hit_goal = eval_goal_row(row)
+        badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "⏳")
+        badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "⏳")
 
         with st.container():
             st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -542,10 +566,10 @@ def display_list_view(df: pd.DataFrame):
                     f"•  **Placar:** {row.get('score_predicted','—')} {badge_score}"
                 )
 
-                # 💡 Sugestão de Aposta e ⚽ Sugestão de Gols com destaque
+                # 💡 Sugestão de Aposta e ⚽ Sugestão de Gols com avaliação
                 st.markdown(
-                    f"**💡 {FRIENDLY_COLS['bet_suggestion']}:** {aposta_txt}\n\n"
-                    f"**⚽ {FRIENDLY_COLS['goal_bet_suggestion']}:** {gols_txt}"
+                    f"**💡 {FRIENDLY_COLS['bet_suggestion']}:** {aposta_txt} {badge_bet}\n\n"
+                    f"**⚽ {FRIENDLY_COLS['goal_bet_suggestion']}:** {gols_txt} {badge_goal}"
                 )
 
             with c2:
@@ -560,8 +584,8 @@ def display_list_view(df: pd.DataFrame):
             with st.expander("Detalhes, Probabilidades & Odds"):
                 # Sugestões e 1x2
                 st.markdown(
-                    f"- **Sugestão:** {aposta_txt}\n"
-                    f"- **Sugestão de Gols:** {gols_txt}\n"
+                    f"- **Sugestão:** {aposta_txt} {badge_bet}\n"
+                    f"- **Sugestão de Gols:** {gols_txt} {badge_goal}\n"
                     f"- **Odds 1x2:** {fmt_odd(row.get('odds_H'))} / {fmt_odd(row.get('odds_D'))} / {fmt_odd(row.get('odds_A'))}\n"
                     f"- **Prob. (H/D/A):** {fmt_prob(row.get('prob_H'))} / {fmt_prob(row.get('prob_D'))} / {fmt_prob(row.get('prob_A'))}"
                 )
@@ -599,7 +623,6 @@ def display_list_view(df: pd.DataFrame):
 
             st.markdown('</div>', unsafe_allow_html=True)
             st.write("")  # espaçamento
-
 
 # ============================
 # App principal
