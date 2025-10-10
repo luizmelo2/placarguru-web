@@ -378,7 +378,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
 
         c3, c4 = st.columns(2)
         with c3:
-            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
+            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tournaments_sel_default := tourn_opts, format_func=tournament_label)
         with c4:
             teams_sel = st.multiselect("Equipe (Casa ou Visitante)", team_opts, default=[] if MODO_MOBILE else team_opts)
 
@@ -600,7 +600,6 @@ try:
         # ============================
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         # ============================
-        st.header("Predições Filtradas")
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
