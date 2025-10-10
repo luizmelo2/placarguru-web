@@ -75,7 +75,7 @@ div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; 
 /* ÚNICA cor destaque (verde) para previsão, placar, sugestões, probabilidades e odds */
 .accent-green { color:#22C55E; font-weight:700; }
 
-.value-soft { color:#E5E7EB; }                   /* claro suave */
+.value-soft { color:#E5E7EB; }
 .info-line { margin-top:.25rem; }
 .info-line > .sep { color:#6B7280; margin: 0 .35rem; }
 </style>
@@ -276,7 +276,7 @@ def _po(row, prob_key: str, odd_key: str) -> str:
 def _exists(df: pd.DataFrame, *cols) -> bool:
     return all(c in df.columns for c in cols)
 
-# ========= Estado via URL — garante lista =========
+# ========= Estado via URL — garante defaults =========
 params = st.query_params
 if "init_from_url" not in st.session_state:
     st.session_state.init_from_url = True
@@ -292,16 +292,29 @@ if "init_from_url" not in st.session_state:
 def load_data():
     file_path = "PrevisaoJogos.xlsx"
     df = pd.read_excel(file_path)
-    if "date" in df.columns: df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    for col in ["odds_H","odds_D","odds_A"]:
-        if col in df.columns: df[col] = pd.to_numeric(df[col], errors="coerce")
-    for col in ["result_home","result_away"]:
-        if col in df.columns: df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Tipos
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    for col in ["odds_H", "odds_D", "odds_A"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    for col in ["result_home", "result_away"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Normaliza sugestões que possam vir como dict {"market": "..."}
     def _only_market(x):
-        if isinstance(x, dict): return x.get("market")
+        if isinstance(x, dict):
+            return x.get("market")
         return x
-    for col in ["bet_suggestion","goal_bet_suggestion"]:
-        if col in df.columns: df[col] = df[col].apply(_only_market)
+
+    for col in ["bet_suggestion", "goal_bet_suggestion"]:
+        if col in df.columns:
+            df[col] = df[col].apply(_only_market)
+
     return df
 
 # ============================
@@ -309,28 +322,41 @@ def load_data():
 # ============================
 def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    for col in ["bet_suggestion","goal_bet_suggestion","result_predicted"]:
-        if col in out.columns: out[col] = out[col].map(FRIENDLY_MARKETS).fillna(out[col])
+
+    # Tradução de mercados
+    for col in ["bet_suggestion", "goal_bet_suggestion", "result_predicted"]:
+        if col in out.columns:
+            out[col] = out[col].map(FRIENDLY_MARKETS).fillna(out[col])
+
+    # Resultado Final (só quando finished)
     def _fmt_score(row):
         if _norm_status_key(row.get("status","")) in FINISHED_TOKENS:
             rh, ra = row.get("result_home"), row.get("result_away")
             if pd.notna(rh) and pd.notna(ra):
-                try: return f"{int(rh)}-{int(ra)}"
-                except Exception: return f"{rh}-{ra}"
+                try:
+                    return f"{int(rh)}-{int(ra)}"
+                except Exception:
+                    return f"{rh}-{ra}"
             return "N/A"
         return ""
-    if {"status","result_home","result_away"}.issubset(out.columns):
+    if {"status", "result_home", "result_away"}.issubset(out.columns):
         out["final_score"] = out.apply(_fmt_score, axis=1)
-    if "status" in out.columns: out["status"] = out["status"].apply(status_label)
-    if "tournament_id" in out.columns: out["tournament_id"] = out["tournament_id"].apply(tournament_label)
+
+    if "status" in out.columns:
+        out["status"] = out["status"].apply(status_label)
+    if "tournament_id" in out.columns:
+        out["tournament_id"] = out["tournament_id"].apply(tournament_label)
+
     return out.rename(columns=FRIENDLY_COLS)
 
-# ========= Badge de confiança =========
+# ========= Badge de confiança (opcional no caption) =========
 def conf_badge(row):
     vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A")]
     if any(pd.isna(v) for v in vals): return ""
-    try: conf = max(vals) * 100.0
-    except Exception: return ""
+    try:
+        conf = max(vals) * 100.0
+    except Exception:
+        return ""
     if np.isnan(conf): return ""
     if conf >= 65: return "🟢 Confiança: Alta"
     if conf >= 55: return "🟡 Confiança: Média"
@@ -343,7 +369,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
     tourn_opts  = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
     model_opts  = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
 
-    if {"home","away"}.issubset(df.columns):
+    if {"home", "away"}.issubset(df.columns):
         team_opts = pd.concat([df["home"], df["away"]], ignore_index=True).dropna()
         team_opts = sorted(team_opts.astype(str).unique())
     else:
@@ -352,9 +378,10 @@ def filtros_ui(df: pd.DataFrame) -> dict:
     bet_opts  = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
     goal_opts = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
 
-    # DEFAULTS (modelo via URL ou Combo)
+    # DEFAULTS: URL (?model=) ou "Combo"
     if model_opts:
-        wanted_models = [m for m in model_opts if str(m).strip().lower() in [v.strip().lower() for v in st.session_state.model_init_raw]]
+        url_models_lower = [v.strip().lower() for v in st.session_state.model_init_raw]
+        wanted_models = [m for m in model_opts if str(m).strip().lower() in url_models_lower]
         if not wanted_models:
             wanted_models = [m for m in model_opts if str(m).strip().lower() == "combo"]
         models_default = wanted_models or model_opts
@@ -372,19 +399,22 @@ def filtros_ui(df: pd.DataFrame) -> dict:
     container = target.expander("🔎 Filtros", expanded=not MODO_MOBILE)
 
     with container:
+        # Modelos
         c1 = st.columns(1)[0] if MODO_MOBILE else st.columns(2)[0]
         with c1:
             models_sel = st.multiselect(FRIENDLY_COLS["model"], model_opts, default=models_default)
 
+        # Torneios e Times
         c3, c4 = st.columns(2)
         with c3:
-            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tournaments_sel_default := tourn_opts, format_func=tournament_label)
+            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
         with c4:
             teams_sel = st.multiselect("Equipe (Casa ou Visitante)", team_opts, default=[] if MODO_MOBILE else team_opts)
 
-        # Busca rápida por equipe (robusto)
+        # Busca rápida por equipe
         q_team = st.text_input("🔍 Buscar equipe (Casa/Visitante)", placeholder="Digite parte do nome da equipe...")
 
+        # Sugestões
         c5, c6 = st.columns(2)
         with c5:
             bet_sel = st.multiselect(FRIENDLY_COLS["bet_suggestion"], bet_opts, default=[], format_func=market_label)
@@ -429,7 +459,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
 
     # Reflete estado na URL — apenas modelo
     try:
-        st.query_params.update({"model": models_sel})
+        st.query_params.update({"model": models_sel or []})
     except Exception:
         pass
 
@@ -440,7 +470,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
     )
 
 # ============================
-# Cards (lista) — verde nos valores (inclui Prob/Odds)
+# Cards (lista) — valores verdes (inclui Prob/Odds)
 # ============================
 def display_list_view(df: pd.DataFrame):
     for _, row in df.iterrows():
@@ -473,7 +503,7 @@ def display_list_view(df: pd.DataFrame):
                 if conf_txt: cap_line += f" • {conf_txt}"
                 st.caption(cap_line)
 
-                # === PREVISÃO/PLACAR (tudo verde nos valores) ===
+                # Previsão/Placar (valores verdes)
                 st.markdown(
                     f'''
                     <div class="info-line">
@@ -487,7 +517,7 @@ def display_list_view(df: pd.DataFrame):
                     unsafe_allow_html=True
                 )
 
-                # === SUGESTÕES (mesma cor verde) ===
+                # Sugestões (valores verdes)
                 st.markdown(
                     f'''
                     <div class="info-line">
@@ -508,7 +538,7 @@ def display_list_view(df: pd.DataFrame):
                     final_txt = f"{int(rh)}-{int(ra)}" if pd.notna(rh) and pd.notna(ra) else "—"
                     st.markdown(f"**Final:** {final_txt}")
 
-            # ======== Detalhes com Prob/Odds em VERDE ========
+            # Detalhes com Prob/Odds (valores verdes)
             with st.expander("Detalhes, Probabilidades & Odds"):
                 st.markdown(
                     f"""
@@ -522,6 +552,7 @@ def display_list_view(df: pd.DataFrame):
 
                 st.markdown("---")
                 st.markdown("**Over/Under (Prob. — Odd)**")
+
                 under_lines = []
                 if _exists(df, "prob_under_0_5"): under_lines.append(f"- **Under 0.5:** {_po(row, 'prob_under_0_5', 'odds_match_goals_0.5_under')}")
                 if _exists(df, "prob_under_1_5"): under_lines.append(f"- **Under 1.5:** {_po(row, 'prob_under_1_5', 'odds_match_goals_1.5_under')}")
@@ -567,27 +598,35 @@ try:
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
+
         if tournaments_sel and "tournament_id" in df.columns:
             final_mask &= df["tournament_id"].isin(tournaments_sel)
+
         if models_sel and "model" in df.columns:
             final_mask &= df["model"].isin(models_sel)
-        if teams_sel and {"home","away"}.issubset(df.columns):
+
+        if teams_sel and {"home", "away"}.issubset(df.columns):
             home_ser = df["home"].astype(str)
             away_ser = df["away"].astype(str)
             final_mask &= (home_ser.isin(teams_sel) | away_ser.isin(teams_sel))
-        if q_team and {"home","away"}.issubset(df.columns):
+
+        if q_team and {"home", "away"}.issubset(df.columns):
             q = str(q_team).strip()
             if q:
                 home_contains = df["home"].astype(str).str.contains(q, case=False, na=False)
                 away_contains = df["away"].astype(str).str.contains(q, case=False, na=False)
                 final_mask &= (home_contains | away_contains)
+
         if bet_sel and "bet_suggestion" in df.columns:
             final_mask &= df["bet_suggestion"].astype(str).isin([str(x) for x in bet_sel])
+
         if goal_sel and "goal_bet_suggestion" in df.columns:
             final_mask &= df["goal_bet_suggestion"].astype(str).isin([str(x) for x in goal_sel])
-        if selected_date_range and isinstance(selected_date_range, (list,tuple)) and len(selected_date_range)==2 and "date" in df.columns:
+
+        if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2 and "date" in df.columns:
             start_date, end_date = selected_date_range
             final_mask &= (df["date"].dt.date.between(start_date, end_date)) | (df["date"].isna())
+
         if "odds_H" in df.columns:
             final_mask &= ((df["odds_H"] >= selH[0]) & (df["odds_H"] <= selH[1])) | (df["odds_H"].isna())
         if "odds_D" in df.columns:
@@ -597,9 +636,7 @@ try:
 
         df_filtered = df[final_mask]
 
-        # ============================
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
-        # ============================
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
@@ -685,6 +722,7 @@ try:
                                         score_eval.loc[idx] = None
                             else:
                                 score_eval.loc[idx] = None
+
                     score_correct = score_eval == True
                     score_wrong   = score_eval == False
 
@@ -714,6 +752,7 @@ try:
                         "Acertos": [c_pred, c_bet, c_goal],
                         "Total Avaliado": [t_pred, t_bet, t_goal],
                     })
+
                     chart = alt.Chart(metrics_df).mark_bar().encode(
                         x=alt.X('Métrica:N', title=''),
                         y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
