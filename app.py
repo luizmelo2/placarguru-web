@@ -155,8 +155,23 @@ PRED_NORMALIZER = {
 # ============================
 # Helpers
 # ============================
-def market_label(v: Any) -> Any:
-    return FRIENDLY_MARKETS.get(v, v)
+def is_na_like(x: Any) -> bool:
+    if x is None:
+        return True
+    if isinstance(x, float) and np.isnan(x):
+        return True
+    if isinstance(x, str) and x.strip().lower() in {"", "nan", "none", "null"}:
+        return True
+    return False
+
+def safe_text(v: Any, default: str = "Sem previsão calculada") -> str:
+    return default if is_na_like(v) else str(v)
+
+def market_label(v: Any, default: str = "Sem previsão calculada") -> str:
+    """Mapa amigável com fallback caso venha NaN/None/vazio."""
+    if is_na_like(v):
+        return default
+    return FRIENDLY_MARKETS.get(v, str(v))
 
 def _canon_tourn_key(x: Any):
     if x is None or (isinstance(x, float) and np.isnan(x)): return None
@@ -240,6 +255,12 @@ def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
         try: return int(m.group(1)), int(m.group(2))
         except Exception: return (None, None)
     return (None, None)
+
+def fmt_score_pred_text(x: Any, default: str = "Sem previsão calculada") -> str:
+    ph, pa = parse_score_pred(x)
+    if ph is None or pa is None:
+        return default
+    return f"{ph}-{pa}"
 
 def eval_result_pred_row(row) -> Optional[bool]:
     if _norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
@@ -328,10 +349,10 @@ def load_data(file_path: str, file_mtime: float) -> pd.DataFrame:
 def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
 
-    # Tradução de mercados
+    # Tradução de mercados + fallback amigável
     for col in ["bet_suggestion", "goal_bet_suggestion", "result_predicted"]:
         if col in out.columns:
-            out[col] = out[col].map(FRIENDLY_MARKETS).fillna(out[col])
+            out[col] = out[col].apply(lambda v: market_label(v))
 
     # Resultado Final (só quando finished)
     def _fmt_score(row):
@@ -351,6 +372,10 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
         out["status"] = out["status"].apply(status_label)
     if "tournament_id" in out.columns:
         out["tournament_id"] = out["tournament_id"].apply(tournament_label)
+
+    # Placar Previsto com fallback amigável
+    if "score_predicted" in out.columns:
+        out["score_predicted"] = out["score_predicted"].apply(lambda x: fmt_score_pred_text(x))
 
     return out.rename(columns=FRIENDLY_COLS)
 
@@ -489,14 +514,18 @@ def display_list_view(df: pd.DataFrame):
         badge_res   = "✅" if hit_res is True else ("❌" if hit_res is False else "⏳")
         badge_score = "✅" if hit_score is True else ("❌" if hit_score is False else "⏳")
 
-        # sugestões + avaliação
-        aposta_txt = market_label(row.get('bet_suggestion', '—'))
-        gols_txt   = market_label(row.get('goal_bet_suggestion', '—'))
+        # sugestões + avaliação (com fallback amigável)
+        aposta_txt = market_label(row.get('bet_suggestion'))
+        gols_txt   = market_label(row.get('goal_bet_suggestion'))
 
         hit_bet  = eval_bet_row(row)
         hit_goal = eval_goal_row(row)
         badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "⏳")
         badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "⏳")
+
+        # previsões com fallback amigável
+        result_txt = market_label(row.get('result_predicted'))
+        score_txt  = fmt_score_pred_text(row.get('score_predicted'))
 
         with st.container():
             st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -508,21 +537,21 @@ def display_list_view(df: pd.DataFrame):
                 if conf_txt: cap_line += f" • {conf_txt}"
                 st.caption(cap_line)
 
-                # Previsão/Placar (valores verdes)
+                # Previsão/Placar (valores verdes + fallback)
                 st.markdown(
                     f'''
                     <div class="info-line">
                       <span class="text-label">Prev.:</span>
-                      {green_html(market_label(row.get('result_predicted')))} {badge_res}
+                      {green_html(result_txt)} {badge_res}
                       <span class="sep">•</span>
                       <span class="text-label">Placar:</span>
-                      {green_html(row.get('score_predicted','—'))} {badge_score}
+                      {green_html(score_txt)} {badge_score}
                     </div>
                     ''',
                     unsafe_allow_html=True
                 )
 
-                # Sugestões (valores verdes)
+                # Sugestões (valores verdes + fallback)
                 st.markdown(
                     f'''
                     <div class="info-line">
