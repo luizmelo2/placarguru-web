@@ -3,8 +3,10 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import re
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from typing import Any, Tuple, Optional, List
+import os
+from zoneinfo import ZoneInfo  # Python 3.9+
 
 # ============================
 # Configuração da página
@@ -288,9 +290,12 @@ if "init_from_url" not in st.session_state:
 # ============================
 # Carregamento e normalização
 # ============================
-@st.cache_data
-def load_data():
-    file_path = "PrevisaoJogos.xlsx"
+@st.cache_data(show_spinner=False)
+def load_data(file_path: str, file_mtime: float) -> pd.DataFrame:
+    """
+    Carrega o Excel. O parâmetro file_mtime é usado para invalidar o cache
+    quando o arquivo mudar.
+    """
     df = pd.read_excel(file_path)
 
     # Tipos
@@ -584,7 +589,14 @@ def display_list_view(df: pd.DataFrame):
 # App principal
 # ============================
 try:
-    df = load_data()
+    file_path = "PrevisaoJogos.xlsx"
+    # mtime para cache e para exibição
+    file_mtime = os.path.getmtime(file_path)
+    tz_sp = ZoneInfo("America/Sao_Paulo")
+    last_update_dt = datetime.fromtimestamp(file_mtime, tz=tz_sp)
+
+    df = load_data(file_path, file_mtime)
+
     if df.empty:
         st.error("O arquivo `PrevisaoJogos.xlsx` está vazio ou não pôde ser lido.")
     else:
@@ -764,6 +776,17 @@ try:
                         text=alt.Text('Acerto (%):Q', format='.1f')
                     )
                     st.altair_chart(chart + text, use_container_width=True)
+
+        # --- Rodapé: Última Atualização ---
+        st.markdown(
+            """
+            <hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />
+            <div style="color:#9CA3AF; font-size:0.95rem;">
+              <strong>Última atualização:</strong> %s
+            </div>
+            """ % last_update_dt.strftime("%d/%m/%Y %H:%M"),
+            unsafe_allow_html=True
+        )
 
 except FileNotFoundError:
     st.error("FATAL: `PrevisaoJogos.xlsx` não encontrado.")
