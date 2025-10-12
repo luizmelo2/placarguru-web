@@ -25,7 +25,7 @@ with col_m2:
     st.title("Placar Guru")
 
 # --- Estilos mobile-first + cores ---
-st.markdown("""
+st.markdown('''
 <style>
 html, body, .stApp { font-size: 16px; }
 @media (max-width: 768px) {
@@ -81,7 +81,7 @@ div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; 
 .info-line { margin-top:.25rem; }
 .info-line > .sep { color:#6B7280; margin: 0 .35rem; }
 </style>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 # ============================
 # Dicionários Amigáveis
@@ -303,7 +303,8 @@ def _exists(df: pd.DataFrame, *cols) -> bool:
 params = st.query_params
 if "init_from_url" not in st.session_state:
     st.session_state.init_from_url = True
-    raw_model = params.get("model", ["Combo"])
+    raw_model = params.get("model", ["Combo"]
+    )
     if isinstance(raw_model, str):
         raw_model = [raw_model]
     st.session_state.model_init_raw: List[str] = list(raw_model)
@@ -381,7 +382,7 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
 
 # ========= Badge de confiança (opcional no caption) =========
 def conf_badge(row):
-    vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A")]
+    vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A") ]
     if any(pd.isna(v) for v in vals): return ""
     try:
         conf = max(vals) * 100.0
@@ -575,12 +576,12 @@ def display_list_view(df: pd.DataFrame):
             # Detalhes com Prob/Odds (valores verdes)
             with st.expander("Detalhes, Probabilidades & Odds"):
                 st.markdown(
-                    f"""
+                    f'''
                     - **Sugestão:** {green_html(aposta_txt)} {badge_bet}  
                     - **Sugestão de Gols:** {green_html(gols_txt)} {badge_goal}  
                     - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}  
                     - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
-                    """,
+                    ''',
                     unsafe_allow_html=True
                 )
 
@@ -721,51 +722,16 @@ try:
                             use_container_width=True, hide_index=True
                         )
 
-                    # ---------- KPIs e gráfico (apenas finalizados) ----------
+                    # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
                     rh = df_fin.get("result_home", pd.Series(index=df_fin.index, dtype="float"))
                     ra = df_fin.get("result_away", pd.Series(index=df_fin.index, dtype="float"))
                     mask_valid = rh.notna() & ra.notna()
 
+                    # Códigos reais H/D/A
                     real_code = pd.Series(index=df_fin.index, dtype="object")
                     real_code.loc[mask_valid & (rh > ra)] = "H"
                     real_code.loc[mask_valid & (rh == ra)] = "D"
                     real_code.loc[mask_valid & (rh < ra)] = "A"
-
-                    pred_code = normalize_pred_code(df_fin.get("result_predicted", pd.Series(index=df_fin.index, dtype="object")))
-                    pred_correct = mask_valid & (pred_code == real_code)
-                    pred_wrong   = mask_valid & pred_code.notna() & real_code.notna() & (pred_code != real_code)
-
-                    bet_codes = df_fin.get("bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
-                    bet_eval = pd.Series(index=df_fin.index, dtype="object")
-                    for idx in df_fin.index:
-                        bet_eval.loc[idx] = evaluate_market(bet_codes.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
-                    bet_correct = bet_eval == True
-                    bet_wrong   = bet_eval == False
-
-                    goal_codes = df_fin.get("goal_bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
-                    goal_eval = pd.Series(index=df_fin.index, dtype="object")
-                    for idx in df_fin.index:
-                        goal_eval.loc[idx] = evaluate_market(goal_codes.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
-                    goal_correct = goal_eval == True
-                    goal_wrong   = goal_eval == False
-
-                    score_eval = pd.Series(index=df_fin.index, dtype="object")
-                    if "score_predicted" in df_fin.columns:
-                        for idx in df_fin.index:
-                            if mask_valid.loc[idx]:
-                                ph, pa = parse_score_pred(df_fin.at[idx, "score_predicted"])
-                                if ph is None or pa is None:
-                                    score_eval.loc[idx] = None
-                                else:
-                                    try:
-                                        score_eval.loc[idx] = (int(rh.loc[idx]) == int(ph)) and (int(ra.loc[idx]) == int(pa))
-                                    except Exception:
-                                        score_eval.loc[idx] = None
-                            else:
-                                score_eval.loc[idx] = None
-
-                    score_correct = score_eval == True
-                    score_wrong   = score_eval == False
 
                     def compute_acc(ok_mask: pd.Series, bad_mask: pd.Series):
                         total = int((ok_mask | bad_mask).sum())
@@ -773,47 +739,193 @@ try:
                         acc = (correct / total * 100.0) if total > 0 else np.nan
                         return acc, correct, total
 
-                    acc_pred, c_pred, t_pred = compute_acc(pred_correct, pred_wrong)
-                    acc_bet,  c_bet,  t_bet  = compute_acc(bet_correct,  bet_wrong)
-                    acc_goal, c_goal, t_goal = compute_acc(goal_correct, goal_wrong)
+                    selected_models = list(df_fin["model"].dropna().unique()) if "model" in df_fin.columns else []
+                    multi_model = len(selected_models) > 1
 
-                    st.subheader("Percentual de acerto (apenas finalizados)")
-                    k1, k2, k3 = (st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(3)
-                    k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
-                    k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
-                    k3.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
+                    if multi_model:
+                        rows = []
+                        for m in selected_models:
+                            sub = df_fin[df_fin["model"] == m]
+                            if sub.empty:
+                                continue
 
-                    metrics_df = pd.DataFrame({
-                        "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão de Gols"],
-                        "Acerto (%)": [
-                            0 if np.isnan(acc_pred) else round(acc_pred, 1),
-                            0 if np.isnan(acc_bet) else round(acc_bet, 1),
-                            0 if np.isnan(acc_goal) else round(acc_goal, 1),
-                        ],
-                        "Acertos": [c_pred, c_bet, c_goal],
-                        "Total Avaliado": [t_pred, t_bet, t_goal],
-                    })
+                            rh_s = sub.get("result_home", pd.Series(index=sub.index, dtype="float"))
+                            ra_s = sub.get("result_away", pd.Series(index=sub.index, dtype="float"))
+                            mv_s = rh_s.notna() & ra_s.notna()
 
-                    chart = alt.Chart(metrics_df).mark_bar().encode(
-                        x=alt.X('Métrica:N', title=''),
-                        y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
-                        tooltip=['Métrica:N', 'Acertos:Q', 'Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
-                    ).properties(height=220 if MODO_MOBILE else 260)
-                    text = alt.Chart(metrics_df).mark_text(dy=-8).encode(
-                        x='Métrica:N',
-                        y='Acerto (%):Q',
-                        text=alt.Text('Acerto (%):Q', format='.1f')
-                    )
-                    st.altair_chart(chart + text, use_container_width=True)
+                            real_s = pd.Series(index=sub.index, dtype="object")
+                            real_s.loc[mv_s & (rh_s > ra_s)] = "H"
+                            real_s.loc[mv_s & (rh_s == ra_s)] = "D"
+                            real_s.loc[mv_s & (rh_s < ra_s)] = "A"
+
+                            # Resultado Previsto
+                            pred_code_s = normalize_pred_code(sub.get("result_predicted", pd.Series(index=sub.index, dtype="object")))
+                            pred_correct_s = mv_s & (pred_code_s == real_s)
+                            pred_wrong_s   = mv_s & pred_code_s.notna() & real_s.notna() & (pred_code_s != real_s)
+
+                            # Sugestão de Aposta
+                            bet_codes_s = sub.get("bet_suggestion", pd.Series(index=sub.index, dtype="object"))
+                            bet_eval_s = pd.Series(index=sub.index, dtype="object")
+                            for idx in sub.index:
+                                bet_eval_s.loc[idx] = evaluate_market(bet_codes_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
+                            bet_correct_s = bet_eval_s == True
+                            bet_wrong_s   = bet_eval_s == False
+
+                            # Sugestão de Gols
+                            goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
+                            goal_eval_s = pd.Series(index=sub.index, dtype="object")
+                            for idx in sub.index:
+                                goal_eval_s.loc[idx] = evaluate_market(goal_codes_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
+                            goal_correct_s = goal_eval_s == True
+                            goal_wrong_s   = goal_eval_s == False
+
+                            # Placar Previsto
+                            score_eval_s = pd.Series(index=sub.index, dtype="object")
+                            if "score_predicted" in sub.columns:
+                                for idx in sub.index:
+                                    if mv_s.loc[idx]:
+                                        ph, pa = parse_score_pred(sub.at[idx, "score_predicted"])
+                                        if ph is None or pa is None:
+                                            score_eval_s.loc[idx] = None
+                                        else:
+                                            try:
+                                                score_eval_s.loc[idx] = (int(rh_s.loc[idx]) == int(ph)) and (int(ra_s.loc[idx]) == int(pa))
+                                            except Exception:
+                                                score_eval_s.loc[idx] = None
+                                    else:
+                                        score_eval_s.loc[idx] = None
+                            score_correct_s = score_eval_s == True
+                            score_wrong_s   = score_eval_s == False
+
+                            # Métricas por modelo
+                            acc_pred, c_pred, t_pred = compute_acc(pred_correct_s, pred_wrong_s)
+                            acc_bet,  c_bet,  t_bet  = compute_acc(bet_correct_s,  bet_wrong_s)
+                            acc_goal, c_goal, t_goal = compute_acc(goal_correct_s, goal_wrong_s)
+                            acc_score, c_score, t_score = compute_acc(score_correct_s, score_wrong_s)
+
+                            rows += [
+                                {"Modelo": m, "Métrica": "Resultado",            "Acerto (%)": 0 if np.isnan(acc_pred) else round(acc_pred,1), "Acertos": c_pred,  "Total Avaliado": t_pred},
+                                {"Modelo": m, "Métrica": "Sugestão de Aposta",   "Acerto (%)": 0 if np.isnan(acc_bet)  else round(acc_bet,1),  "Acertos": c_bet,   "Total Avaliado": t_bet},
+                                {"Modelo": m, "Métrica": "Sugestão de Gols",     "Acerto (%)": 0 if np.isnan(acc_goal) else round(acc_goal,1), "Acertos": c_goal,  "Total Avaliado": t_goal},
+                                {"Modelo": m, "Métrica": "Placar Previsto",      "Acerto (%)": 0 if np.isnan(acc_score) else round(acc_score,1), "Acertos": c_score, "Total Avaliado": t_score},
+                            ]
+
+                        metrics_df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Modelo","Métrica","Acerto (%)","Acertos","Total Avaliado"])
+
+                        st.subheader("Percentual de acerto por modelo (apenas finalizados)")
+                        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+
+                        # Gráfico de barras agrupadas por modelo
+                        if not metrics_df.empty:
+                            chart = (
+                                alt.Chart(metrics_df)
+                                .mark_bar()
+                                .encode(
+                                    x=alt.X('Métrica:N', title=''),
+                                    y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0,100])),
+                                    color='Modelo:N',
+                                    xOffset='Modelo:N',
+                                    tooltip=['Modelo:N','Métrica:N','Acertos:Q','Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
+                                )
+                                .properties(height=240 if MODO_MOBILE else 280)
+                            )
+                            text = (
+                                alt.Chart(metrics_df)
+                                .mark_text(dy=-8)
+                                .encode(
+                                    x='Métrica:N',
+                                    y='Acerto (%):Q',
+                                    detail='Modelo:N',
+                                    text=alt.Text('Acerto (%):Q', format='.1f'),
+                                    color='Modelo:N'
+                                )
+                            )
+                            st.altair_chart(chart + text, use_container_width=True)
+
+                    else:
+                        # Um único modelo/seleção: mantém comportamento agregado
+                        pred_code = normalize_pred_code(df_fin.get("result_predicted", pd.Series(index=df_fin.index, dtype="object")))
+                        pred_correct = mask_valid & (pred_code == real_code)
+                        pred_wrong   = mask_valid & pred_code.notna() & real_code.notna() & (pred_code != real_code)
+
+                        bet_codes = df_fin.get("bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
+                        bet_eval = pd.Series(index=df_fin.index, dtype="object")
+                        for idx in df_fin.index:
+                            bet_eval.loc[idx] = evaluate_market(bet_codes.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
+                        bet_correct = bet_eval == True
+                        bet_wrong   = bet_eval == False
+
+                        goal_codes = df_fin.get("goal_bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
+                        goal_eval = pd.Series(index=df_fin.index, dtype="object")
+                        for idx in df_fin.index:
+                            goal_eval.loc[idx] = evaluate_market(goal_codes.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
+                        goal_correct = goal_eval == True
+                        goal_wrong   = goal_eval == False
+
+                        score_eval = pd.Series(index=df_fin.index, dtype="object")
+                        if "score_predicted" in df_fin.columns:
+                            for idx in df_fin.index:
+                                if mask_valid.loc[idx]:
+                                    ph, pa = parse_score_pred(df_fin.at[idx, "score_predicted"])
+                                    if ph is None or pa is None:
+                                        score_eval.loc[idx] = None
+                                    else:
+                                        try:
+                                            score_eval.loc[idx] = (int(rh.loc[idx]) == int(ph)) and (int(ra.loc[idx]) == int(pa))
+                                        except Exception:
+                                            score_eval.loc[idx] = None
+                                else:
+                                    score_eval.loc[idx] = None
+                        score_correct = score_eval == True
+                        score_wrong   = score_eval == False
+
+                        def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series):
+                            total = int((ok_mask | bad_mask).sum())
+                            correct = int(ok_mask.sum())
+                            acc = (correct / total * 100.0) if total > 0 else np.nan
+                            return acc, correct, total
+
+                        acc_pred, c_pred, t_pred = compute_acc2(pred_correct, pred_wrong)
+                        acc_bet,  c_bet,  t_bet  = compute_acc2(bet_correct,  bet_wrong)
+                        acc_goal, c_goal, t_goal = compute_acc2(goal_correct, goal_wrong)
+
+                        st.subheader("Percentual de acerto (apenas finalizados)")
+                        k1, k2, k3 = (st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(3)
+                        k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
+                        k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
+                        k3.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
+
+                        metrics_df = pd.DataFrame({
+                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão de Gols"],
+                            "Acerto (%)": [
+                                0 if np.isnan(acc_pred) else round(acc_pred, 1),
+                                0 if np.isnan(acc_bet) else round(acc_bet, 1),
+                                0 if np.isnan(acc_goal) else round(acc_goal, 1),
+                            ],
+                            "Acertos": [c_pred, c_bet, c_goal],
+                            "Total Avaliado": [t_pred, t_bet, t_goal],
+                        })
+
+                        chart = alt.Chart(metrics_df).mark_bar().encode(
+                            x=alt.X('Métrica:N', title=''),
+                            y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
+                            tooltip=['Métrica:N', 'Acertos:Q', 'Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
+                        ).properties(height=220 if MODO_MOBILE else 260)
+                        text = alt.Chart(metrics_df).mark_text(dy=-8).encode(
+                            x='Métrica:N',
+                            y='Acerto (%):Q',
+                            text=alt.Text('Acerto (%):Q', format='.1f')
+                        )
+                        st.altair_chart(chart + text, use_container_width=True)
 
         # --- Rodapé: Última Atualização ---
         st.markdown(
-            """
+            '''
             <hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />
             <div style="color:#9CA3AF; font-size:0.95rem;">
               <strong>Última atualização:</strong> %s
             </div>
-            """ % last_update_dt.strftime("%d/%m/%Y %H:%M"),
+            ''' % last_update_dt.strftime("%d/%m/%Y %H:%M"),
             unsafe_allow_html=True
         )
 
