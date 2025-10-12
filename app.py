@@ -480,7 +480,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
 def display_list_view(df: pd.DataFrame):
     for _, row in df.iterrows():
         dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in df.columns and pd.notna(row["date"])) else "N/A"
-        title = f"{row.get('home','?')} vs {row.get('away','?')}"
+        title = f"{dt_txt} • {row.get('home','?')} vs {row.get('away','?')}"
         status_txt = status_label(row.get("status","N/A"))
 
         # badges (resultado e placar)
@@ -504,7 +504,7 @@ def display_list_view(df: pd.DataFrame):
             with c1:
                 st.markdown(f"**{title}**")
                 conf_txt = conf_badge(row)
-                cap_line = f"{dt_txt} • {tournament_label(row.get('tournament_id'))} • {row.get('model','—')}"
+                cap_line = f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}"
                 if conf_txt: cap_line += f" • {conf_txt}"
                 st.caption(cap_line)
 
