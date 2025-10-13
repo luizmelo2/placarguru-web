@@ -452,22 +452,24 @@ def filtros_ui(df: pd.DataFrame) -> dict:
         with c6:
             goal_sel = st.multiselect(FRIENDLY_COLS["goal_bet_suggestion"], goal_opts, default=[], format_func=market_label)
 
-        # Período e Odds
-        with st.expander("Período e Odds", expanded=False):
+        # Período
+        with st.expander("Período", expanded=False):
             selected_date_range = ()
             if min_date:
                 today = date.today()
-                cc1, cc2, cc3, cc4 = st.columns(4)
+                cc1, cc2, cc3, cc4, cc5  = st.columns(5)
                 with cc1:
                     if st.button("Hoje"): selected_date_range = (today, today)
                 with cc2:
                     if st.button("Próx. 3 dias"): selected_date_range = (today, today + timedelta(days=3))
                 with cc3:
+                    if st.button("Últimos 3 dias"): selected_date_range = (today, today + timedelta(days=-3))
+                with cc4:
                     if st.button("Semana"):
                         start = today - timedelta(days=today.weekday())
                         end = start + timedelta(days=6)
                         selected_date_range = (start, end)
-                with cc4:
+                with cc5:
                     if st.button("Limpar"): selected_date_range = ()
 
                 if not selected_date_range:
@@ -480,13 +482,19 @@ def filtros_ui(df: pd.DataFrame) -> dict:
                 s = series.dropna()
                 return (float(s.min()), float(s.max())) if not s.empty else default
 
+
+        # Odds
+        with st.expander("Odds", expanded=False):
             selH = selD = selA = (0.0, 1.0)
             if "odds_H" in df.columns:
-                minH, maxH = _range(df["odds_H"]); selH = st.slider(FRIENDLY_COLS["odds_H"], minH, maxH, (minH, maxH))
+                minH, maxH = _range(df["odds_H"]);
+                selH = st.slider(FRIENDLY_COLS["odds_H"], minH, maxH, (minH, maxH))
             if "odds_D" in df.columns:
-                minD, maxD = _range(df["odds_D"]); selD = st.slider(FRIENDLY_COLS["odds_D"], minD, maxD, (minD, maxD))
+                minD, maxD = _range(df["odds_D"]);
+                selD = st.slider(FRIENDLY_COLS["odds_D"], minD, maxD, (minD, maxD))
             if "odds_A" in df.columns:
-                minA, maxA = _range(df["odds_A"]); selA = st.slider(FRIENDLY_COLS["odds_A"], minA, maxA, (minA, maxA))
+                minA, maxA = _range(df["odds_A"]);
+                selA = st.slider(FRIENDLY_COLS["odds_A"], minA, maxA, (minA, maxA))
 
     # Reflete estado na URL — apenas modelo
     try:
