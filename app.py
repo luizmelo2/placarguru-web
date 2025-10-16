@@ -463,7 +463,7 @@ def filtros_ui(df: pd.DataFrame) -> dict:
                 with cc2:
                     if st.button("Próx. 3 dias"): selected_date_range = (today, today + timedelta(days=3))
                 with cc3:
-                    if st.button("Últimos 3 dias"): selected_date_range = (today, today - timedelta(days=3))
+                    if st.button("Últimos 3 dias"): selected_date_range = (today - timedelta(days=3), today)
                 with cc4:
                     if st.button("Semana"):
                         start = today - timedelta(days=today.weekday())
