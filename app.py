@@ -318,8 +318,7 @@ def load_data(file_path: str, file_mtime: float) -> pd.DataFrame:
     Carrega o Excel. O parâmetro file_mtime é usado para invalidar o cache
     quando o arquivo mudar.
     """
-    file_github = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
-    df = pd.read_excel(file_github)
+    df = pd.read_excel(file_path)
 
     # Tipos
     if "date" in df.columns:
@@ -628,7 +627,9 @@ def display_list_view(df: pd.DataFrame):
 # App principal
 # ============================
 try:
-    file_path = "PrevisaoJogos.xlsx"
+    #file_path = "PrevisaoJogos.xlsx"
+    file_path = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
+
     # mtime para cache e para exibição
     file_mtime = os.path.getmtime(file_path)
     tz_sp = ZoneInfo("America/Sao_Paulo")
