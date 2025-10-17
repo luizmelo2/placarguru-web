@@ -8,6 +8,12 @@ from typing import Any, Tuple, Optional, List
 import os
 from zoneinfo import ZoneInfo  # Python 3.9+
 
+# --- novos imports para baixar a release e controlar cache/tempo ---
+import requests
+import tempfile, time
+from io import BytesIO
+from email.utils import parsedate_to_datetime
+
 # ============================
 # Configuração da página
 # ============================
@@ -303,11 +309,27 @@ def _exists(df: pd.DataFrame, *cols) -> bool:
 params = st.query_params
 if "init_from_url" not in st.session_state:
     st.session_state.init_from_url = True
-    raw_model = params.get("model", ["Combo"]
-    )
+    raw_model = params.get("model", ["Combo"])
     if isinstance(raw_model, str):
         raw_model = [raw_model]
     st.session_state.model_init_raw: List[str] = list(raw_model)
+
+# ============================
+# Download da release (GitHub)
+# ============================
+RELEASE_URL = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
+
+@st.cache_data(show_spinner=False)
+def fetch_release_file(url: str):
+    """
+    Baixa o arquivo da Release pública do GitHub.
+    Retorna: (bytes, etag, last_modified)
+    """
+    r = requests.get(url, timeout=60, verify=False)
+    r.raise_for_status()
+    etag = r.headers.get("ETag", "")
+    last_mod = r.headers.get("Last-Modified", "")
+    return r.content, etag, last_mod
 
 # ============================
 # Carregamento e normalização
@@ -627,15 +649,27 @@ def display_list_view(df: pd.DataFrame):
 # App principal
 # ============================
 try:
-    #file_path = "PrevisaoJogos.xlsx"
-    file_path = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
+    # 1) Baixa o Excel da release
+    content, etag, last_mod = fetch_release_file(RELEASE_URL)
 
-    # mtime para cache e para exibição
-    file_mtime = os.path.getmtime(file_path)
+    # 2) Converte Last-Modified em datetime na sua TZ
     tz_sp = ZoneInfo("America/Sao_Paulo")
-    last_update_dt = datetime.fromtimestamp(file_mtime, tz=tz_sp)
+    if last_mod:
+        try:
+            last_update_dt = parsedate_to_datetime(last_mod).astimezone(tz_sp)
+        except Exception:
+            last_update_dt = datetime.now(tz=tz_sp)
+    else:
+        last_update_dt = datetime.now(tz=tz_sp)
 
-    df = load_data(file_path, file_mtime)
+    # 3) Usa o mesmo pipeline de normalização já existente no load_data()
+    #    (gravando em arquivo temporário só para reaproveitar a função)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    file_mtime = time.time()  # apenas para invalidar cache quando baixar de novo
+    df = load_data(tmp_path, file_mtime)
 
     if df.empty:
         st.error("O arquivo `PrevisaoJogos.xlsx` está vazio ou não pôde ser lido.")
@@ -928,7 +962,7 @@ try:
                         )
                         st.altair_chart(chart + text, use_container_width=True)
 
-        # --- Rodapé: Última Atualização ---
+        # --- Rodapé: Última Atualização (da release/servidor GitHub) ---
         st.markdown(
             '''
             <hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />
@@ -938,6 +972,10 @@ try:
             ''' % last_update_dt.strftime("%d/%m/%Y %H:%M"),
             unsafe_allow_html=True
         )
+        # Botão para forçar atualização (limpa o cache de dados e re-executa o app)
+        if st.button("🔄 Atualizar agora"):
+            st.cache_data.clear()
+            st.rerun()
 
 except FileNotFoundError:
     st.error("FATAL: `PrevisaoJogos.xlsx` não encontrado.")
