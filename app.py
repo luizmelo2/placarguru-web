@@ -13,6 +13,7 @@ import requests
 import tempfile, time
 from io import BytesIO
 from email.utils import parsedate_to_datetime
+from fpdf import FPDF
 
 # ============================
 # Configuração da página
@@ -86,6 +87,20 @@ div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; 
 .value-soft { color:#E5E7EB; }
 .info-line { margin-top:.25rem; }
 .info-line > .sep { color:#6B7280; margin: 0 .35rem; }
+
+/* Novo layout em grid para detalhes do jogo */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.1rem 0.8rem;
+  margin-top: 0.25rem;
+}
+@media (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}
 </style>
 ''', unsafe_allow_html=True)
 
@@ -568,29 +583,14 @@ def display_list_view(df: pd.DataFrame):
                 if conf_txt: cap_line += f" • {conf_txt}"
                 st.caption(cap_line)
 
-                # Previsão/Placar (valores verdes + fallback)
+                # Layout em grid para Previsão e Sugestões
                 st.markdown(
                     f'''
-                    <div class="info-line">
-                      <span class="text-label">Prev.:</span>
-                      {green_html(result_txt)} {badge_res}
-                      <span class="sep">•</span>
-                      <span class="text-label">Placar:</span>
-                      {green_html(score_txt)} {badge_score}
-                    </div>
-                    ''',
-                    unsafe_allow_html=True
-                )
-
-                # Sugestões (valores verdes + fallback)
-                st.markdown(
-                    f'''
-                    <div class="info-line">
-                      <span class="text-label">💡 {FRIENDLY_COLS['bet_suggestion']}:</span>
-                      {green_html(aposta_txt)} {badge_bet}
-                      <span class="sep">•</span>
-                      <span class="text-label">⚽ {FRIENDLY_COLS['goal_bet_suggestion']}:</span>
-                      {green_html(gols_txt)} {badge_goal}
+                    <div class="info-grid">
+                        <div><span class="text-label">Prev.:</span> {green_html(result_txt)} {badge_res}</div>
+                        <div><span class="text-label">Placar:</span> {green_html(score_txt)} {badge_score}</div>
+                        <div><span class="text-label">💡 Sugestão:</span> {green_html(aposta_txt)} {badge_bet}</div>
+                        <div><span class="text-label">⚽ Gols:</span> {green_html(gols_txt)} {badge_goal}</div>
                     </div>
                     ''',
                     unsafe_allow_html=True
@@ -607,9 +607,9 @@ def display_list_view(df: pd.DataFrame):
             with st.expander("Detalhes, Probabilidades & Odds"):
                 st.markdown(
                     f'''
-                    - **Sugestão:** {green_html(aposta_txt)} {badge_bet}  
-                    - **Sugestão de Gols:** {green_html(gols_txt)} {badge_goal}  
-                    - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}  
+                    - **Sugestão:** {green_html(aposta_txt)} {badge_bet}
+                    - **Sugestão de Gols:** {green_html(gols_txt)} {badge_goal}
+                    - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}
                     - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
                     ''',
                     unsafe_allow_html=True
@@ -645,6 +645,35 @@ def display_list_view(df: pd.DataFrame):
             st.markdown('</div>', unsafe_allow_html=True)
             st.write("")
 
+def generate_pdf_report(df: pd.DataFrame):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+
+    title = f"Relatório de Jogos - {datetime.now().strftime('%d/%m/%Y')}"
+    pdf.cell(0, 10, title, 0, 1, "C")
+
+    pdf.set_font("Arial", "B", 8)
+
+    # Simple table layout
+    headers = ["Data", "Casa", "Visitante", "Prev.", "Placar", "Sugestão", "Gols"]
+    col_widths = [22, 35, 35, 15, 20, 30, 30]
+
+    for h, w in zip(headers, col_widths):
+        pdf.cell(w, 8, h, 1, 0, "C")
+    pdf.ln()
+
+    pdf.set_font("Arial", "", 8)
+    for _, row in df.iterrows():
+        pdf.cell(col_widths[0], 8, row["date"].strftime("%d/%m %H:%M"), 1, 0)
+        pdf.cell(col_widths[1], 8, row.get("home", ""), 1, 0)
+        pdf.cell(col_widths[2], 8, row.get("away", ""), 1, 0)
+        pdf.cell(col_widths[3], 8, market_label(row.get("result_predicted")), 1, 0)
+        pdf.cell(col_widths[4], 8, fmt_score_pred_text(row.get("score_predicted")), 1, 0)
+        pdf.cell(col_widths[5], 8, market_label(row.get("bet_suggestion")), 1, 0)
+        pdf.cell(col_widths[6], 8, market_label(row.get("goal_bet_suggestion")), 1, 1)
+
+    return pdf.output(dest='S').encode('latin-1')
 # ============================
 # App principal
 # ============================
@@ -737,6 +766,13 @@ try:
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
+                    pdf_data = generate_pdf_report(df_ag)
+                    st.download_button(
+                        label="Exportar para PDF",
+                        data=pdf_data,
+                        file_name=f"relatorio_jogos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                    )
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
@@ -823,6 +859,15 @@ try:
                             goal_correct_s = goal_eval_s == True
                             goal_wrong_s   = goal_eval_s == False
 
+                            # Separate BTTS from goal suggestions
+                            btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
+                            btts_correct_s = goal_correct_s & btts_mask_s
+                            btts_wrong_s = goal_wrong_s & btts_mask_s
+
+                            # Exclude BTTS from the general "goal" metric
+                            goal_correct_s_no_btts = goal_correct_s & ~btts_mask_s
+                            goal_wrong_s_no_btts   = goal_wrong_s & ~btts_mask_s
+
                             # Placar Previsto
                             score_eval_s = pd.Series(index=sub.index, dtype="object")
                             if "score_predicted" in sub.columns:
@@ -844,13 +889,15 @@ try:
                             # Métricas por modelo
                             acc_pred, c_pred, t_pred = compute_acc(pred_correct_s, pred_wrong_s)
                             acc_bet,  c_bet,  t_bet  = compute_acc(bet_correct_s,  bet_wrong_s)
-                            acc_goal, c_goal, t_goal = compute_acc(goal_correct_s, goal_wrong_s)
+                            acc_goal, c_goal, t_goal = compute_acc(goal_correct_s_no_btts, goal_wrong_s_no_btts)
+                            acc_btts, c_btts, t_btts = compute_acc(btts_correct_s, btts_wrong_s)
                             acc_score, c_score, t_score = compute_acc(score_correct_s, score_wrong_s)
 
                             rows += [
                                 {"Modelo": m, "Métrica": "Resultado",            "Acerto (%)": 0 if np.isnan(acc_pred) else round(acc_pred,1), "Acertos": c_pred,  "Total Avaliado": t_pred},
                                 {"Modelo": m, "Métrica": "Sugestão de Aposta",   "Acerto (%)": 0 if np.isnan(acc_bet)  else round(acc_bet,1),  "Acertos": c_bet,   "Total Avaliado": t_bet},
                                 {"Modelo": m, "Métrica": "Sugestão de Gols",     "Acerto (%)": 0 if np.isnan(acc_goal) else round(acc_goal,1), "Acertos": c_goal,  "Total Avaliado": t_goal},
+                                {"Modelo": m, "Métrica": "Ambos Marcam",         "Acerto (%)": 0 if np.isnan(acc_btts) else round(acc_btts,1), "Acertos": c_btts,  "Total Avaliado": t_btts},
                                 {"Modelo": m, "Métrica": "Placar Previsto",      "Acerto (%)": 0 if np.isnan(acc_score) else round(acc_score,1), "Acertos": c_score, "Total Avaliado": t_score},
                             ]
 
@@ -931,23 +978,35 @@ try:
 
                         acc_pred, c_pred, t_pred = compute_acc2(pred_correct, pred_wrong)
                         acc_bet,  c_bet,  t_bet  = compute_acc2(bet_correct,  bet_wrong)
-                        acc_goal, c_goal, t_goal = compute_acc2(goal_correct, goal_wrong)
+
+                        # NEW: Separate BTTS from goal suggestions
+                        btts_mask = goal_codes.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
+                        btts_correct = goal_correct & btts_mask
+                        btts_wrong = goal_wrong & btts_mask
+                        acc_btts, c_btts, t_btts = compute_acc2(btts_correct, btts_wrong)
+
+                        # Exclude BTTS from the general "goal" metric
+                        goal_correct_no_btts = goal_correct & ~btts_mask
+                        goal_wrong_no_btts   = goal_wrong & ~btts_mask
+                        acc_goal, c_goal, t_goal = compute_acc2(goal_correct_no_btts, goal_wrong_no_btts)
 
                         st.subheader("Percentual de acerto (apenas finalizados)")
-                        k1, k2, k3 = (st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(3)
+                        k1, k2, k3, k4 = (st.container(), st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(4)
                         k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
                         k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
                         k3.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
+                        k4.metric("Ambos Marcam", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
 
                         metrics_df = pd.DataFrame({
-                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão de Gols"],
+                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão de Gols", "Ambos Marcam"],
                             "Acerto (%)": [
                                 0 if np.isnan(acc_pred) else round(acc_pred, 1),
                                 0 if np.isnan(acc_bet) else round(acc_bet, 1),
                                 0 if np.isnan(acc_goal) else round(acc_goal, 1),
+                                0 if np.isnan(acc_btts) else round(acc_btts, 1),
                             ],
-                            "Acertos": [c_pred, c_bet, c_goal],
-                            "Total Avaliado": [t_pred, t_bet, t_goal],
+                            "Acertos": [c_pred, c_bet, c_goal, c_btts],
+                            "Total Avaliado": [t_pred, t_bet, t_goal, t_btts],
                         })
 
                         chart = alt.Chart(metrics_df).mark_bar().encode(

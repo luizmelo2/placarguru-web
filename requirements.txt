@@ -10,3 +10,4 @@ urllib3
 optuna
 lightgbm
 openpyxl
+fpdf2
