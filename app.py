@@ -393,6 +393,22 @@ def conf_badge(row):
     if conf >= 55: return "🟡 Confiança: Média"
     return "🟠 Confiança: Baixa"
 
+def get_date_range(button_clicked: str, today: date) -> Optional[Tuple[date, date]]:
+    """
+    Calculates the date range based on the button clicked.
+    """
+    if button_clicked == "Hoje":
+        return (today, today)
+    if button_clicked == "Próx. 3 dias":
+        return (today, today + timedelta(days=3))
+    if button_clicked == "Últimos 3 dias":
+        return (today - timedelta(days=3), today)
+    if button_clicked == "Semana":
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=6)
+        return (start, end)
+    return None
+
 # ============================
 # UI de Filtros (sem Status)
 # ============================
@@ -459,18 +475,20 @@ def filtros_ui(df: pd.DataFrame) -> dict:
                 today = date.today()
                 cc1, cc2, cc3, cc4, cc5  = st.columns(5)
                 with cc1:
-                    if st.button("Hoje"): selected_date_range = (today, today)
+                    if st.button("Hoje"):
+                        selected_date_range = get_date_range("Hoje", today)
                 with cc2:
-                    if st.button("Próx. 3 dias"): selected_date_range = (today, today + timedelta(days=3))
+                    if st.button("Próx. 3 dias"):
+                        selected_date_range = get_date_range("Próx. 3 dias", today)
                 with cc3:
-                    if st.button("Últimos 3 dias"): selected_date_range = (today - timedelta(days=3), today)
+                    if st.button("Últimos 3 dias"):
+                        selected_date_range = get_date_range("Últimos 3 dias", today)
                 with cc4:
                     if st.button("Semana"):
-                        start = today - timedelta(days=today.weekday())
-                        end = start + timedelta(days=6)
-                        selected_date_range = (start, end)
+                        selected_date_range = get_date_range("Semana", today)
                 with cc5:
-                    if st.button("Limpar"): selected_date_range = ()
+                    if st.button("Limpar"):
+                        selected_date_range = ()
 
                 if not selected_date_range:
                     selected_date_range = st.date_input(
@@ -585,9 +603,9 @@ def display_list_view(df: pd.DataFrame):
             with st.expander("Detalhes, Probabilidades & Odds"):
                 st.markdown(
                     f'''
-                    - **Sugestão:** {green_html(aposta_txt)} {badge_bet}  
-                    - **Sugestão de Gols:** {green_html(gols_txt)} {badge_goal}  
-                    - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}  
+                    - **Sugestão:** {green_html(aposta_txt)} {badge_bet}
+                    - **Sugestão de Gols:** {green_html(gols_txt)} {badge_goal}
+                    - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}
                     - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
                     ''',
                     unsafe_allow_html=True
