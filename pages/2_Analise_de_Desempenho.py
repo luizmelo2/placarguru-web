@@ -37,15 +37,55 @@ MARKET_COLUMNS = {
     "btts_no": ("prob_btts_no", "odds_btts_no"),
 }
 
-def find_best_bet(row, prob_min: float, odd_min: float) -> pd.Series:
+def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optional[List[str]] = None) -> pd.Series:
+    """Encontra a melhor aposta para uma linha de dados, considerando os mercados especificados."""
     best_bet, max_prob = None, -1.0
-    for market, (prob_col, odd_col) in MARKET_COLUMNS.items():
-        if prob_col in row and odd_col in row and pd.notna(row[prob_col]) and pd.notna(row[odd_col]):
-            prob, odd = row[prob_col], row[odd_col]
-            if prob >= prob_min and odd >= odd_min and prob > max_prob:
-                max_prob = prob
-                best_bet = {"best_bet_market": market, "best_bet_prob": prob, "best_bet_odd": odd}
-    return pd.Series(best_bet) if best_bet else pd.Series({"best_bet_market": np.nan, "best_bet_prob": np.nan, "best_bet_odd": np.nan})
+
+    # Se nenhum mercado for especificado, busca em todos os mercados definidos.
+    if markets_to_search is None:
+        markets_to_search = list(MARKET_COLUMNS.keys())
+
+    for market in markets_to_search:
+        if market in MARKET_COLUMNS:
+            prob_col, odd_col = MARKET_COLUMNS[market]
+            if prob_col in row and odd_col in row and pd.notna(row[prob_col]) and pd.notna(row[odd_col]):
+                prob, odd = row[prob_col], row[odd_col]
+                if prob >= prob_min and odd >= odd_min and prob > max_prob:
+                    max_prob = prob
+                    best_bet = {"market": market, "prob": prob, "odd": odd}
+
+    if best_bet:
+        return pd.Series(best_bet)
+
+    return pd.Series({"market": np.nan, "prob": np.nan, "odd": np.nan})
+
+def suggest_btts(row) -> pd.Series:
+    """Sugere a melhor aposta 'Ambos Marcam' com base na maior probabilidade."""
+    prob_yes = row.get("prob_btts_yes", -1)
+    prob_no = row.get("prob_btts_no", -1)
+
+    # Retorna NaN se as probabilidades não estiverem disponíveis
+    if pd.isna(prob_yes) or pd.isna(prob_no):
+        return pd.Series({
+            "btts_sugg_market": np.nan,
+            "btts_sugg_prob": np.nan,
+            "btts_sugg_odd": np.nan
+        })
+
+    if prob_yes > prob_no:
+        market = "btts_yes"
+        prob = prob_yes
+        odd = row.get("odds_btts_yes")
+    else:
+        market = "btts_no"
+        prob = prob_no
+        odd = row.get("odds_btts_no")
+
+    return pd.Series({
+        "btts_sugg_market": market,
+        "btts_sugg_prob": prob,
+        "btts_sugg_odd": odd
+    })
 
 # ============================
 # UI de Filtros
@@ -94,9 +134,44 @@ try:
 
         df_filtered = df[mask].copy()
 
-        # Melhor aposta dinâmica por linha, com critérios de prob/odd
-        best_bets_df = df_filtered.apply(lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"]), axis=1)
-        df_analysis = df_filtered.join(best_bets_df).dropna(subset=["best_bet_market"])
+        # --- Lógica das Três Buscas Dinâmicas ---
+
+        # 1. Melhor Resultado (1x2)
+        markets_1x2 = ["H", "D", "A"]
+        best_1x2_df = df_filtered.apply(
+            lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"], markets_to_search=markets_1x2),
+            axis=1
+        ).rename(columns={"market": "bet_1x2_market", "prob": "bet_1x2_prob", "odd": "bet_1x2_odd"})
+
+        # 2. Melhor Aposta de Gols
+        markets_goals = [
+            "over_0_5", "over_1_5", "over_2_5", "over_3_5",
+            "under_0_5", "under_1_5", "under_2_5", "under_3_5",
+            "btts_yes", "btts_no"
+        ]
+        best_goals_df = df_filtered.apply(
+            lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"], markets_to_search=markets_goals),
+            axis=1
+        ).rename(columns={"market": "bet_goals_market", "prob": "bet_goals_prob", "odd": "bet_goals_odd"})
+
+        # 3. Melhor Aposta (Geral)
+        best_overall_df = df_filtered.apply(
+            lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"]),
+            axis=1
+        ).rename(columns={"market": "bet_overall_market", "prob": "bet_overall_prob", "odd": "bet_overall_odd"})
+
+        # 4. Sugestão de "Ambos Marcam"
+        btts_sugg_df = df_filtered.apply(suggest_btts, axis=1)
+
+        # Junta os resultados das buscas ao dataframe principal
+        df_analysis = df_filtered.join(best_1x2_df).join(best_goals_df).join(best_overall_df).join(btts_sugg_df)
+
+        # Remove jogos onde nenhuma aposta foi encontrada em nenhuma das categorias
+        df_analysis.dropna(
+            subset=["bet_1x2_market", "bet_goals_market", "bet_overall_market", "btts_sugg_market"],
+            how='all',
+            inplace=True
+        )
 
         st.subheader("Análise de Acurácia Comparativa")
         st.info(f"Analisando {len(df_analysis)} jogos que atendem aos critérios de Prob. >= {flt['prob_min']:.0%} e Odd >= {flt['odd_min']:.2f}.")
@@ -108,51 +183,50 @@ try:
         if df_finished.empty:
             st.warning("Nenhum jogo finalizado encontrado para os critérios e filtros selecionados.")
         else:
-            # Avaliações
-            df_finished['res_best_bet']   = df_finished.apply(lambda row: evaluate_market(row['best_bet_market'], row['result_home'], row['result_away']), axis=1)
-            df_finished['res_result_pred'] = df_finished.apply(eval_result_pred_row, axis=1)
-            df_finished['res_goal_sugg']   = df_finished.apply(eval_goal_row, axis=1)
-            df_finished.dropna(subset=['res_best_bet', 'res_result_pred', 'res_goal_sugg'], inplace=True)
+            # Avaliações para cada tipo de aposta
+            df_finished['res_bet_1x2'] = df_finished.apply(
+                lambda row: evaluate_market(row['bet_1x2_market'], row['result_home'], row['result_away']), axis=1
+            )
+            df_finished['res_bet_goals'] = df_finished.apply(
+                lambda row: evaluate_market(row['bet_goals_market'], row['result_home'], row['result_away']), axis=1
+            )
+            df_finished['res_bet_overall'] = df_finished.apply(
+                lambda row: evaluate_market(row['bet_overall_market'], row['result_home'], row['result_away']), axis=1
+            )
+            df_finished['res_btts_sugg'] = df_finished.apply(
+                lambda row: evaluate_market(row['btts_sugg_market'], row['result_home'], row['result_away']), axis=1
+            )
 
             accuracy_data = []
             if not df_finished.empty:
+                # Dicionário para mapear colunas de resultado para nomes de métricas amigáveis
+                metric_map = {
+                    'res_bet_1x2': 'Melhor Resultado (1x2)',
+                    'res_bet_goals': 'Melhor Aposta de Gols',
+                    'res_bet_overall': 'Melhor Aposta (Geral)',
+                    'res_btts_sugg': 'Sugestão "Ambos Marcam"'
+                }
+
                 grouped = df_finished.groupby(['tournament_id', 'model'])
                 for (tournament, model), group in grouped:
-                    total = len(group)
+                    for res_col, metric_name in metric_map.items():
+                        # Filtra o grupo para as apostas que foram realmente feitas (não NaN)
+                        valid_bets = group[res_col].dropna()
+                        total = len(valid_bets)
 
-                    # Booleans -> soma = acertos
-                    hits_best_bet   = int(group['res_best_bet'].sum())
-                    hits_result_pred = int(group['res_result_pred'].sum())
-                    hits_goal_sugg   = int(group['res_goal_sugg'].sum())
+                        if total > 0:
+                            # Booleans (True=1, False=0) -> soma = acertos
+                            hits = int(valid_bets.sum())
+                            accuracy = (hits / total) * 100
 
-                    acc_best_bet   = (hits_best_bet / total) * 100 if total else 0.0
-                    acc_result     = (hits_result_pred / total) * 100 if total else 0.0
-                    acc_goal_sugg  = (hits_goal_sugg / total) * 100 if total else 0.0
-
-                    accuracy_data.append({
-                        "Campeonato": tournament_label(tournament),
-                        "Modelo": model,
-                        "Métrica": "Melhor Aposta (Dinâmica)",
-                        "Acerto (%)": acc_best_bet,
-                        "Acertos": hits_best_bet,
-                        "Total": total
-                    })
-                    accuracy_data.append({
-                        "Campeonato": tournament_label(tournament),
-                        "Modelo": model,
-                        "Métrica": "Resultado do Jogo",
-                        "Acerto (%)": acc_result,
-                        "Acertos": hits_result_pred,
-                        "Total": total
-                    })
-                    accuracy_data.append({
-                        "Campeonato": tournament_label(tournament),
-                        "Modelo": model,
-                        "Métrica": "Sugestão de Gols",
-                        "Acerto (%)": acc_goal_sugg,
-                        "Acertos": hits_goal_sugg,
-                        "Total": total
-                    })
+                            accuracy_data.append({
+                                "Campeonato": tournament_label(tournament),
+                                "Modelo": model,
+                                "Métrica": metric_name,
+                                "Acerto (%)": accuracy,
+                                "Acertos": hits,
+                                "Total": total
+                            })
 
             if not accuracy_data:
                 st.warning("Não há dados de acurácia para exibir.")
