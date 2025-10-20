@@ -6,7 +6,9 @@ from datetime import timedelta, date, datetime
 from typing import Any, Tuple, Optional, List
 
 # Importa funções e constantes do utils.py
-from utils import *
+from utils import *  # RELEASE_URL, fetch_release_file, load_data, FRIENDLY_COLS,
+                     # tournament_label, norm_status_key, evaluate_market,
+                     # eval_result_pred_row, eval_goal_row
 
 # ============================
 # Configuração da página
@@ -71,6 +73,7 @@ def filtros_analise_ui(df: pd.DataFrame) -> dict:
 # App principal
 # ============================
 try:
+    # Carrega dados da release
     content, _, _ = fetch_release_file(RELEASE_URL)
     df = load_data(content)
 
@@ -79,29 +82,36 @@ try:
     else:
         flt = filtros_analise_ui(df)
 
+        # Filtros
         mask = pd.Series(True, index=df.index)
-        if flt["tournaments_sel"] and "tournament_id" in df.columns: mask &= df["tournament_id"].isin(flt["tournaments_sel"])
-        if flt["models_sel"] and "model" in df.columns: mask &= df["model"].isin(flt["models_sel"])
+        if flt["tournaments_sel"] and "tournament_id" in df.columns:
+            mask &= df["tournament_id"].isin(flt["tournaments_sel"])
+        if flt["models_sel"] and "model" in df.columns:
+            mask &= df["model"].isin(flt["models_sel"])
         if flt["selected_date_range"] and len(flt["selected_date_range"]) == 2 and "date" in df.columns:
             start, end = flt["selected_date_range"]
             mask &= (df["date"].dt.date.between(start, end)) | (df["date"].isna())
 
         df_filtered = df[mask].copy()
+
+        # Melhor aposta dinâmica por linha, com critérios de prob/odd
         best_bets_df = df_filtered.apply(lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"]), axis=1)
         df_analysis = df_filtered.join(best_bets_df).dropna(subset=["best_bet_market"])
 
         st.subheader("Análise de Acurácia Comparativa")
         st.info(f"Analisando {len(df_analysis)} jogos que atendem aos critérios de Prob. >= {flt['prob_min']:.0%} e Odd >= {flt['odd_min']:.2f}.")
 
+        # Considere apenas finalizados com placar válido
         df_finished = df_analysis[df_analysis['status'].apply(norm_status_key) == 'finished'].copy()
         df_finished = df_finished.dropna(subset=['result_home', 'result_away'])
 
         if df_finished.empty:
             st.warning("Nenhum jogo finalizado encontrado para os critérios e filtros selecionados.")
         else:
-            df_finished['res_best_bet'] = df_finished.apply(lambda row: evaluate_market(row['best_bet_market'], row['result_home'], row['result_away']), axis=1)
+            # Avaliações
+            df_finished['res_best_bet']   = df_finished.apply(lambda row: evaluate_market(row['best_bet_market'], row['result_home'], row['result_away']), axis=1)
             df_finished['res_result_pred'] = df_finished.apply(eval_result_pred_row, axis=1)
-            df_finished['res_goal_sugg'] = df_finished.apply(eval_goal_row, axis=1)
+            df_finished['res_goal_sugg']   = df_finished.apply(eval_goal_row, axis=1)
             df_finished.dropna(subset=['res_best_bet', 'res_result_pred', 'res_goal_sugg'], inplace=True)
 
             accuracy_data = []
@@ -109,33 +119,69 @@ try:
                 grouped = df_finished.groupby(['tournament_id', 'model'])
                 for (tournament, model), group in grouped:
                     total = len(group)
-                    hits_best_bet = group['res_best_bet'].sum()
-                    hits_result_pred = group['res_result_pred'].sum()
-                    hits_goal_sugg = group['res_goal_sugg'].sum()
 
-                    accuracy_data.append({"Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": "Melhor Aposta (Dinâmica)", "Acerto (%)": (hits_best_bet / total) * 100, "Acertos": int(hits_best_bet), "Total": total})
-                    accuracy_data.append({"Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": "Resultado do Jogo", "Acerto (%)": (hits_result_pred / total) * 100, "Acertos": int(hits_result_pred), "Total": total})
-                    accuracy_data.append({"Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": "Sugestão de Gols", "Acerto (%)": (hits_goal_sugg / total) * 100, "Acertos": int(hits_goal_sugg), "Total": total})
+                    # Booleans -> soma = acertos
+                    hits_best_bet   = int(group['res_best_bet'].sum())
+                    hits_result_pred = int(group['res_result_pred'].sum())
+                    hits_goal_sugg   = int(group['res_goal_sugg'].sum())
+
+                    acc_best_bet   = (hits_best_bet / total) * 100 if total else 0.0
+                    acc_result     = (hits_result_pred / total) * 100 if total else 0.0
+                    acc_goal_sugg  = (hits_goal_sugg / total) * 100 if total else 0.0
+
+                    accuracy_data.append({
+                        "Campeonato": tournament_label(tournament),
+                        "Modelo": model,
+                        "Métrica": "Melhor Aposta (Dinâmica)",
+                        "Acerto (%)": acc_best_bet,
+                        "Acertos": hits_best_bet,
+                        "Total": total
+                    })
+                    accuracy_data.append({
+                        "Campeonato": tournament_label(tournament),
+                        "Modelo": model,
+                        "Métrica": "Resultado do Jogo",
+                        "Acerto (%)": acc_result,
+                        "Acertos": hits_result_pred,
+                        "Total": total
+                    })
+                    accuracy_data.append({
+                        "Campeonato": tournament_label(tournament),
+                        "Modelo": model,
+                        "Métrica": "Sugestão de Gols",
+                        "Acerto (%)": acc_goal_sugg,
+                        "Acertos": hits_goal_sugg,
+                        "Total": total
+                    })
 
             if not accuracy_data:
                 st.warning("Não há dados de acurácia para exibir.")
             else:
                 metrics_df = pd.DataFrame(accuracy_data)
 
-                st.dataframe(metrics_df.sort_values(by=["Campeonato", "Modelo", "Acerto (%)"], ascending=[True, True, False]), use_container_width=True, hide_index=True)
+                st.dataframe(
+                    metrics_df.sort_values(by=["Campeonato", "Modelo", "Acerto (%)"], ascending=[True, True, False]),
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-                # Gráfico aprimorado com barras agrupadas
-                chart = alt.Chart(metrics_df).mark_bar().encode(
+                # ----------------------------
+                # Gráfico de barras agrupadas e facetado por campeonato
+                # (forma correta: facet via método, não no alt.Facet)
+                # ----------------------------
+                base = alt.Chart(metrics_df).mark_bar().encode(
                     x=alt.X('Modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
                     y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Acurácia (%)'),
                     color=alt.Color('Métrica:N', title='Métrica'),
-                    xOffset='Métrica:N', # Agrupa as barras por métrica
+                    xOffset='Métrica:N',
                     tooltip=['Campeonato', 'Modelo', 'Métrica', 'Acertos', 'Total', alt.Tooltip('Acerto (%):Q', format='.1f')]
-                ).properties(
-                    height=300
-                ).facet(
-                    facet=alt.Facet('Campeonato:N', columns=2, title="Desempenho por Campeonato")
-                )
+                ).properties(height=300)
+
+                chart = base.facet(
+                    facet='Campeonato:N',   # apenas o field/canal
+                    columns=2,              # aqui sim, no método facet
+                    title='Desempenho por Campeonato'
+                ).resolve_scale(y='shared')  # deixe 'independent' se preferir escalas separadas
 
                 st.altair_chart(chart, use_container_width=True)
 

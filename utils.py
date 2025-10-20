@@ -185,7 +185,7 @@ def fmt_score_pred_text(x: Any, default: str = "Sem previsão calculada") -> str
     return f"{ph}-{pa}"
 
 def eval_result_pred_row(row) -> Optional[bool]:
-    if _norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
+    if norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
     rh, ra = row.get("result_home"), row.get("result_away")
     if pd.isna(rh) or pd.isna(ra): return None
     real = "H" if rh > ra else ("D" if rh == ra else "A")
@@ -194,7 +194,7 @@ def eval_result_pred_row(row) -> Optional[bool]:
     return pred == real
 
 def eval_score_pred_row(row) -> Optional[bool]:
-    if _norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
+    if norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
     rh, ra = row.get("result_home"), row.get("result_away")
     if pd.isna(rh) or pd.isna(ra): return None
     ph, pa = parse_score_pred(row.get("score_predicted"))
@@ -203,7 +203,7 @@ def eval_score_pred_row(row) -> Optional[bool]:
     except Exception: return None
 
 def _row_is_finished(row) -> bool:
-    if _norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return False
+    if norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return False
     rh, ra = row.get("result_home"), row.get("result_away")
     return pd.notna(rh) and pd.notna(ra)
 

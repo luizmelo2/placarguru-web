@@ -15,7 +15,9 @@ from email.utils import parsedate_to_datetime
 from fpdf import FPDF, XPos, YPos
 
 # Importa funções e constantes do utils.py
-from utils import *
+from utils import (_exists, fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS, tournament_label, market_label, norm_status_key,
+                   fmt_score_pred_text, status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row, eval_goal_row, green_html,
+                   FINISHED_TOKENS, fmt_odd, fmt_prob, _po, normalize_pred_code, evaluate_market, parse_score_pred)
 
 # ============================
 # Configuração da página
@@ -323,7 +325,7 @@ def display_list_view(df: pd.DataFrame):
 
             with c2:
                 st.markdown(f'<span class="badge badge-wait">{status_txt}</span>', unsafe_allow_html=True)
-                if _norm_status_key(row.get("status","")) in FINISHED_TOKENS:
+                if norm_status_key(row.get("status","")) in FINISHED_TOKENS:
                     rh, ra = row.get("result_home"), row.get("result_away")
                     final_txt = f"{int(rh)}-{int(ra)}" if pd.notna(rh) and pd.notna(ra) else "—"
                     st.markdown(f"**Final:** {final_txt}")
@@ -503,7 +505,7 @@ try:
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
-            status_norm_all = df_filtered["status"].astype(str).map(_norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
+            status_norm_all = df_filtered["status"].astype(str).map(norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
             df_ag  = df_filtered[status_norm_all != "finished"]
             df_fin = df_filtered[status_norm_all == "finished"]
 
