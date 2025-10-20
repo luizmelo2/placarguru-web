@@ -111,11 +111,11 @@ def tournament_label(x: Any) -> str:
     if ks in FRIENDLY_TOURNAMENTS: return FRIENDLY_TOURNAMENTS[ks]
     return f"Torneio {x}"
 
-def _norm_status_key(s: Any) -> str:
+def norm_status_key(s: Any) -> str:
     return str(s).strip().lower().replace("-", "_").replace(" ", "_")
 
 def status_label(s: Any) -> str:
-    return FRIENDLY_STATUS_MAP.get(_norm_status_key(s), str(s))
+    return FRIENDLY_STATUS_MAP.get(norm_status_key(s), str(s))
 
 def normalize_pred_code(series: pd.Series) -> pd.Series:
     if series is None: return pd.Series(dtype="object")

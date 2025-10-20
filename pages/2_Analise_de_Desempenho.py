@@ -90,48 +90,53 @@ try:
         best_bets_df = df_filtered.apply(lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"]), axis=1)
         df_analysis = df_filtered.join(best_bets_df).dropna(subset=["best_bet_market"])
 
-        st.subheader("Análise de Acurácia por Campeonato e Modelo")
-        st.info(f"Analisando {len(df_analysis)} oportunidades de aposta com Prob. >= {flt['prob_min']:.0%} e Odd >= {flt['odd_min']:.2f}.")
+        st.subheader("Análise de Acurácia Comparativa")
+        st.info(f"Analisando {len(df_analysis)} jogos que atendem aos critérios de Prob. >= {flt['prob_min']:.0%} e Odd >= {flt['odd_min']:.2f}.")
 
-        df_finished = df_analysis[df_analysis['status'].str.strip().str.lower() == 'finished'].copy()
+        df_finished = df_analysis[df_analysis['status'].apply(norm_status_key) == 'finished'].copy()
         df_finished = df_finished.dropna(subset=['result_home', 'result_away'])
 
         if df_finished.empty:
             st.warning("Nenhum jogo finalizado encontrado para os critérios e filtros selecionados.")
         else:
-            df_finished['bet_result'] = df_finished.apply(
-                lambda row: evaluate_market(row['best_bet_market'], row['result_home'], row['result_away']), axis=1
-            )
-            df_finished = df_finished.dropna(subset=['bet_result'])
+            df_finished['res_best_bet'] = df_finished.apply(lambda row: evaluate_market(row['best_bet_market'], row['result_home'], row['result_away']), axis=1)
+            df_finished['res_result_pred'] = df_finished.apply(eval_result_pred_row, axis=1)
+            df_finished['res_goal_sugg'] = df_finished.apply(eval_goal_row, axis=1)
+            df_finished.dropna(subset=['res_best_bet', 'res_result_pred', 'res_goal_sugg'], inplace=True)
 
             accuracy_data = []
             if not df_finished.empty:
                 grouped = df_finished.groupby(['tournament_id', 'model'])
                 for (tournament, model), group in grouped:
                     total = len(group)
-                    hits = group['bet_result'].sum()
-                    accuracy = (hits / total) * 100 if total > 0 else 0
-                    accuracy_data.append({
-                        "Campeonato": tournament_label(tournament),
-                        "Modelo": model,
-                        "Acerto (%)": accuracy,
-                        "Acertos": int(hits),
-                        "Total Avaliado": total
-                    })
+                    hits_best_bet = group['res_best_bet'].sum()
+                    hits_result_pred = group['res_result_pred'].sum()
+                    hits_goal_sugg = group['res_goal_sugg'].sum()
+
+                    accuracy_data.append({"Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": "Melhor Aposta (Dinâmica)", "Acerto (%)": (hits_best_bet / total) * 100, "Acertos": int(hits_best_bet), "Total": total})
+                    accuracy_data.append({"Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": "Resultado do Jogo", "Acerto (%)": (hits_result_pred / total) * 100, "Acertos": int(hits_result_pred), "Total": total})
+                    accuracy_data.append({"Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": "Sugestão de Gols", "Acerto (%)": (hits_goal_sugg / total) * 100, "Acertos": int(hits_goal_sugg), "Total": total})
 
             if not accuracy_data:
                 st.warning("Não há dados de acurácia para exibir.")
             else:
                 metrics_df = pd.DataFrame(accuracy_data)
-                st.dataframe(metrics_df.sort_values(by="Acerto (%)", ascending=False), use_container_width=True, hide_index=True)
 
+                st.dataframe(metrics_df.sort_values(by=["Campeonato", "Modelo", "Acerto (%)"], ascending=[True, True, False]), use_container_width=True, hide_index=True)
+
+                # Gráfico aprimorado com barras agrupadas
                 chart = alt.Chart(metrics_df).mark_bar().encode(
-                    x=alt.X('Modelo:N', title=''),
-                    y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
-                    color='Modelo:N',
-                    facet=alt.Facet('Campeonato:N', columns=2),
-                    tooltip=['Campeonato', 'Modelo', 'Acertos', 'Total Avaliado', alt.Tooltip('Acerto (%):Q', format='.1f')]
-                ).properties(height=250)
+                    x=alt.X('Modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Acurácia (%)'),
+                    color=alt.Color('Métrica:N', title='Métrica'),
+                    xOffset='Métrica:N', # Agrupa as barras por métrica
+                    tooltip=['Campeonato', 'Modelo', 'Métrica', 'Acertos', 'Total', alt.Tooltip('Acerto (%):Q', format='.1f')]
+                ).properties(
+                    height=300
+                ).facet(
+                    facet=alt.Facet('Campeonato:N', columns=2, title="Desempenho por Campeonato")
+                )
+
                 st.altair_chart(chart, use_container_width=True)
 
 except Exception as e:

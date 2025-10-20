@@ -119,7 +119,7 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
 
     # Resultado Final (só quando finished)
     def _fmt_score(row):
-        if _norm_status_key(row.get("status","")) in FINISHED_TOKENS:
+        if norm_status_key(row.get("status","")) in FINISHED_TOKENS:
             rh, ra = row.get("result_home"), row.get("result_away")
             if pd.notna(rh) and pd.notna(ra):
                 try:
