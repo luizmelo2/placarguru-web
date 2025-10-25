@@ -221,6 +221,18 @@ def _po(row, prob_key: str, odd_key: str) -> str:
 def _exists(df: pd.DataFrame, *cols) -> bool:
     return all(c in df.columns for c in cols)
 
+def _get_prob_from_market_code(code: Any) -> Optional[str]:
+    """Mapeia um código de mercado para sua coluna de probabilidade."""
+    if is_na_like(code):
+        return None
+    s = str(code).strip().lower()
+    if s in ("h", "casa", "home"): return "prob_H"
+    if s in ("d", "empate", "draw"): return "prob_D"
+    if s in ("a", "visitante", "away"): return "prob_A"
+    if s.startswith("over_") or s.startswith("under_") or s.startswith("btts_"):
+        return f"prob_{s}"
+    return None
+
 # ============================
 # Download da release (GitHub)
 # ============================
