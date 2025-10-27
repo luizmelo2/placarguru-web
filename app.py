@@ -15,9 +15,13 @@ from email.utils import parsedate_to_datetime
 from fpdf import FPDF, XPos, YPos
 
 # Importa funções e constantes do utils.py
-from utils import (_exists, fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS, tournament_label, market_label, norm_status_key,
-                   fmt_score_pred_text, status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row, eval_goal_row, green_html,
-                   FINISHED_TOKENS, fmt_odd, fmt_prob, _po, normalize_pred_code, evaluate_market, parse_score_pred)
+from utils import (
+    _exists, fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
+    tournament_label, market_label, norm_status_key, fmt_score_pred_text,
+    status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
+    eval_goal_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
+    normalize_pred_code, evaluate_market, parse_score_pred
+)
 
 # ============================
 # Configuração da página
@@ -45,21 +49,9 @@ html, body, .stApp { font-size: 16px; }
 }
 
 /* Títulos menores */
-h1 {
-  font-size: 1.6rem;       /* desktop */
-  line-height: 1.2;
-  margin-bottom: .25rem;
-}
-h2 {
-  font-size: 1.25rem;      /* header */
-  line-height: 1.25;
-  margin: .5rem 0 .25rem 0;
-}
-h3 {
-  font-size: 1.10rem;      /* subheader */
-  line-height: 1.3;
-  margin: .35rem 0 .15rem 0;
-}
+h1 { font-size: 1.6rem; line-height: 1.2; margin-bottom: .25rem; }
+h2 { font-size: 1.25rem; line-height: 1.25; margin: .5rem 0 .25rem 0; }
+h3 { font-size: 1.10rem; line-height: 1.3; margin: .35rem 0 .15rem 0; }
 @media (max-width: 768px) {
   h1 { font-size: 1.35rem; }
   h2 { font-size: 1.15rem; }
@@ -92,7 +84,7 @@ div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; 
 .info-line { margin-top:.25rem; }
 .info-line > .sep { color:#6B7280; margin: 0 .35rem; }
 
-/* Novo layout em grid para detalhes do jogo */
+/* Grid de detalhes */
 .info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -105,6 +97,16 @@ div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; 
     gap: 0.2rem;
   }
 }
+
+/* Caixa do filtro (C2) */
+.tourn-box {
+  border: 1px solid #1f2937; border-radius: 12px; padding: 12px;
+  background: #0c0c0c; margin-bottom: 8px;
+}
+.tourn-title { font-weight:800; font-size:1.05rem; }
+
+/* Confiança ao lado da Previsão */
+.conf-inline { margin-left: .4rem; color:#9CA3AF; font-weight:600; white-space:nowrap; }
 </style>
 ''', unsafe_allow_html=True)
 
@@ -153,15 +155,14 @@ def conf_badge(row):
     except Exception:
         return ""
     if np.isnan(conf): return ""
-    if conf >= 65: return "🟢 Confiança: Alta"
-    if conf >= 55: return "🟡 Confiança: Média"
-    return "🟠 Confiança: Baixa"
+    if conf >= 70: return "🟢 Conf. Alta"
+    if conf >= 55: return "🟡 Conf. Média"
+    return "🟠 Conf. Baixa"
 
 # ============================
 # UI de Filtros (sem Status)
 # ============================
-def filtros_ui(df: pd.DataFrame) -> dict:
-    tourn_opts  = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
+def filtros_ui(df: pd.DataFrame, tournaments_sel_external: Optional[List]=None) -> dict:
     model_opts  = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
 
     if {"home", "away"}.issubset(df.columns):
@@ -199,10 +200,10 @@ def filtros_ui(df: pd.DataFrame) -> dict:
         with c1:
             models_sel = st.multiselect(FRIENDLY_COLS["model"], model_opts, default=models_default)
 
-        # Torneios e Times
+        # Times (o seletor de torneios veio do topo)
         c3, c4 = st.columns(2)
         with c3:
-            tournaments_sel = st.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
+            tournaments_sel = tournaments_sel_external or []
         with c4:
             teams_sel = st.multiselect("Equipe (Casa ou Visitante)", team_opts, default=[] if MODO_MOBILE else team_opts)
 
@@ -246,18 +247,17 @@ def filtros_ui(df: pd.DataFrame) -> dict:
                 s = series.dropna()
                 return (float(s.min()), float(s.max())) if not s.empty else default
 
-
         # Odds
         with st.expander("Odds", expanded=False):
             selH = selD = selA = (0.0, 1.0)
             if "odds_H" in df.columns:
-                minH, maxH = _range(df["odds_H"]);
+                minH, maxH = _range(df["odds_H"])
                 selH = st.slider(FRIENDLY_COLS["odds_H"], minH, maxH, (minH, maxH))
             if "odds_D" in df.columns:
-                minD, maxD = _range(df["odds_D"]);
+                minD, maxD = _range(df["odds_D"])
                 selD = st.slider(FRIENDLY_COLS["odds_D"], minD, maxD, (minD, maxD))
             if "odds_A" in df.columns:
-                minA, maxA = _range(df["odds_A"]);
+                minA, maxA = _range(df["odds_A"])
                 selA = st.slider(FRIENDLY_COLS["odds_A"], minA, maxA, (minA, maxA))
 
     # Reflete estado na URL — apenas modelo
@@ -300,21 +300,24 @@ def display_list_view(df: pd.DataFrame):
         result_txt = market_label(row.get('result_predicted'))
         score_txt  = fmt_score_pred_text(row.get('score_predicted'))
 
+        # confiança AO LADO da previsão (e NÃO no caption)
+        conf_txt = conf_badge(row)  # ex.: "🟢 Confiança: Alta"
+        conf_html = f'<span class="conf-inline">({conf_txt})</span>' if conf_txt else ""
+
         with st.container():
             st.markdown('<div class="card">', unsafe_allow_html=True)
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.markdown(f"**{title}**")
-                conf_txt = conf_badge(row)
+                # caption SEM confiança
                 cap_line = f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}"
-                if conf_txt: cap_line += f" • {conf_txt}"
                 st.caption(cap_line)
 
-                # Layout em grid para Previsão e Sugestões
+                # Grid com Confiança ao lado da PREV.
                 st.markdown(
                     f'''
                     <div class="info-grid">
-                        <div><span class="text-label">Prev.:</span> {green_html(result_txt)} {badge_res}</div>
+                        <div><span class="text-label">Prev.:</span> {green_html(result_txt)} {badge_res} {conf_html}</div>
                         <div><span class="text-label">Placar:</span> {green_html(score_txt)} {badge_score}</div>
                         <div><span class="text-label">💡 Sugestão:</span> {green_html(aposta_txt)} {badge_bet}</div>
                         <div><span class="text-label">⚽ Gols:</span> {green_html(gols_txt)} {badge_goal}</div>
@@ -386,44 +389,35 @@ def generate_pdf_report(df: pd.DataFrame):
     headers = ["Data", "Casa", "Visitante", "Prev.", "Placar", "Sugestão", "Gols"]
     col_widths = [22, 35, 35, 15, 20, 30, 30]
     for h, w in zip(headers, col_widths):
-        pdf.cell(
-            w, 8, h,
-            border=1, align="C",
-            new_x=XPos.RIGHT, new_y=YPos.TOP
-        )
-    # quebra de linha depois do último:
+        pdf.cell(w, 8, h, border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
     pdf.ln()
 
     # Linhas
     pdf.set_font("helvetica", "", 8)
     for _, row in df.iterrows():
         data_txt = row["date"].strftime("%d/%m %H:%M") if pd.notna(row.get("date")) else ""
-        pdf.cell(col_widths[0], 8, str(data_txt)[:16],
-                 border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[0], 8, str(data_txt)[:16], border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[1], 8, str(row.get("home", ""))[:18], border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[2], 8, str(row.get("away", ""))[:18], border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[3], 8, str(market_label(row.get("result_predicted")))[:10], border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[4], 8, str(fmt_score_pred_text(row.get("score_predicted")))[:10], border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[5], 8, str(market_label(row.get("bet_suggestion")))[:18], border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.cell(col_widths[6], 8, str(market_label(row.get("goal_bet_suggestion")))[:18], border=1, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-        pdf.cell(col_widths[1], 8, str(row.get("home", ""))[:18],
-                 border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
-
-        pdf.cell(col_widths[2], 8, str(row.get("away", ""))[:18],
-                 border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
-
-        pdf.cell(col_widths[3], 8, str(market_label(row.get("result_predicted")))[:10],
-                 border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
-
-        pdf.cell(col_widths[4], 8, str(fmt_score_pred_text(row.get("score_predicted")))[:10],
-                 border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
-
-        pdf.cell(col_widths[5], 8, str(market_label(row.get("bet_suggestion")))[:18],
-                 border=1, align="C", new_x=XPos.RIGHT, new_y=YPos.TOP)
-
-        pdf.cell(col_widths[6], 8, str(market_label(row.get("goal_bet_suggestion")))[:18],
-                 border=1, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    # --- retorno compatível com fpdf/fpdf2 ---
     out = pdf.output()
     if isinstance(out, (bytes, bytearray)):
-        return bytes(out)                     # já é bytes/bytearray
+        return bytes(out)
     else:
-        return out.encode("latin-1", "ignore")  # versões que retornam str
+        return out.encode("latin-1", "ignore")
+
+# ----------------------------
+# Função de acurácia (reuso)
+# ----------------------------
+def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series):
+    total = int((ok_mask | bad_mask).sum())
+    correct = int(ok_mask.sum())
+    acc = (correct / total * 100.0) if total > 0 else np.nan
+    return acc, correct, total
 
 # ============================
 # App principal
@@ -449,11 +443,57 @@ try:
         raw_model = st.query_params.get("model", ["Combo"])
         st.session_state.model_init_raw = list(raw_model) if isinstance(raw_model, list) else [raw_model]
 
-
     if df.empty:
         st.error("O arquivo `PrevisaoJogos.xlsx` está vazio ou não pôde ser lido.")
     else:
-        flt = filtros_ui(df)
+        # ----------------- FILTRO GLOBAL NO TOPO: CAMPEONATOS (opção C2 com box) -----------------
+        if "tournament_id" in df.columns and df["tournament_id"].notna().any():
+            tourn_opts_all = sorted(df["tournament_id"].dropna().unique().tolist())
+        else:
+            tourn_opts_all = []
+
+        st.session_state.setdefault("sel_tournaments", list(tourn_opts_all))
+
+        # mantém apenas os válidos se a lista mudar
+        valid_sel = [t for t in st.session_state.sel_tournaments if t in tourn_opts_all]
+        if valid_sel != st.session_state.sel_tournaments:
+            st.session_state.sel_tournaments = valid_sel
+
+        # se ficou vazio e há opções, volta para "todos"
+        if not st.session_state.sel_tournaments and tourn_opts_all:
+            st.session_state.sel_tournaments = list(tourn_opts_all)
+
+        with st.container():
+            st.markdown('<div class="tourn-box">', unsafe_allow_html=True)
+            hcol1, hcol2 = st.columns([5,3])
+            with hcol1:
+                st.markdown('<div class="tourn-title">🏆 Campeonatos</div>', unsafe_allow_html=True)
+            with hcol2:
+                csel_all, cclear = st.columns(2)
+                with csel_all:
+                    if st.button("Selecionar Todos", use_container_width=True):
+                        st.session_state.sel_tournaments = list(tourn_opts_all)
+                        st.rerun()
+                with cclear:
+                    if st.button("Limpar", use_container_width=True):
+                        st.session_state.sel_tournaments = []
+                        st.rerun()
+
+            # sem "default" — valor vem do session_state (key)
+            st.multiselect(
+                label="",
+                options=tourn_opts_all,
+                key="sel_tournaments",
+                format_func=tournament_label,
+                placeholder="Selecione um ou mais campeonatos…",
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        top_tournaments_sel = list(st.session_state.sel_tournaments)
+        # -----------------------------------------------------------------------------------------
+
+        # Filtros adicionais (sem torneios; eles vêm do topo)
+        flt = filtros_ui(df, tournaments_sel_external=top_tournaments_sel)
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, selH, selD, selA = flt["selected_date_range"], flt["selH"], flt["selD"], flt["selA"]
@@ -464,6 +504,7 @@ try:
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
 
+        # ▶️ Aplicar filtro global de campeonatos
         if tournaments_sel and "tournament_id" in df.columns:
             final_mask &= df["tournament_id"].isin(tournaments_sel)
 
@@ -508,6 +549,31 @@ try:
             status_norm_all = df_filtered["status"].astype(str).map(norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
             df_ag  = df_filtered[status_norm_all != "finished"]
             df_fin = df_filtered[status_norm_all == "finished"]
+
+            # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
+            has_date_col = ("date" in df.columns) and df["date"].notna().any()
+            if has_date_col:
+                _min_all = df["date"].dropna().min().date()
+                _max_all = df["date"].dropna().max().date()
+            else:
+                _min_all = _max_all = None
+
+            user_gave_range = (
+                isinstance(selected_date_range, (list, tuple)) and
+                len(selected_date_range) == 2 and
+                has_date_col and
+                selected_date_range != (_min_all, _max_all)
+            )
+
+            if not user_gave_range and ("date" in df_fin.columns) and df_fin["date"].notna().any():
+                _today = date.today()
+                _start = _today - timedelta(days=3)
+                _end   = _today
+                df_fin = df_fin[df_fin["date"].dt.date.between(_start, _end) | df_fin["date"].isna()]
+
+            if "date" in df_fin.columns:
+                df_fin = df_fin.sort_values("date", ascending=False, na_position="last")
+            # --------------------------------------------------------------------------
 
             tab_ag, tab_fin = st.tabs(["🗓️ Agendados", "✅ Finalizados"])
 
@@ -605,7 +671,7 @@ try:
                             goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
                             goal_eval_s = pd.Series(index=sub.index, dtype="object")
                             for idx in sub.index:
-                                goal_eval_s.loc[idx] = evaluate_market(goal_codes_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
+                                goal_eval_s.loc[idx] = evaluate_market(goal_codes_s.loc[idx], ra_s.loc[idx], rh_s.loc[idx]) if mv_s.loc[idx] else None
                             goal_correct_s = goal_eval_s == True
                             goal_wrong_s   = goal_eval_s == False
 
@@ -684,7 +750,7 @@ try:
                             st.altair_chart(chart + text, use_container_width=True)
 
                     else:
-                        # Um único modelo/seleção: mantém comportamento agregado
+                        # Um único modelo/seleção: comportamento agregado
                         pred_code = normalize_pred_code(df_fin.get("result_predicted", pd.Series(index=df_fin.index, dtype="object")))
                         pred_correct = mask_valid & (pred_code == real_code)
                         pred_wrong   = mask_valid & pred_code.notna() & real_code.notna() & (pred_code != real_code)
@@ -703,41 +769,19 @@ try:
                         goal_correct = goal_eval == True
                         goal_wrong   = goal_eval == False
 
-                        score_eval = pd.Series(index=df_fin.index, dtype="object")
-                        if "score_predicted" in df_fin.columns:
-                            for idx in df_fin.index:
-                                if mask_valid.loc[idx]:
-                                    ph, pa = parse_score_pred(df_fin.at[idx, "score_predicted"])
-                                    if ph is None or pa is None:
-                                        score_eval.loc[idx] = None
-                                    else:
-                                        try:
-                                            score_eval.loc[idx] = (int(rh.loc[idx]) == int(ph)) and (int(ra.loc[idx]) == int(pa))
-                                        except Exception:
-                                            score_eval.loc[idx] = None
-                                else:
-                                    score_eval.loc[idx] = None
-                        score_correct = score_eval == True
-                        score_wrong   = score_eval == False
-
-                        def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series):
-                            total = int((ok_mask | bad_mask).sum())
-                            correct = int(ok_mask.sum())
-                            acc = (correct / total * 100.0) if total > 0 else np.nan
-                            return acc, correct, total
-
-                        acc_pred, c_pred, t_pred = compute_acc2(pred_correct, pred_wrong)
-                        acc_bet,  c_bet,  t_bet  = compute_acc2(bet_correct,  bet_wrong)
-
-                        # NEW: Separate BTTS from goal suggestions
+                        # BTTS separado
                         btts_mask = goal_codes.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
                         btts_correct = goal_correct & btts_mask
                         btts_wrong = goal_wrong & btts_mask
-                        acc_btts, c_btts, t_btts = compute_acc2(btts_correct, btts_wrong)
 
-                        # Exclude BTTS from the general "goal" metric
+                        # Gols (excluindo BTTS)
                         goal_correct_no_btts = goal_correct & ~btts_mask
                         goal_wrong_no_btts   = goal_wrong & ~btts_mask
+
+                        # métricas
+                        acc_pred, c_pred, t_pred = compute_acc2(pred_correct, pred_wrong)
+                        acc_bet,  c_bet,  t_bet  = compute_acc2(bet_correct,  bet_wrong)
+                        acc_btts, c_btts, t_btts = compute_acc2(btts_correct, btts_wrong)
                         acc_goal, c_goal, t_goal = compute_acc2(goal_correct_no_btts, goal_wrong_no_btts)
 
                         st.subheader("Percentual de acerto (apenas finalizados)")
