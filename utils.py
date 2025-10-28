@@ -297,6 +297,31 @@ def fetch_release_file(local_path: str):
 # ============================
 # Carregamento e normalização
 # ============================
+def calculate_double_chance(df: pd.DataFrame) -> pd.DataFrame:
+    """Calcula probabilidades e odds para apostas de dupla chance se não existirem."""
+    # Calcula a probabilidade de Casa ou Empate (Hx)
+    if 'prob_Hx' not in df.columns or df['prob_Hx'].isnull().all():
+        if 'prob_H' in df.columns and 'prob_D' in df.columns:
+            df['prob_Hx'] = df['prob_H'] + df['prob_D']
+
+    # Calcula a odd estimada para Casa ou Empate (Hx)
+    if 'odds_Hx' not in df.columns or df['odds_Hx'].isnull().all():
+        if 'prob_Hx' in df.columns:
+            # Evita divisão por zero
+            df['odds_Hx'] = df['prob_Hx'].apply(lambda p: 1 / p if p > 0 else np.nan)
+
+    # Calcula a probabilidade de Empate ou Visitante (xA)
+    if 'prob_xA' not in df.columns or df['prob_xA'].isnull().all():
+        if 'prob_D' in df.columns and 'prob_A' in df.columns:
+            df['prob_xA'] = df['prob_D'] + df['prob_A']
+
+    # Calcula a odd estimada para Empate ou Visitante (xA)
+    if 'odds_xA' not in df.columns or df['odds_xA'].isnull().all():
+        if 'prob_xA' in df.columns:
+            df['odds_xA'] = df['prob_xA'].apply(lambda p: 1 / p if p > 0 else np.nan)
+
+    return df
+
 @st.cache_data(show_spinner=False)
 def load_data(_file_bytes: bytes) -> pd.DataFrame:
     """
@@ -304,6 +329,7 @@ def load_data(_file_bytes: bytes) -> pd.DataFrame:
     quando o conteúdo do arquivo mudar.
     """
     df = pd.read_excel(_file_bytes)
+    df = calculate_double_chance(df)
 
     # Tipos
     if "date" in df.columns:
