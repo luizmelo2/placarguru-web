@@ -224,10 +224,11 @@ def _exists(df: pd.DataFrame, *cols) -> bool:
 # ============================
 # Download da release (GitHub)
 # ============================
-RELEASE_URL = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
+#RELEASE_URL = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
+RELEASE_URL = "PrevisaoJogos.xlsx"
 
 @st.cache_data(show_spinner=False)
-def fetch_release_file(url: str):
+def fetch_release_file2(url: str):
     """
     Baixa o arquivo da Release pública do GitHub.
     Retorna: (bytes, etag, last_modified)
@@ -237,6 +238,21 @@ def fetch_release_file(url: str):
     etag = r.headers.get("ETag", "")
     last_mod = r.headers.get("Last-Modified", "")
     return r.content, etag, last_mod
+
+
+def fetch_release_file(local_path: str):
+    """
+    Lê um arquivo Excel local e retorna o conteúdo em bytes.
+    Como não há requisição HTTP, não existem ETag ou Last-Modified reais.
+    Retorna: (bytes, etag, last_modified)
+    """
+    with open(local_path, "rb") as f:
+        content = f.read()
+
+    # Você pode devolver campos vazios ou simulados
+    etag = ""
+    last_mod = ""
+    return content, etag, last_mod
 
 # ============================
 # Carregamento e normalização
