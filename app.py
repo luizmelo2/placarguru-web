@@ -20,7 +20,7 @@ from utils import (
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
     eval_goal_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
-    normalize_pred_code, evaluate_market, parse_score_pred, get_odd_for_market
+    normalize_pred_code, evaluate_market, parse_score_pred, get_prob_and_odd_for_market
 )
 
 # ============================
@@ -68,6 +68,7 @@ h3 { font-size: 1.10rem; line-height: 1.3; margin: .35rem 0 .15rem 0; }
 .badge-ok { background:#14532d; color:#d1fae5; }
 .badge-bad { background:#7f1d1d; color:#fee2e2; }
 .badge-wait { background:#334155; color:#e2e8f0; }
+.badge-finished { background: #1e3a8a; color: #dbeafe; } /* Royal Blue */
 button, .stButton>button { border-radius: 12px; padding: 10px 14px; font-weight: 600; }
 div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; font-weight: 700; }
 .stDataFrame { overflow-x: auto; }
@@ -79,6 +80,7 @@ div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; 
 
 /* ÚNICA cor destaque (verde) para previsão, placar, sugestões, probabilidades e odds */
 .accent-green { color:#22C55E; font-weight:700; }
+.text-odds { color: #9CA3AF; font-size: 0.9em; margin-left: 0.5rem; }
 
 .value-soft { color:#E5E7EB; }
 .info-line { margin-top:.25rem; }
@@ -297,10 +299,10 @@ def display_list_view(df: pd.DataFrame):
         badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "⏳")
 
         # previsões com fallback amigável e odds
-        result_txt = f"{market_label(row.get('result_predicted'))} {get_odd_for_market(row, row.get('result_predicted'))}"
+        result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
         score_txt  = fmt_score_pred_text(row.get('score_predicted'))
-        aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_odd_for_market(row, row.get('bet_suggestion'))}"
-        gols_txt   = f"{market_label(row.get('goal_bet_suggestion'))} {get_odd_for_market(row, row.get('goal_bet_suggestion'))}"
+        aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
+        gols_txt   = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
 
         # confiança AO LADO da previsão (e NÃO no caption)
         conf_txt = conf_badge(row)  # ex.: "🟢 Confiança: Alta"
@@ -319,7 +321,7 @@ def display_list_view(df: pd.DataFrame):
                 st.markdown(
                     f'''
                     <div class="info-grid">
-                        <div><span class="text-label">Prev.:</span> {green_html(result_txt)} {badge_res} {conf_html}</div>
+                        <div><span class="text-label">Prev.:</span> {green_html(result_txt)} {badge_res}</div>
                         <div><span class="text-label">Placar:</span> {green_html(score_txt)} {badge_score}</div>
                         <div><span class="text-label">💡 Sugestão:</span> {green_html(aposta_txt)} {badge_bet}</div>
                         <div><span class="text-label">⚽ Gols:</span> {green_html(gols_txt)} {badge_goal}</div>
@@ -329,7 +331,8 @@ def display_list_view(df: pd.DataFrame):
                 )
 
             with c2:
-                st.markdown(f'<span class="badge badge-wait">{status_txt}</span>', unsafe_allow_html=True)
+                badge_class = "badge-finished" if norm_status_key(row.get("status","")) in FINISHED_TOKENS else "badge-wait"
+                st.markdown(f'<span class="badge {badge_class}">{status_txt}</span>', unsafe_allow_html=True)
                 if norm_status_key(row.get("status","")) in FINISHED_TOKENS:
                     rh, ra = row.get("result_home"), row.get("result_away")
                     final_txt = f"{int(rh)}-{int(ra)}" if pd.notna(rh) and pd.notna(ra) else "—"

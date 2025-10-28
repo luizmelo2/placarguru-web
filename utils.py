@@ -164,16 +164,21 @@ def fmt_prob(x):
 def green_html(txt: Any) -> str:
     return f'<span class="accent-green">{txt}</span>'
 
-def get_odd_for_market(row: pd.Series, market_code: Any) -> str:
-    """Busca a odd para um mercado específico em uma linha de dados."""
+def get_prob_and_odd_for_market(row: pd.Series, market_code: Any) -> str:
+    """Busca a probabilidade e a odd para um mercado específico e retorna uma string formatada."""
     if pd.isna(market_code):
         return ""
 
     market_code_str = str(market_code).strip()
     if market_code_str in MARKET_TO_ODDS_COLS:
-        _, odd_col = MARKET_TO_ODDS_COLS[market_code_str]
-        if odd_col in row and pd.notna(row[odd_col]):
-            return f"({fmt_odd(row[odd_col])})"
+        prob_col, odd_col = MARKET_TO_ODDS_COLS[market_code_str]
+        prob = row.get(prob_col)
+        odd = row.get(odd_col)
+
+        prob_str = fmt_prob(prob) if pd.notna(prob) else "N/A"
+        odd_str = fmt_odd(odd) if pd.notna(odd) else "N/A"
+
+        return f'<span class="text-odds">(Prob: {prob_str}, Odd: {odd_str})</span>'
     return ""
 
 def evaluate_market(code: Any, rh: Any, ra: Any) -> Optional[bool]:
