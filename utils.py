@@ -198,7 +198,7 @@ def eval_result_pred_row(row) -> Optional[bool]:
     if pred == "Hx":
         return real in ("H", "D")
     if pred == "xA":
-        return real in ("x", "A")
+        return real in ("D", "A")
     return pred == real
 
 def eval_score_pred_row(row) -> Optional[bool]:
