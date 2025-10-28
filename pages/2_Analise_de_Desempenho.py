@@ -25,6 +25,7 @@ st.title("Análise de Desempenho")
 # ============================
 MARKET_COLUMNS = {
     "H": ("prob_H", "odds_H"), "D": ("prob_D", "odds_D"), "A": ("prob_A", "odds_A"),
+    "Hx": ("prob_Hx", "odds_Hx"), "xA": ("prob_xA", "odds_xA"),
     "over_0_5": ("prob_over_0_5", "odds_match_goals_0.5_over"),
     "over_1_5": ("prob_over_1_5", "odds_match_goals_1.5_over"),
     "over_2_5": ("prob_over_2_5", "odds_match_goals_2.5_over"),

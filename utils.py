@@ -39,7 +39,7 @@ FRIENDLY_COLS = {
 }
 
 FRIENDLY_MARKETS = {
-    "H": "Casa", "D": "Empate", "A": "Visitante",
+    "H": "Casa", "D": "Empate", "A": "Visitante", "Hx": "Casa ou Empate", "xA": "Visitante ou Empate",
     "over_0_5": "Mais de 0.5 gols", "over_1_5": "Mais de 1.5 gols",
     "over_2_5": "Mais de 2.5 gols", "over_3_5": "Mais de 3.5 gols",
     "under_0_5": "Menos de 0.5 gols", "under_1_5": "Menos de 1.5 gols",
@@ -72,6 +72,7 @@ PRED_NORMALIZER = {
     "H": "H", "D": "D", "A": "A",
     "CASA": "H", "EMPATE": "D", "VISITANTE": "A",
     "HOME": "H", "DRAW": "D", "AWAY": "A",
+    "HX": "Hx", "XA": "xA",
 }
 
 # ============================
@@ -154,6 +155,8 @@ def evaluate_market(code: Any, rh: Any, ra: Any) -> Optional[bool]:
     if s in ("h", "casa", "home"): return rh > ra
     if s in ("d", "empate", "draw"): return rh == ra
     if s in ("a", "visitante", "away"): return rh < ra
+    if s == "hx": return rh >= ra
+    if s == "xa": return rh <= ra
     if s.startswith("over_"):
         th = _parse_threshold(s.split("over_", 1)[1]); return None if th is None else (float(rh) + float(ra)) > th
     if s.startswith("under_"):
@@ -191,6 +194,11 @@ def eval_result_pred_row(row) -> Optional[bool]:
     real = "H" if rh > ra else ("D" if rh == ra else "A")
     pred = PRED_NORMALIZER.get(str(row.get("result_predicted")).strip().upper(), np.nan)
     if pd.isna(pred): return None
+
+    if pred == "Hx":
+        return real in ("H", "D")
+    if pred == "xA":
+        return real in ("x", "A")
     return pred == real
 
 def eval_score_pred_row(row) -> Optional[bool]:
