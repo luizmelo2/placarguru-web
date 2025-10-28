@@ -20,7 +20,7 @@ from utils import (
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
     eval_goal_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
-    normalize_pred_code, evaluate_market, parse_score_pred
+    normalize_pred_code, evaluate_market, parse_score_pred, get_odd_for_market
 )
 
 # ============================
@@ -296,9 +296,11 @@ def display_list_view(df: pd.DataFrame):
         badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "⏳")
         badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "⏳")
 
-        # previsões com fallback amigável
-        result_txt = market_label(row.get('result_predicted'))
+        # previsões com fallback amigável e odds
+        result_txt = f"{market_label(row.get('result_predicted'))} {get_odd_for_market(row, row.get('result_predicted'))}"
         score_txt  = fmt_score_pred_text(row.get('score_predicted'))
+        aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_odd_for_market(row, row.get('bet_suggestion'))}"
+        gols_txt   = f"{market_label(row.get('goal_bet_suggestion'))} {get_odd_for_market(row, row.get('goal_bet_suggestion'))}"
 
         # confiança AO LADO da previsão (e NÃO no caption)
         conf_txt = conf_badge(row)  # ex.: "🟢 Confiança: Alta"

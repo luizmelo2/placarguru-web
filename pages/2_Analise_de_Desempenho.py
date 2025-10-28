@@ -20,35 +20,17 @@ st.set_page_config(
 
 st.title("Análise de Desempenho")
 
-# ============================
-# Lógica de Sugestão e Acurácia
-# ============================
-MARKET_COLUMNS = {
-    "H": ("prob_H", "odds_H"), "D": ("prob_D", "odds_D"), "A": ("prob_A", "odds_A"),
-    "Hx": ("prob_Hx", "odds_Hx"), "xA": ("prob_xA", "odds_xA"),
-    "over_0_5": ("prob_over_0_5", "odds_match_goals_0.5_over"),
-    "over_1_5": ("prob_over_1_5", "odds_match_goals_1.5_over"),
-    "over_2_5": ("prob_over_2_5", "odds_match_goals_2.5_over"),
-    "over_3_5": ("prob_over_3_5", "odds_match_goals_3.5_over"),
-    "under_0_5": ("prob_under_0_5", "odds_match_goals_0.5_under"),
-    "under_1_5": ("prob_under_1_5", "odds_match_goals_1.5_under"),
-    "under_2_5": ("prob_under_2_5", "odds_match_goals_2.5_under"),
-    "under_3_5": ("prob_under_3_5", "odds_match_goals_3.5_under"),
-    "btts_yes": ("prob_btts_yes", "odds_btts_yes"),
-    "btts_no": ("prob_btts_no", "odds_btts_no"),
-}
-
 def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optional[List[str]] = None) -> pd.Series:
     """Encontra a melhor aposta para uma linha de dados, considerando os mercados especificados."""
     best_bet, max_prob = None, -1.0
 
     # Se nenhum mercado for especificado, busca em todos os mercados definidos.
     if markets_to_search is None:
-        markets_to_search = list(MARKET_COLUMNS.keys())
+        markets_to_search = list(MARKET_TO_ODDS_COLS.keys())
 
     for market in markets_to_search:
-        if market in MARKET_COLUMNS:
-            prob_col, odd_col = MARKET_COLUMNS[market]
+        if market in MARKET_TO_ODDS_COLS:
+            prob_col, odd_col = MARKET_TO_ODDS_COLS[market]
             if prob_col in row and odd_col in row and pd.notna(row[prob_col]) and pd.notna(row[odd_col]):
                 prob, odd = row[prob_col], row[odd_col]
                 if prob >= prob_min and odd >= odd_min and prob > max_prob:
