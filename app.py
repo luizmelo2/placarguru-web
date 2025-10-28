@@ -655,9 +655,9 @@ try:
                             real_s.loc[mv_s & (rh_s < ra_s)] = "A"
 
                             # Resultado Previsto
-                            pred_code_s = normalize_pred_code(sub.get("result_predicted", pd.Series(index=sub.index, dtype="object")))
-                            pred_correct_s = mv_s & (pred_code_s == real_s)
-                            pred_wrong_s   = mv_s & pred_code_s.notna() & real_s.notna() & (pred_code_s != real_s)
+                            pred_eval_s = sub.apply(eval_result_pred_row, axis=1)
+                            pred_correct_s = pred_eval_s == True
+                            pred_wrong_s   = pred_eval_s == False
 
                             # Sugestão de Aposta
                             bet_codes_s = sub.get("bet_suggestion", pd.Series(index=sub.index, dtype="object"))
@@ -751,9 +751,9 @@ try:
 
                     else:
                         # Um único modelo/seleção: comportamento agregado
-                        pred_code = normalize_pred_code(df_fin.get("result_predicted", pd.Series(index=df_fin.index, dtype="object")))
-                        pred_correct = mask_valid & (pred_code == real_code)
-                        pred_wrong   = mask_valid & pred_code.notna() & real_code.notna() & (pred_code != real_code)
+                        pred_eval = df_fin.apply(eval_result_pred_row, axis=1)
+                        pred_correct = pred_eval == True
+                        pred_wrong   = pred_eval == False
 
                         bet_codes = df_fin.get("bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
                         bet_eval = pd.Series(index=df_fin.index, dtype="object")
