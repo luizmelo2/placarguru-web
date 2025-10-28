@@ -264,11 +264,11 @@ def _exists(df: pd.DataFrame, *cols) -> bool:
 # ============================
 # Download da release (GitHub)
 # ============================
-#RELEASE_URL = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
-RELEASE_URL = "PrevisaoJogos.xlsx"
+RELEASE_URL = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
+#RELEASE_URL = "PrevisaoJogos.xlsx"
 
 @st.cache_data(show_spinner=False)
-def fetch_release_file2(url: str):
+def fetch_release_file(url: str):
     """
     Baixa o arquivo da Release pública do GitHub.
     Retorna: (bytes, etag, last_modified)
@@ -280,7 +280,7 @@ def fetch_release_file2(url: str):
     return r.content, etag, last_mod
 
 
-def fetch_release_file(local_path: str):
+def _fetch_release_file(local_path: str):
     """
     Lê um arquivo Excel local e retorna o conteúdo em bytes.
     Como não há requisição HTTP, não existem ETag ou Last-Modified reais.
