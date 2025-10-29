@@ -255,6 +255,28 @@ def eval_goal_row(row) -> Optional[bool]:
     if not _row_is_finished(row): return None
     return evaluate_market(row.get("goal_bet_suggestion"), row.get("result_home"), row.get("result_away"))
 
+def eval_sugestao_combo_row(row) -> Optional[bool]:
+    """
+    Avalia se tanto a previsão de resultado quanto a sugestão de aposta foram corretas.
+    Retorna True se ambas foram acertos, False se pelo menos uma foi erro, e None se alguma não pôde ser avaliada.
+    """
+    if not _row_is_finished(row):
+        return None
+
+    res_acerto = eval_result_pred_row(row)
+    bet_acerto = eval_bet_row(row)
+
+    # Se qualquer um não puder ser avaliado, o combo não pode ser avaliado
+    if res_acerto is None or bet_acerto is None:
+        return None
+
+    # Se ambos foram acertos
+    if res_acerto is True and bet_acerto is True:
+        return True
+
+    # Se um ou ambos foram erros (e nenhum foi None)
+    return False
+
 def _po(row, prob_key: str, odd_key: str) -> str:
     return f"{green_html(fmt_prob(row.get(prob_key)))} - Odd: {green_html(fmt_odd(row.get(odd_key)))}"
 

@@ -19,7 +19,7 @@ from utils import (
     _exists, fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
-    eval_goal_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
+    eval_goal_row, eval_sugestao_combo_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
     normalize_pred_code, evaluate_market, parse_score_pred, get_prob_and_odd_for_market
 )
 
@@ -707,16 +707,24 @@ try:
                             score_correct_s = score_eval_s == True
                             score_wrong_s   = score_eval_s == False
 
+                            # Sugestão Combo
+                            combo_eval_s = sub.apply(eval_sugestao_combo_row, axis=1)
+                            combo_correct_s = combo_eval_s == True
+                            combo_wrong_s   = combo_eval_s == False
+
                             # Métricas por modelo
                             acc_pred, c_pred, t_pred = compute_acc(pred_correct_s, pred_wrong_s)
                             acc_bet,  c_bet,  t_bet  = compute_acc(bet_correct_s,  bet_wrong_s)
                             acc_goal, c_goal, t_goal = compute_acc(goal_correct_s_no_btts, goal_wrong_s_no_btts)
                             acc_btts, c_btts, t_btts = compute_acc(btts_correct_s, btts_wrong_s)
                             acc_score, c_score, t_score = compute_acc(score_correct_s, score_wrong_s)
+                            acc_combo, c_combo, t_combo = compute_acc(combo_correct_s, combo_wrong_s)
+
 
                             rows += [
                                 {"Modelo": m, "Métrica": "Resultado",            "Acerto (%)": 0 if np.isnan(acc_pred) else round(acc_pred,1), "Acertos": c_pred,  "Total Avaliado": t_pred},
                                 {"Modelo": m, "Métrica": "Sugestão de Aposta",   "Acerto (%)": 0 if np.isnan(acc_bet)  else round(acc_bet,1),  "Acertos": c_bet,   "Total Avaliado": t_bet},
+                                {"Modelo": m, "Métrica": "Sugestão Combo",       "Acerto (%)": 0 if np.isnan(acc_combo) else round(acc_combo,1), "Acertos": c_combo, "Total Avaliado": t_combo},
                                 {"Modelo": m, "Métrica": "Sugestão de Gols",     "Acerto (%)": 0 if np.isnan(acc_goal) else round(acc_goal,1), "Acertos": c_goal,  "Total Avaliado": t_goal},
                                 {"Modelo": m, "Métrica": "Ambos Marcam",         "Acerto (%)": 0 if np.isnan(acc_btts) else round(acc_btts,1), "Acertos": c_btts,  "Total Avaliado": t_btts},
                                 {"Modelo": m, "Métrica": "Placar Previsto",      "Acerto (%)": 0 if np.isnan(acc_score) else round(acc_score,1), "Acertos": c_score, "Total Avaliado": t_score},
@@ -789,23 +797,32 @@ try:
                         acc_btts, c_btts, t_btts = compute_acc2(btts_correct, btts_wrong)
                         acc_goal, c_goal, t_goal = compute_acc2(goal_correct_no_btts, goal_wrong_no_btts)
 
+                        # Sugestão Combo (modelo único)
+                        combo_eval = df_fin.apply(eval_sugestao_combo_row, axis=1)
+                        combo_correct = combo_eval == True
+                        combo_wrong   = combo_eval == False
+                        acc_combo, c_combo, t_combo = compute_acc2(combo_correct, combo_wrong)
+
                         st.subheader("Percentual de acerto (apenas finalizados)")
-                        k1, k2, k3, k4 = (st.container(), st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(4)
+                        k1, k2, k3, k4, k5 = (st.container(), st.container(), st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(5)
                         k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
                         k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
-                        k3.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
-                        k4.metric("Ambos Marcam", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
+                        k3.metric("Sugestão Combo", f"{0 if np.isnan(acc_combo) else round(acc_combo,1)}%", f"{c_combo}/{t_combo}")
+                        k4.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
+                        k5.metric("Ambos Marcam", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
+
 
                         metrics_df = pd.DataFrame({
-                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão de Gols", "Ambos Marcam"],
+                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam"],
                             "Acerto (%)": [
                                 0 if np.isnan(acc_pred) else round(acc_pred, 1),
                                 0 if np.isnan(acc_bet) else round(acc_bet, 1),
+                                0 if np.isnan(acc_combo) else round(acc_combo, 1),
                                 0 if np.isnan(acc_goal) else round(acc_goal, 1),
                                 0 if np.isnan(acc_btts) else round(acc_btts, 1),
                             ],
-                            "Acertos": [c_pred, c_bet, c_goal, c_btts],
-                            "Total Avaliado": [t_pred, t_bet, t_goal, t_btts],
+                            "Acertos": [c_pred, c_bet, c_combo, c_goal, c_btts],
+                            "Total Avaliado": [t_pred, t_bet, t_combo, t_goal, t_btts],
                         })
 
                         chart = alt.Chart(metrics_df).mark_bar().encode(
