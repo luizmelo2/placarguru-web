@@ -20,7 +20,8 @@ from utils import (
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
     eval_goal_row, eval_sugestao_combo_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
-    normalize_pred_code, evaluate_market, parse_score_pred, get_prob_and_odd_for_market
+    normalize_pred_code, evaluate_market, parse_score_pred, get_prob_and_odd_for_market,
+    predict_btts_from_prob
 )
 
 # ============================
@@ -145,6 +146,11 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     # Placar Previsto com fallback amigável
     if "score_predicted" in out.columns:
         out["score_predicted"] = out["score_predicted"].apply(lambda x: fmt_score_pred_text(x))
+
+    # Nova Previsão BTTS
+    if "prob_btts_yes" in out.columns and "prob_btts_no" in out.columns:
+        out["btts_prediction"] = out.apply(predict_btts_from_prob, axis=1).apply(market_label, default="Indefinido")
+
 
     return out.rename(columns=FRIENDLY_COLS)
 
@@ -298,6 +304,12 @@ def display_list_view(df: pd.DataFrame):
         badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "⏳")
         badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "⏳")
 
+        # Nova previsão "Ambos Marcam"
+        btts_pred = predict_btts_from_prob(row)
+        btts_pred_txt = market_label(btts_pred, "Indefinido")
+        hit_btts_pred = evaluate_market(btts_pred, row.get("result_home"), row.get("result_away"))
+        badge_btts_pred = "✅" if hit_btts_pred is True else ("❌" if hit_btts_pred is False else "⏳")
+
         # previsões com fallback amigável e odds
         result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
         score_txt  = fmt_score_pred_text(row.get('score_predicted'))
@@ -325,6 +337,7 @@ def display_list_view(df: pd.DataFrame):
                         <div><span class="text-label">Placar:</span> {green_html(score_txt)} {badge_score}</div>
                         <div><span class="text-label">💡 Sugestão:</span> {green_html(aposta_txt)} {badge_bet}</div>
                         <div><span class="text-label">⚽ Gols:</span> {green_html(gols_txt)} {badge_goal}</div>
+                        <div><span class="text-label">🥅 Ambos Marcam:</span> {green_html(btts_pred_txt)} {badge_btts_pred}</div>
                     </div>
                     ''',
                     unsafe_allow_html=True
@@ -600,7 +613,7 @@ try:
                         st.dataframe(
                             apply_friendly_for_display(df_ag[
                                 [c for c in ["date","home","away","tournament_id","model","status",
-                                             "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion",
+                                             "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion", "btts_prediction",
                                              "odds_H","odds_D","odds_A","result_home","result_away"] if c in df_ag.columns]
                             ]),
                             use_container_width=True, hide_index=True
@@ -617,7 +630,7 @@ try:
                         st.dataframe(
                             apply_friendly_for_display(df_fin[
                                 [c for c in ["date","home","away","tournament_id","model","status",
-                                             "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion",
+                                             "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion", "btts_prediction",
                                              "odds_H","odds_D","odds_A","result_home","result_away"] if c in df_fin.columns]
                             ]),
                             use_container_width=True, hide_index=True
@@ -720,13 +733,23 @@ try:
                             acc_score, c_score, t_score = compute_acc(score_correct_s, score_wrong_s)
                             acc_combo, c_combo, t_combo = compute_acc(combo_correct_s, combo_wrong_s)
 
+                            # Nova métrica BTTS (Prob)
+                            btts_pred_s = sub.apply(predict_btts_from_prob, axis=1)
+                            btts_pred_eval_s = pd.Series(index=sub.index, dtype="object")
+                            for idx in sub.index:
+                                btts_pred_eval_s.loc[idx] = evaluate_market(btts_pred_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
+                            btts_pred_correct_s = btts_pred_eval_s == True
+                            btts_pred_wrong_s   = btts_pred_eval_s == False
+                            acc_btts_pred, c_btts_pred, t_btts_pred = compute_acc(btts_pred_correct_s, btts_pred_wrong_s)
+
 
                             rows += [
                                 {"Modelo": m, "Métrica": "Resultado",            "Acerto (%)": 0 if np.isnan(acc_pred) else round(acc_pred,1), "Acertos": c_pred,  "Total Avaliado": t_pred},
                                 {"Modelo": m, "Métrica": "Sugestão de Aposta",   "Acerto (%)": 0 if np.isnan(acc_bet)  else round(acc_bet,1),  "Acertos": c_bet,   "Total Avaliado": t_bet},
                                 {"Modelo": m, "Métrica": "Sugestão Combo",       "Acerto (%)": 0 if np.isnan(acc_combo) else round(acc_combo,1), "Acertos": c_combo, "Total Avaliado": t_combo},
                                 {"Modelo": m, "Métrica": "Sugestão de Gols",     "Acerto (%)": 0 if np.isnan(acc_goal) else round(acc_goal,1), "Acertos": c_goal,  "Total Avaliado": t_goal},
-                                {"Modelo": m, "Métrica": "Ambos Marcam",         "Acerto (%)": 0 if np.isnan(acc_btts) else round(acc_btts,1), "Acertos": c_btts,  "Total Avaliado": t_btts},
+                                {"Modelo": m, "Métrica": "Ambos Marcam (Sugestão)", "Acerto (%)": 0 if np.isnan(acc_btts) else round(acc_btts,1), "Acertos": c_btts,  "Total Avaliado": t_btts},
+                                {"Modelo": m, "Métrica": "Ambos Marcam (Prob)",  "Acerto (%)": 0 if np.isnan(acc_btts_pred) else round(acc_btts_pred,1), "Acertos": c_btts_pred, "Total Avaliado": t_btts_pred},
                                 {"Modelo": m, "Métrica": "Placar Previsto",      "Acerto (%)": 0 if np.isnan(acc_score) else round(acc_score,1), "Acertos": c_score, "Total Avaliado": t_score},
                             ]
 
@@ -803,26 +826,37 @@ try:
                         combo_wrong   = combo_eval == False
                         acc_combo, c_combo, t_combo = compute_acc2(combo_correct, combo_wrong)
 
+                        # Nova métrica BTTS (Prob) - modelo único
+                        btts_pred = df_fin.apply(predict_btts_from_prob, axis=1)
+                        btts_pred_eval = pd.Series(index=df_fin.index, dtype="object")
+                        for idx in df_fin.index:
+                            btts_pred_eval.loc[idx] = evaluate_market(btts_pred.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
+                        btts_pred_correct = btts_pred_eval == True
+                        btts_pred_wrong   = btts_pred_eval == False
+                        acc_btts_pred, c_btts_pred, t_btts_pred = compute_acc2(btts_pred_correct, btts_pred_wrong)
+
                         st.subheader("Percentual de acerto (apenas finalizados)")
                         k1, k2, k3, k4, k5 = (st.container(), st.container(), st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(5)
                         k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
                         k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
                         k3.metric("Sugestão Combo", f"{0 if np.isnan(acc_combo) else round(acc_combo,1)}%", f"{c_combo}/{t_combo}")
                         k4.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
-                        k5.metric("Ambos Marcam", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
+                        k5.metric("Ambos Marcam (Sugestão)", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
+                        k5.metric("Ambos Marcam (Prob)", f"{0 if np.isnan(acc_btts_pred) else round(acc_btts_pred,1)}%", f"{c_btts_pred}/{t_btts_pred}")
 
 
                         metrics_df = pd.DataFrame({
-                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam"],
+                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam (Sugestão)", "Ambos Marcam (Prob)"],
                             "Acerto (%)": [
                                 0 if np.isnan(acc_pred) else round(acc_pred, 1),
                                 0 if np.isnan(acc_bet) else round(acc_bet, 1),
                                 0 if np.isnan(acc_combo) else round(acc_combo, 1),
                                 0 if np.isnan(acc_goal) else round(acc_goal, 1),
                                 0 if np.isnan(acc_btts) else round(acc_btts, 1),
+                                0 if np.isnan(acc_btts_pred) else round(acc_btts_pred, 1),
                             ],
-                            "Acertos": [c_pred, c_bet, c_combo, c_goal, c_btts],
-                            "Total Avaliado": [t_pred, t_bet, t_combo, t_goal, t_btts],
+                            "Acertos": [c_pred, c_bet, c_combo, c_goal, c_btts, c_btts_pred],
+                            "Total Avaliado": [t_pred, t_bet, t_combo, t_goal, t_btts, t_btts_pred],
                         })
 
                         chart = alt.Chart(metrics_df).mark_bar().encode(

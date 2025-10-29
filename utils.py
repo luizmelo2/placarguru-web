@@ -36,6 +36,7 @@ FRIENDLY_COLS = {
     "btts_yes": "Ambos Marcam Sim",
     "btts_no": "Ambos Marcam Não",
     "final_score": "Resultado Final",
+    "btts_prediction": "Previsão BTTS",
 }
 
 FRIENDLY_MARKETS = {
@@ -276,6 +277,22 @@ def eval_sugestao_combo_row(row) -> Optional[bool]:
 
     # Se um ou ambos foram erros (e nenhum foi None)
     return False
+
+def predict_btts_from_prob(row) -> Optional[str]:
+    """
+    Prevê o resultado de "Ambos Marcam" com base em um limiar de probabilidade.
+    Retorna 'btts_yes' se a prob. for > 75%, 'btts_no' se a prob. for > 75%, ou None caso contrário.
+    """
+    prob_yes = row.get("prob_btts_yes")
+    prob_no = row.get("prob_btts_no")
+
+    if pd.notna(prob_yes) and prob_yes > 0.75:
+        return "btts_yes"
+
+    if pd.notna(prob_no) and prob_no > 0.75:
+        return "btts_no"
+
+    return None # Representa "Indefinido"
 
 def _po(row, prob_key: str, odd_key: str) -> str:
     return f"{green_html(fmt_prob(row.get(prob_key)))} - Odd: {green_html(fmt_odd(row.get(odd_key)))}"
