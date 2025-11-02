@@ -294,6 +294,31 @@ def predict_btts_from_prob(row) -> Optional[str]:
 
     return None # Representa "Indefinido"
 
+def safe_btts_code_from_row(row: pd.Series) -> Optional[str]:
+    """
+    Garante que retornamos 'btts_yes' / 'btts_no' (ou None) SEMPRE como string,
+    nunca um pandas.Series/DataFrame.
+    """
+    try:
+        code = predict_btts_from_prob(row)  # pode retornar Series em alguns casos
+        # Se vier um Series/DataFrame por engano, decidimos pelo maior prob_btts_*
+        if isinstance(code, (pd.Series, pd.DataFrame)):
+            py = row.get('prob_btts_yes')
+            pn = row.get('prob_btts_no')
+            if pd.notna(py) and pd.notna(pn):
+                code = 'btts_yes' if float(py) >= float(pn) else 'btts_no'
+            else:
+                code = None
+
+        # Normaliza e garante tipo texto
+        if code is not None:
+            code = normalize_pred_code(code)  # deve padronizar para 'btts_yes'/'btts_no'
+            code = str(code)
+        return code
+    except Exception:
+        return None
+
+
 def _po(row, prob_key: str, odd_key: str) -> str:
     return f"{green_html(fmt_prob(row.get(prob_key)))} - Odd: {green_html(fmt_odd(row.get(odd_key)))}"
 

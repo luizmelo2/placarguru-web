@@ -21,7 +21,7 @@ from utils import (
     status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
     eval_goal_row, eval_sugestao_combo_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
     normalize_pred_code, evaluate_market, parse_score_pred, get_prob_and_odd_for_market,
-    predict_btts_from_prob
+    predict_btts_from_prob, safe_btts_code_from_row
 )
 
 # ============================
@@ -306,7 +306,6 @@ def display_list_view(df: pd.DataFrame):
 
         # Nova previsão "Ambos Marcam"
         btts_pred = predict_btts_from_prob(row)
-        btts_pred_txt = market_label(btts_pred, "Indefinido")
         hit_btts_pred = evaluate_market(btts_pred, row.get("result_home"), row.get("result_away"))
         badge_btts_pred = "✅" if hit_btts_pred is True else ("❌" if hit_btts_pred is False else "")
 
@@ -315,6 +314,7 @@ def display_list_view(df: pd.DataFrame):
         score_txt  = fmt_score_pred_text(row.get('score_predicted'))
         aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
         gols_txt   = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
+        btts_pred_txt = f"{market_label(btts_pred, default='Indefinido')} {get_prob_and_odd_for_market(row, btts_pred)}"
 
         # confiança AO LADO da previsão (e NÃO no caption)
         conf_txt = conf_badge(row)  # ex.: "🟢 Confiança: Alta"
@@ -333,7 +333,7 @@ def display_list_view(df: pd.DataFrame):
                 st.markdown(
                     f'''
                     <div class="info-grid">
-                        <div><span class="text-label">{badge_res} ⚖️ Resultado:</span> {green_html(result_txt)} </div>
+                        <div><span class="text-label">{badge_res} 🎯 Resultado:</span> {green_html(result_txt)} </div>
                         <div><span class="text-label">{badge_bet} 💡 Sugestão Aposta:</span> {green_html(aposta_txt)} </div>
                         <div><span class="text-label">{badge_goal} ⚽ Sugestão Gols:</span> {green_html(gols_txt)}</div>
                         <div><span class="text-label">{badge_btts_pred} 🥅 Ambos Marcam:</span> {green_html(btts_pred_txt)}</div>
@@ -349,7 +349,7 @@ def display_list_view(df: pd.DataFrame):
                 if norm_status_key(row.get("status","")) in FINISHED_TOKENS:
                     rh, ra = row.get("result_home"), row.get("result_away")
                     final_txt = f"{int(rh)}-{int(ra)}" if pd.notna(rh) and pd.notna(ra) else "—"
-                    st.markdown(f"**Final:** {final_txt}")
+                    st.markdown(f"**Placar Final:** {final_txt}")
 
             # Detalhes com Prob/Odds (valores verdes)
             with st.expander("Detalhes, Probabilidades & Odds"):
@@ -841,8 +841,8 @@ try:
                         k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
                         k3.metric("Sugestão Combo", f"{0 if np.isnan(acc_combo) else round(acc_combo,1)}%", f"{c_combo}/{t_combo}")
                         k4.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
-                        k5.metric("Ambos Marcam (Sugestão)", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
-                        k5.metric("Ambos Marcam (Prob)", f"{0 if np.isnan(acc_btts_pred) else round(acc_btts_pred,1)}%", f"{c_btts_pred}/{t_btts_pred}")
+                        #k5.metric("Ambos Marcam (Sugestão)", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
+                        k5.metric("Ambos Marcam ", f"{0 if np.isnan(acc_btts_pred) else round(acc_btts_pred,1)}%", f"{c_btts_pred}/{t_btts_pred}")
 
 
                         metrics_df = pd.DataFrame({
