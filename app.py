@@ -292,8 +292,8 @@ def display_list_view(df: pd.DataFrame):
         # badges (resultado e placar)
         hit_res   = eval_result_pred_row(row)
         hit_score = eval_score_pred_row(row)
-        badge_res   = "✅" if hit_res is True else ("❌" if hit_res is False else "⏳")
-        badge_score = "✅" if hit_score is True else ("❌" if hit_score is False else "⏳")
+        badge_res   = "✅" if hit_res is True else ("❌" if hit_res is False else "")
+        badge_score = "✅" if hit_score is True else ("❌" if hit_score is False else "")
 
         # sugestões + avaliação (com fallback amigável)
         aposta_txt = market_label(row.get('bet_suggestion'))
@@ -301,14 +301,14 @@ def display_list_view(df: pd.DataFrame):
 
         hit_bet  = eval_bet_row(row)
         hit_goal = eval_goal_row(row)
-        badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "⏳")
-        badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "⏳")
+        badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "")
+        badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "")
 
         # Nova previsão "Ambos Marcam"
         btts_pred = predict_btts_from_prob(row)
         btts_pred_txt = market_label(btts_pred, "Indefinido")
         hit_btts_pred = evaluate_market(btts_pred, row.get("result_home"), row.get("result_away"))
-        badge_btts_pred = "✅" if hit_btts_pred is True else ("❌" if hit_btts_pred is False else "⏳")
+        badge_btts_pred = "✅" if hit_btts_pred is True else ("❌" if hit_btts_pred is False else "")
 
         # previsões com fallback amigável e odds
         result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
@@ -333,11 +333,11 @@ def display_list_view(df: pd.DataFrame):
                 st.markdown(
                     f'''
                     <div class="info-grid">
-                        <div><span class="text-label">Prev.:</span> {green_html(result_txt)} {badge_res}</div>
-                        <div><span class="text-label">Placar:</span> {green_html(score_txt)} {badge_score}</div>
-                        <div><span class="text-label">💡 Sugestão:</span> {green_html(aposta_txt)} {badge_bet}</div>
-                        <div><span class="text-label">⚽ Gols:</span> {green_html(gols_txt)} {badge_goal}</div>
-                        <div><span class="text-label">🥅 Ambos Marcam:</span> {green_html(btts_pred_txt)} {badge_btts_pred}</div>
+                        <div><span class="text-label">{badge_res} ⚖️ Resultado:</span> {green_html(result_txt)} </div>
+                        <div><span class="text-label">{badge_bet} 💡 Sugestão Aposta:</span> {green_html(aposta_txt)} </div>
+                        <div><span class="text-label">{badge_goal} ⚽ Sugestão Gols:</span> {green_html(gols_txt)}</div>
+                        <div><span class="text-label">{badge_btts_pred} 🥅 Ambos Marcam:</span> {green_html(btts_pred_txt)}</div>
+                        <div><span class="text-label">{badge_score} 📊 Placar Previsto:</span> {green_html(score_txt)} </div>
                     </div>
                     ''',
                     unsafe_allow_html=True
