@@ -286,10 +286,10 @@ def predict_btts_from_prob(row) -> Optional[str]:
     prob_yes = row.get("prob_btts_yes")
     prob_no = row.get("prob_btts_no")
 
-    if pd.notna(prob_yes) and prob_yes > 0.55:
+    if pd.notna(prob_yes) and prob_yes > 0.65:
         return "btts_yes"
 
-    if pd.notna(prob_no) and prob_no > 0.55:
+    if pd.notna(prob_no) and prob_no > 0.65:
         return "btts_no"
 
     return None # Representa "Indefinido"
