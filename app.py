@@ -149,7 +149,7 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
 
     # Nova Previsão BTTS
     if "prob_btts_yes" in out.columns and "prob_btts_no" in out.columns:
-        out["btts_prediction"] = out.apply(predict_btts_from_prob, axis=1).apply(market_label, default="Indefinido")
+        out["btts_prediction"] = out.apply(predict_btts_from_prob, axis=1).apply(market_label, default="-")
 
 
     return out.rename(columns=FRIENDLY_COLS)
@@ -314,7 +314,7 @@ def display_list_view(df: pd.DataFrame):
         score_txt  = fmt_score_pred_text(row.get('score_predicted'))
         aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
         gols_txt   = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
-        btts_pred_txt = f"{market_label(btts_pred, default='Indefinido')} {get_prob_and_odd_for_market(row, btts_pred)}"
+        btts_pred_txt = f"{market_label(btts_pred, default='-')} {get_prob_and_odd_for_market(row, btts_pred)}"
 
         # confiança AO LADO da previsão (e NÃO no caption)
         conf_txt = conf_badge(row)  # ex.: "🟢 Confiança: Alta"
