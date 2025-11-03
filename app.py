@@ -846,17 +846,16 @@ try:
 
 
                         metrics_df = pd.DataFrame({
-                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam (Sugestão)", "Ambos Marcam (Prob)"],
+                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam (Prob)"],
                             "Acerto (%)": [
                                 0 if np.isnan(acc_pred) else round(acc_pred, 1),
                                 0 if np.isnan(acc_bet) else round(acc_bet, 1),
                                 0 if np.isnan(acc_combo) else round(acc_combo, 1),
                                 0 if np.isnan(acc_goal) else round(acc_goal, 1),
-                                0 if np.isnan(acc_btts) else round(acc_btts, 1),
                                 0 if np.isnan(acc_btts_pred) else round(acc_btts_pred, 1),
                             ],
-                            "Acertos": [c_pred, c_bet, c_combo, c_goal, c_btts, c_btts_pred],
-                            "Total Avaliado": [t_pred, t_bet, t_combo, t_goal, t_btts, t_btts_pred],
+                            "Acertos": [c_pred, c_bet, c_combo, c_goal, c_btts_pred],
+                            "Total Avaliado": [t_pred, t_bet, t_combo, t_goal, t_btts_pred],
                         })
 
                         chart = alt.Chart(metrics_df).mark_bar().encode(
