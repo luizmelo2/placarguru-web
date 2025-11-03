@@ -1,0 +1,42 @@
+name: Deploy to Hugging Face Spaces
+
+on:
+  push:
+    branches: [ main ]   # altere se usar outra branch
+  workflow_dispatch:      # permite rodar manualmente
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-to-spaces
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure Git LFS (optional)
+        run: |
+          git lfs install --force
+          echo "*.pickle filter=lfs diff=lfs merge=lfs -text" >> .gitattributes || true
+          echo "*.pkl    filter=lfs diff=lfs merge=lfs -text" >> .gitattributes || true
+          echo "*.bin    filter=lfs diff=lfs merge=lfs -text" >> .gitattributes || true
+
+      - name: Push to Hugging Face Space
+        uses: huggingface/hf-deploy-action@v1
+        with:
+          repo: spaces/luizmarcel/placarguru
+          hf_token: ${{ secrets.HF_TOKEN }}
+          # optional: commit_message: "Deploy via GitHub Actions"
+
+      - name: Show Space URL
+        run: |
+          USER_SPACE="https://huggingface.co/spaces/luizmarcel/placarguru"
+          SUBDOMAIN="https://luizmarcel-placarguru.hf.space/"
+          echo "Space URL: $USER_SPACE"
+          echo "Subdomain: $SUBDOMAIN"
