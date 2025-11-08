@@ -624,17 +624,122 @@ try:
                 if df_fin.empty:
                     st.info("Sem jogos finalizados neste recorte.")
                 else:
-                    if use_list_view:
-                        display_list_view(df_fin)
-                    else:
-                        st.dataframe(
-                            apply_friendly_for_display(df_fin[
-                                [c for c in ["date","home","away","tournament_id","model","status",
-                                             "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion", "btts_prediction",
-                                             "odds_H","odds_D","odds_A","result_home","result_away"] if c in df_fin.columns]
-                            ]),
-                            use_container_width=True, hide_index=True
+                    if not st.checkbox("Ocultar lista de jogos", value=False):
+                        if use_list_view:
+                            display_list_view(df_fin)
+                        else:
+                            st.dataframe(
+                                apply_friendly_for_display(df_fin[
+                                    [c for c in ["date","home","away","tournament_id","model","status",
+                                                 "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion", "btts_prediction",
+                                                 "odds_H","odds_D","odds_A","result_home","result_away"] if c in df_fin.columns]
+                                ]),
+                                use_container_width=True, hide_index=True
+                            )
+
+                    # --- Função para preparar dados para o novo gráfico de acurácia diária ---
+                    def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
+                        def _evaluate_row(row):
+                            correct = 0
+                            total = 0
+
+                            markets_to_check = [
+                                eval_result_pred_row(row),
+                                eval_bet_row(row),
+                                eval_goal_row(row),
+                                eval_score_pred_row(row),
+                            ]
+
+                            btts_pred = predict_btts_from_prob(row)
+                            markets_to_check.append(evaluate_market(btts_pred, row.get("result_home"), row.get("result_away")))
+
+                            for result in markets_to_check:
+                                if result is not None:
+                                    total += 1
+                                    if result:
+                                        correct += 1
+
+                            return pd.Series([correct, total], index=['correct_count', 'total_count'])
+
+                        if df.empty or 'date' not in df.columns:
+                            return pd.DataFrame()
+
+                        counts = df.apply(_evaluate_row, axis=1)
+                        df_counts = pd.concat([df[['date', 'tournament_id']], counts], axis=1)
+                        df_counts.dropna(subset=['date', 'tournament_id'], inplace=True)
+
+                        df_counts['day'] = df_counts['date'].dt.date
+                        daily_agg = df_counts.groupby(['day', 'tournament_id']).sum(numeric_only=True).reset_index()
+
+                        daily_agg['accuracy_rate'] = daily_agg.apply(
+                            lambda row: (row['correct_count'] / row['total_count'] * 100) if row['total_count'] > 0 else 0,
+                            axis=1
                         )
+
+                        daily_agg['tournament_id'] = daily_agg['tournament_id'].apply(tournament_label)
+                        chart_df = daily_agg.rename(columns={
+                            'day': 'Data',
+                            'tournament_id': 'Campeonato',
+                            'accuracy_rate': 'Taxa de Acerto (%)'
+                        })
+
+                        return chart_df[['Data', 'Campeonato', 'Taxa de Acerto (%)']]
+
+                    def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
+                        """
+                        Calcula o melhor modelo por campeonato e mercado de aposta com base na taxa de acerto.
+                        """
+                        if df.empty or 'model' not in df.columns or 'tournament_id' not in df.columns:
+                            return pd.DataFrame()
+
+                        # 1. Calcula o acerto para cada mercado de interesse
+                        df['hit_result'] = df.apply(eval_result_pred_row, axis=1)
+                        df['hit_bet'] = df.apply(eval_bet_row, axis=1)
+                        df['hit_goal'] = df.apply(eval_goal_row, axis=1)
+                        df['hit_btts'] = df.apply(lambda row: evaluate_market(predict_btts_from_prob(row), row.get("result_home"), row.get("result_away")), axis=1)
+
+                        # Converte True/False para 1/0 para agregação, mantendo None como NaN
+                        for col in ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts']:
+                            df[col] = df[col].apply(lambda x: 1 if x is True else (0 if x is False else np.nan))
+
+                        # 2. Reestrutura os dados para formato longo (tidy)
+                        id_vars = ['tournament_id', 'model']
+                        value_vars = ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts']
+                        df_melted = df.melt(id_vars=id_vars, value_vars=value_vars, var_name='mercado', value_name='acerto')
+                        df_melted.dropna(subset=['acerto'], inplace=True)
+
+                        # 3. Agrupa para calcular acertos e totais
+                        agg = df_melted.groupby(['tournament_id', 'model', 'mercado']).agg(
+                            total_acertos=('acerto', 'sum'),
+                            total_jogos=('acerto', 'count')
+                        ).reset_index()
+
+                        # 4. Calcula a taxa de acerto
+                        agg['taxa_acerto'] = (agg['total_acertos'] / agg['total_jogos'] * 100).round(2)
+
+                        # 5. Encontra o melhor modelo para cada campeonato e mercado
+                        best_model_idx = agg.groupby(['tournament_id', 'mercado'])['taxa_acerto'].idxmax()
+                        df_best = agg.loc[best_model_idx].copy()
+
+                        # 6. Formata o DataFrame final
+                        df_best['mercado'] = df_best['mercado'].map({
+                            'hit_result': 'Resultado Final',
+                            'hit_bet': 'Sugestão de Aposta',
+                            'hit_goal': 'Sugestão de Gols',
+                            'hit_btts': 'Ambos Marcam (Prob)'
+                        })
+                        df_best['tournament_id'] = df_best['tournament_id'].apply(tournament_label)
+
+                        df_final = df_best[['tournament_id', 'mercado', 'model', 'taxa_acerto', 'total_jogos']]
+                        df_final = df_final.rename(columns={
+                            'tournament_id': 'Campeonato',
+                            'mercado': 'Mercado de Aposta',
+                            'model': 'Melhor Modelo',
+                            'taxa_acerto': 'Taxa de Acerto (%)',
+                            'total_jogos': 'Total de Jogos Avaliados'
+                        })
+
+                        return df_final.sort_values(by=['Campeonato', 'Mercado de Aposta']).reset_index(drop=True)
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
                     rh = df_fin.get("result_home", pd.Series(index=df_fin.index, dtype="float"))
@@ -869,6 +974,31 @@ try:
                             text=alt.Text('Acerto (%):Q', format='.1f')
                         )
                         st.altair_chart(chart + text, use_container_width=True)
+
+                    # --- Gráfico de linha de acurácia por dia/campeonato ---
+                    st.subheader("Acurácia Diária por Campeonato")
+                    accuracy_data = prepare_accuracy_chart_data(df_fin)
+                    if not accuracy_data.empty:
+                        line_chart = alt.Chart(accuracy_data).mark_line(point=True).encode(
+                            x=alt.X('Data:T', title='Data'),
+                            y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto (%)'),
+                            color='Campeonato:N',
+                            tooltip=['Data:T', 'Campeonato:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                        ).properties(
+                            height=300,
+                            title='Taxa de Acerto Diária por Campeonato'
+                        )
+                        st.altair_chart(line_chart, use_container_width=True)
+                    else:
+                        st.info("Não há dados suficientes para gerar o gráfico de acurácia diária.")
+
+                    # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
+                    st.subheader("Melhor Modelo por Campeonato e Mercado")
+                    best_model_data = get_best_model_by_market(df_fin.copy())
+                    if not best_model_data.empty:
+                        st.dataframe(best_model_data, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
         # --- Rodapé: Última Atualização (da release/servidor GitHub) ---
         st.markdown(
