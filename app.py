@@ -751,15 +751,21 @@ try:
 
                     def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
                         """
-                        Cria uma tabela resumo (pivot) mostrando o melhor modelo para cada campeonato e mercado.
+                        Cria uma tabela resumo (pivot) mostrando o melhor modelo e sua taxa de acerto.
                         """
                         if best_model_df.empty:
                             return pd.DataFrame()
 
-                        pivot_df = best_model_df.pivot_table(
+                        # Cria uma nova coluna combinando o modelo e a taxa de acerto
+                        df_copy = best_model_df.copy()
+                        df_copy['display_value'] = df_copy.apply(
+                            lambda row: f"{row['Melhor Modelo']} ({row['Taxa de Acerto (%)']:.1f}%)", axis=1
+                        )
+
+                        pivot_df = df_copy.pivot_table(
                             index='Campeonato',
                             columns='Mercado de Aposta',
-                            values='Melhor Modelo',
+                            values='display_value',
                             aggfunc='first'
                         ).fillna('-')
 
