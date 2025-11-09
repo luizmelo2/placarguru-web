@@ -2,13 +2,15 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
-from datetime import timedelta, date, datetime
-from typing import Any, Tuple, Optional, List
+from typing import Optional, List
 
 # Importa funções e constantes do utils.py
-from utils import *  # RELEASE_URL, fetch_release_file, load_data, FRIENDLY_COLS,
-                     # tournament_label, norm_status_key, evaluate_market,
-                     # eval_result_pred_row, eval_goal_row
+from utils import (
+    RELEASE_URL, fetch_release_file, load_data,
+    tournament_label, norm_status_key, evaluate_market
+)
+from ui_components import filtros_analise_ui
+from analysis import find_best_bet, suggest_btts
 
 # ============================
 # Configuração da página
@@ -19,78 +21,6 @@ st.set_page_config(
 )
 
 st.title("Análise de Desempenho")
-
-def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optional[List[str]] = None) -> pd.Series:
-    """Encontra a melhor aposta para uma linha de dados, considerando os mercados especificados."""
-    best_bet, max_prob = None, -1.0
-
-    # Se nenhum mercado for especificado, busca em todos os mercados definidos.
-    if markets_to_search is None:
-        markets_to_search = list(MARKET_TO_ODDS_COLS.keys())
-
-    for market in markets_to_search:
-        if market in MARKET_TO_ODDS_COLS:
-            prob_col, odd_col = MARKET_TO_ODDS_COLS[market]
-            if prob_col in row and odd_col in row and pd.notna(row[prob_col]) and pd.notna(row[odd_col]):
-                prob, odd = row[prob_col], row[odd_col]
-                if prob >= prob_min and odd >= odd_min and prob > max_prob:
-                    max_prob = prob
-                    best_bet = {"market": market, "prob": prob, "odd": odd}
-
-    if best_bet:
-        return pd.Series(best_bet)
-
-    return pd.Series({"market": np.nan, "prob": np.nan, "odd": np.nan})
-
-def suggest_btts(row) -> pd.Series:
-    """Sugere a melhor aposta 'Ambos Marcam' com base na maior probabilidade."""
-    prob_yes = row.get("prob_btts_yes", -1)
-    prob_no = row.get("prob_btts_no", -1)
-
-    # Retorna NaN se as probabilidades não estiverem disponíveis
-    if pd.isna(prob_yes) or pd.isna(prob_no):
-        return pd.Series({
-            "btts_sugg_market": np.nan,
-            "btts_sugg_prob": np.nan,
-            "btts_sugg_odd": np.nan
-        })
-
-    if prob_yes > prob_no:
-        market = "btts_yes"
-        prob = prob_yes
-        odd = row.get("odds_btts_yes")
-    else:
-        market = "btts_no"
-        prob = prob_no
-        odd = row.get("odds_btts_no")
-
-    return pd.Series({
-        "btts_sugg_market": market,
-        "btts_sugg_prob": prob,
-        "btts_sugg_odd": odd
-    })
-
-# ============================
-# UI de Filtros
-# ============================
-def filtros_analise_ui(df: pd.DataFrame) -> dict:
-    st.sidebar.header("Parâmetros da Análise")
-    prob_min = st.sidebar.slider("Probabilidade Mínima (%)", 0, 100, 65, 1, "%d%%") / 100.0
-    odd_min = st.sidebar.slider("Odd Mínima", 1.0, 5.0, 1.3, 0.01)
-
-    st.sidebar.header("Filtros de Jogos")
-    tourn_opts = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
-    model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
-
-    models_sel = st.sidebar.multiselect(FRIENDLY_COLS["model"], model_opts, default=model_opts)
-    tournaments_sel = st.sidebar.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
-
-    selected_date_range = ()
-    if "date" in df.columns and df["date"].notna().any():
-        min_date, max_date = df["date"].dropna().min().date(), df["date"].dropna().max().date()
-        selected_date_range = st.sidebar.date_input("Período (intervalo)", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-
-    return dict(prob_min=prob_min, odd_min=odd_min, tournaments_sel=tournaments_sel, models_sel=models_sel, selected_date_range=selected_date_range)
 
 # ============================
 # App principal
