@@ -749,6 +749,22 @@ try:
 
                         return df_final.sort_values(by=['Campeonato', 'Mercado de Aposta']).reset_index(drop=True)
 
+                    def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
+                        """
+                        Cria uma tabela resumo (pivot) mostrando o melhor modelo para cada campeonato e mercado.
+                        """
+                        if best_model_df.empty:
+                            return pd.DataFrame()
+
+                        pivot_df = best_model_df.pivot_table(
+                            index='Campeonato',
+                            columns='Mercado de Aposta',
+                            values='Melhor Modelo',
+                            aggfunc='first'
+                        ).fillna('-')
+
+                        return pivot_df
+
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
                     rh = df_fin.get("result_home", pd.Series(index=df_fin.index, dtype="float"))
                     ra = df_fin.get("result_away", pd.Series(index=df_fin.index, dtype="float"))
@@ -1013,6 +1029,10 @@ try:
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
                         st.dataframe(best_model_data, use_container_width=True, hide_index=True)
+
+                        st.subheader("Resumo do Melhor Modelo por Mercado")
+                        summary_pivot_table = create_summary_pivot_table(best_model_data)
+                        st.dataframe(summary_pivot_table, use_container_width=True)
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
