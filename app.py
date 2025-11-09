@@ -639,51 +639,59 @@ try:
 
                     # --- Função para preparar dados para o novo gráfico de acurácia diária ---
                     def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
-                        def _evaluate_row(row):
-                            correct = 0
-                            total = 0
-
-                            markets_to_check = [
-                                eval_result_pred_row(row),
-                                eval_bet_row(row),
-                                eval_goal_row(row),
-                                eval_score_pred_row(row),
-                            ]
-
-                            btts_pred = predict_btts_from_prob(row)
-                            markets_to_check.append(evaluate_market(btts_pred, row.get("result_home"), row.get("result_away")))
-
-                            for result in markets_to_check:
-                                if result is not None:
-                                    total += 1
-                                    if result:
-                                        correct += 1
-
-                            return pd.Series([correct, total], index=['correct_count', 'total_count'])
-
-                        if df.empty or 'date' not in df.columns:
+                        if df.empty or 'date' not in df.columns or 'tournament_id' not in df.columns:
                             return pd.DataFrame()
 
-                        counts = df.apply(_evaluate_row, axis=1)
-                        df_counts = pd.concat([df[['date', 'tournament_id']], counts], axis=1)
-                        df_counts.dropna(subset=['date', 'tournament_id'], inplace=True)
+                        df_eval = df.copy()
+                        # Calcula o acerto para cada mercado e armazena em novas colunas
+                        df_eval['hit_result'] = df_eval.apply(eval_result_pred_row, axis=1)
+                        df_eval['hit_bet'] = df_eval.apply(eval_bet_row, axis=1)
+                        df_eval['hit_goal'] = df_eval.apply(eval_goal_row, axis=1)
+                        df_eval['hit_btts'] = df_eval.apply(lambda row: evaluate_market(predict_btts_from_prob(row), row.get("result_home"), row.get("result_away")), axis=1)
+                        df_eval['hit_combo'] = df_eval.apply(eval_sugestao_combo_row, axis=1)
+                        df_eval['hit_score'] = df_eval.apply(eval_score_pred_row, axis=1)
 
-                        df_counts['day'] = df_counts['date'].dt.date
-                        daily_agg = df_counts.groupby(['day', 'tournament_id']).sum(numeric_only=True).reset_index()
+                        # Converte True/False para 1/0 para poder agregar, mantendo Nones como NaN
+                        hit_cols = ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts', 'hit_combo', 'hit_score']
+                        for col in hit_cols:
+                            df_eval[col] = df_eval[col].apply(lambda x: 1 if x is True else (0 if x is False else np.nan))
 
-                        daily_agg['accuracy_rate'] = daily_agg.apply(
-                            lambda row: (row['correct_count'] / row['total_count'] * 100) if row['total_count'] > 0 else 0,
-                            axis=1
-                        )
+                        # Reestrutura para formato longo (tidy data)
+                        id_vars = ['date', 'tournament_id']
+                        df_melted = df_eval.melt(id_vars=id_vars, value_vars=hit_cols, var_name='mercado', value_name='acerto')
+                        df_melted.dropna(subset=['acerto'], inplace=True)
 
-                        daily_agg['tournament_id'] = daily_agg['tournament_id'].apply(tournament_label)
-                        chart_df = daily_agg.rename(columns={
+                        # Extrai o dia (sem o horário)
+                        df_melted['day'] = df_melted['date'].dt.date
+
+                        # Agrupa por dia, campeonato e mercado
+                        agg = df_melted.groupby(['day', 'tournament_id', 'mercado']).agg(
+                            total_acertos=('acerto', 'sum'),
+                            total_jogos=('acerto', 'count')
+                        ).reset_index()
+
+                        # Calcula a taxa de acerto
+                        agg['taxa_acerto'] = (agg['total_acertos'] / agg['total_jogos'] * 100).round(2)
+
+                        # Formata os nomes para exibição
+                        agg['mercado'] = agg['mercado'].map({
+                            'hit_result': 'Resultado Final',
+                            'hit_bet': 'Sugestão de Aposta',
+                            'hit_goal': 'Sugestão de Gols',
+                            'hit_btts': 'Ambos Marcam (Prob)',
+                            'hit_combo': 'Sugestão Combo',
+                            'hit_score': 'Placar Exato'
+                        })
+                        agg['tournament_id'] = agg['tournament_id'].apply(tournament_label)
+
+                        df_final = agg.rename(columns={
                             'day': 'Data',
                             'tournament_id': 'Campeonato',
-                            'accuracy_rate': 'Taxa de Acerto (%)'
+                            'mercado': 'Métrica',
+                            'taxa_acerto': 'Taxa de Acerto (%)'
                         })
 
-                        return chart_df[['Data', 'Campeonato', 'Taxa de Acerto (%)']]
+                        return df_final[['Data', 'Campeonato', 'Métrica', 'Taxa de Acerto (%)']]
 
                     def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
                         """
@@ -975,22 +983,30 @@ try:
                         )
                         st.altair_chart(chart + text, use_container_width=True)
 
-                    # --- Gráfico de linha de acurácia por dia/campeonato ---
-                    st.subheader("Acurácia Diária por Campeonato")
+                    # --- Gráficos de linha de acurácia por dia (um para cada campeonato) ---
+                    st.subheader("Desempenho Diário por Campeonato e Métrica")
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
+
                     if not accuracy_data.empty:
-                        line_chart = alt.Chart(accuracy_data).mark_line(point=True).encode(
-                            x=alt.X('Data:T', title='Data'),
-                            y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto (%)'),
-                            color='Campeonato:N',
-                            tooltip=['Data:T', 'Campeonato:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
-                        ).properties(
-                            height=300,
-                            title='Taxa de Acerto Diária por Campeonato'
-                        )
-                        st.altair_chart(line_chart, use_container_width=True)
+                        # Pega a lista de campeonatos únicos presentes nos dados
+                        tournaments = accuracy_data['Campeonato'].unique()
+
+                        for tourn in tournaments:
+                            st.markdown(f"#### {tourn}")
+                            chart_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
+
+                            line_chart = alt.Chart(chart_data).mark_line(point=True).encode(
+                                x=alt.X('Data:T', title='Dia'),
+                                y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
+                                color=alt.Color('Métrica:N', title="Métrica de Aposta"),
+                                tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                            ).properties(
+                                height=280,
+                                # O título do gráfico agora é o próprio nome do campeonato
+                            )
+                            st.altair_chart(line_chart, use_container_width=True)
                     else:
-                        st.info("Não há dados suficientes para gerar o gráfico de acurácia diária.")
+                        st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
                     # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     st.subheader("Melhor Modelo por Campeonato e Mercado")
