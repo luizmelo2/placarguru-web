@@ -639,7 +639,7 @@ try:
 
                     # --- Função para preparar dados para o novo gráfico de acurácia diária ---
                     def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
-                        if df.empty or 'date' not in df.columns or 'tournament_id' not in df.columns:
+                        if df.empty or 'date' not in df.columns or 'tournament_id' not in df.columns or 'model' not in df.columns:
                             return pd.DataFrame()
 
                         df_eval = df.copy()
@@ -656,16 +656,16 @@ try:
                         for col in hit_cols:
                             df_eval[col] = df_eval[col].apply(lambda x: 1 if x is True else (0 if x is False else np.nan))
 
-                        # Reestrutura para formato longo (tidy data)
-                        id_vars = ['date', 'tournament_id']
+                        # Reestrutura para formato longo (tidy data), agora incluindo o modelo
+                        id_vars = ['date', 'tournament_id', 'model']
                         df_melted = df_eval.melt(id_vars=id_vars, value_vars=hit_cols, var_name='mercado', value_name='acerto')
                         df_melted.dropna(subset=['acerto'], inplace=True)
 
                         # Extrai o dia (sem o horário)
                         df_melted['day'] = df_melted['date'].dt.date
 
-                        # Agrupa por dia, campeonato e mercado
-                        agg = df_melted.groupby(['day', 'tournament_id', 'mercado']).agg(
+                        # Agrupa por dia, campeonato, modelo e mercado
+                        agg = df_melted.groupby(['day', 'tournament_id', 'model', 'mercado']).agg(
                             total_acertos=('acerto', 'sum'),
                             total_jogos=('acerto', 'count')
                         ).reset_index()
@@ -687,11 +687,12 @@ try:
                         df_final = agg.rename(columns={
                             'day': 'Data',
                             'tournament_id': 'Campeonato',
+                            'model': 'Modelo',
                             'mercado': 'Métrica',
                             'taxa_acerto': 'Taxa de Acerto (%)'
                         })
 
-                        return df_final[['Data', 'Campeonato', 'Métrica', 'Taxa de Acerto (%)']]
+                        return df_final[['Data', 'Campeonato', 'Modelo', 'Métrica', 'Taxa de Acerto (%)']]
 
                     def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
                         """
@@ -1005,28 +1006,32 @@ try:
                         )
                         st.altair_chart(chart + text, use_container_width=True)
 
-                    # --- Gráficos de linha de acurácia por dia (um para cada campeonato) ---
+                    # --- Gráficos de linha de acurácia por dia (um para cada campeonato e modelo) ---
                     st.subheader("Desempenho Diário por Campeonato e Métrica")
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
 
                     if not accuracy_data.empty:
-                        # Pega a lista de campeonatos únicos presentes nos dados
-                        tournaments = accuracy_data['Campeonato'].unique()
+                        # Pega a lista de campeonatos e modelos únicos presentes nos dados
+                        tournaments = sorted(accuracy_data['Campeonato'].unique())
 
                         for tourn in tournaments:
-                            st.markdown(f"#### {tourn}")
-                            chart_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
+                            st.markdown(f"### {tourn}")
+                            tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
+                            models = sorted(tourn_data['Modelo'].unique())
 
-                            line_chart = alt.Chart(chart_data).mark_line(point=True).encode(
-                                x=alt.X('Data:T', title='Dia'),
-                                y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                color=alt.Color('Métrica:N', title="Métrica de Aposta"),
-                                tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
-                            ).properties(
-                                height=280,
-                                # O título do gráfico agora é o próprio nome do campeonato
-                            )
-                            st.altair_chart(line_chart, use_container_width=True)
+                            for model in models:
+                                st.markdown(f"#### Modelo: {model}")
+                                model_data = tourn_data[tourn_data['Modelo'] == model]
+
+                                line_chart = alt.Chart(model_data).mark_line(point=True).encode(
+                                    x=alt.X('Data:T', title='Dia'),
+                                    y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
+                                    color=alt.Color('Métrica:N', title="Métrica de Aposta"),
+                                    tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                                ).properties(
+                                    height=280
+                                )
+                                st.altair_chart(line_chart, use_container_width=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
