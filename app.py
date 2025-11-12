@@ -162,7 +162,7 @@ try:
         # -----------------------------------------------------------------------------------------
 
         # Filtros adicionais (sem torneios; eles vêm do topo)
-        flt = filtros_ui(df, tournaments_sel_external=top_tournaments_sel)
+        flt = filtros_ui(df, MODO_MOBILE, tournaments_sel_external=top_tournaments_sel)
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, selH, selD, selA = flt["selected_date_range"], flt["selH"], flt["selD"], flt["selA"]
