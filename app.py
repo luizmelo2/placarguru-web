@@ -42,7 +42,7 @@ inject_custom_css()
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view
-from analysis import compute_acc2, prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 # ============================
 # Exibição amigável
 # ============================
@@ -333,21 +333,21 @@ try:
                     else:
                         st.subheader("Percentual de acerto (apenas finalizados)")
 
-                        # Extrair métricas individuais para os st.metric
-                        metrics = {row['Métrica']: (row['Acerto (%)'], row['Acertos'], row['Total Avaliado']) for index, row in metrics_df.iterrows()}
+                        # Definir as métricas que queremos exibir e a ordem
+                        metric_order = ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam (Prob)"]
 
-                        acc_pred, c_pred, t_pred = metrics.get("Resultado", (0, 0, 0))
-                        acc_bet, c_bet, t_bet = metrics.get("Sugestão de Aposta", (0, 0, 0))
-                        acc_combo, c_combo, t_combo = metrics.get("Sugestão Combo", (0, 0, 0))
-                        acc_goal, c_goal, t_goal = metrics.get("Sugestão de Gols", (0, 0, 0))
-                        acc_btts_pred, c_btts_pred, t_btts_pred = metrics.get("Ambos Marcam (Prob)", (0, 0, 0))
+                        # Criar colunas dinamicamente
+                        cols = st.columns(len(metric_order))
 
-                        k1, k2, k3, k4, k5 = (st.container(), st.container(), st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(5)
-                        k1.metric("Resultado", f"{acc_pred}%", f"{c_pred}/{t_pred}")
-                        k2.metric("Sugestão de Aposta", f"{acc_bet}%", f"{c_bet}/{t_bet}")
-                        k3.metric("Sugestão Combo", f"{acc_combo}%", f"{c_combo}/{t_combo}")
-                        k4.metric("Sugestão de Gols", f"{acc_goal}%", f"{c_goal}/{t_goal}")
-                        k5.metric("Ambos Marcam ", f"{acc_btts_pred}%", f"{c_btts_pred}/{t_btts_pred}")
+                        # Iterar e exibir cada métrica
+                        for i, metric_name in enumerate(metric_order):
+                            metric_data = metrics_df[metrics_df["Métrica"] == metric_name]
+                            if not metric_data.empty:
+                                acc = metric_data["Acerto (%)"].iloc[0]
+                                hits = metric_data["Acertos"].iloc[0]
+                                total = metric_data["Total Avaliado"].iloc[0]
+                                short_name = metric_name.replace(" (Sugestão)", "").replace(" (Prob)", "")
+                                cols[i].metric(short_name, f"{acc}%", f"{hits}/{total}")
 
                         chart = alt.Chart(metrics_df).mark_bar().encode(
                             x=alt.X('Métrica:N', title=''),
