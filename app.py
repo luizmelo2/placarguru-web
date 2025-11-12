@@ -4,13 +4,9 @@ import numpy as np
 import altair as alt
 from datetime import timedelta, date, datetime
 from typing import Any, Tuple, Optional, List
-import os
 from zoneinfo import ZoneInfo  # Python 3.9+
 
 # --- novos imports para baixar a release e controlar cache/tempo ---
-import requests
-import tempfile, time
-from io import BytesIO
 from email.utils import parsedate_to_datetime
 
 
@@ -46,7 +42,7 @@ inject_custom_css()
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view
-from analysis import compute_acc2, prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table
+from analysis import compute_acc2, prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 # ============================
 # Exibição amigável
 # ============================
@@ -299,114 +295,12 @@ try:
                     real_code.loc[mask_valid & (rh == ra)] = "D"
                     real_code.loc[mask_valid & (rh < ra)] = "A"
 
-                    def compute_acc(ok_mask: pd.Series, bad_mask: pd.Series):
-                        total = int((ok_mask | bad_mask).sum())
-                        correct = int(ok_mask.sum())
-                        acc = (correct / total * 100.0) if total > 0 else np.nan
-                        return acc, correct, total
-
                     selected_models = list(df_fin["model"].dropna().unique()) if "model" in df_fin.columns else []
                     multi_model = len(selected_models) > 1
 
+                    metrics_df = calculate_kpis(df_fin, multi_model)
+
                     if multi_model:
-                        rows = []
-                        for m in selected_models:
-                            sub = df_fin[df_fin["model"] == m]
-                            if sub.empty:
-                                continue
-
-                            rh_s = sub.get("result_home", pd.Series(index=sub.index, dtype="float"))
-                            ra_s = sub.get("result_away", pd.Series(index=sub.index, dtype="float"))
-                            mv_s = rh_s.notna() & ra_s.notna()
-
-                            real_s = pd.Series(index=sub.index, dtype="object")
-                            real_s.loc[mv_s & (rh_s > ra_s)] = "H"
-                            real_s.loc[mv_s & (rh_s == ra_s)] = "D"
-                            real_s.loc[mv_s & (rh_s < ra_s)] = "A"
-
-                            # Resultado Previsto
-                            pred_eval_s = sub.apply(eval_result_pred_row, axis=1)
-                            pred_correct_s = pred_eval_s == True
-                            pred_wrong_s   = pred_eval_s == False
-
-                            # Sugestão de Aposta
-                            bet_codes_s = sub.get("bet_suggestion", pd.Series(index=sub.index, dtype="object"))
-                            bet_eval_s = pd.Series(index=sub.index, dtype="object")
-                            for idx in sub.index:
-                                bet_eval_s.loc[idx] = evaluate_market(bet_codes_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
-                            bet_correct_s = bet_eval_s == True
-                            bet_wrong_s   = bet_eval_s == False
-
-                            # Sugestão de Gols
-                            goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
-                            goal_eval_s = pd.Series(index=sub.index, dtype="object")
-                            for idx in sub.index:
-                                goal_eval_s.loc[idx] = evaluate_market(goal_codes_s.loc[idx], ra_s.loc[idx], rh_s.loc[idx]) if mv_s.loc[idx] else None
-                            goal_correct_s = goal_eval_s == True
-                            goal_wrong_s   = goal_eval_s == False
-
-                            # Separate BTTS from goal suggestions
-                            btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
-                            btts_correct_s = goal_correct_s & btts_mask_s
-                            btts_wrong_s = goal_wrong_s & btts_mask_s
-
-                            # Exclude BTTS from the general "goal" metric
-                            goal_correct_s_no_btts = goal_correct_s & ~btts_mask_s
-                            goal_wrong_s_no_btts   = goal_wrong_s & ~btts_mask_s
-
-                            # Placar Previsto
-                            score_eval_s = pd.Series(index=sub.index, dtype="object")
-                            if "score_predicted" in sub.columns:
-                                for idx in sub.index:
-                                    if mv_s.loc[idx]:
-                                        ph, pa = parse_score_pred(sub.at[idx, "score_predicted"])
-                                        if ph is None or pa is None:
-                                            score_eval_s.loc[idx] = None
-                                        else:
-                                            try:
-                                                score_eval_s.loc[idx] = (int(rh_s.loc[idx]) == int(ph)) and (int(ra_s.loc[idx]) == int(pa))
-                                            except Exception:
-                                                score_eval_s.loc[idx] = None
-                                    else:
-                                        score_eval_s.loc[idx] = None
-                            score_correct_s = score_eval_s == True
-                            score_wrong_s   = score_eval_s == False
-
-                            # Sugestão Combo
-                            combo_eval_s = sub.apply(eval_sugestao_combo_row, axis=1)
-                            combo_correct_s = combo_eval_s == True
-                            combo_wrong_s   = combo_eval_s == False
-
-                            # Métricas por modelo
-                            acc_pred, c_pred, t_pred = compute_acc(pred_correct_s, pred_wrong_s)
-                            acc_bet,  c_bet,  t_bet  = compute_acc(bet_correct_s,  bet_wrong_s)
-                            acc_goal, c_goal, t_goal = compute_acc(goal_correct_s_no_btts, goal_wrong_s_no_btts)
-                            acc_btts, c_btts, t_btts = compute_acc(btts_correct_s, btts_wrong_s)
-                            acc_score, c_score, t_score = compute_acc(score_correct_s, score_wrong_s)
-                            acc_combo, c_combo, t_combo = compute_acc(combo_correct_s, combo_wrong_s)
-
-                            # Nova métrica BTTS (Prob)
-                            btts_pred_s = sub.apply(predict_btts_from_prob, axis=1)
-                            btts_pred_eval_s = pd.Series(index=sub.index, dtype="object")
-                            for idx in sub.index:
-                                btts_pred_eval_s.loc[idx] = evaluate_market(btts_pred_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
-                            btts_pred_correct_s = btts_pred_eval_s == True
-                            btts_pred_wrong_s   = btts_pred_eval_s == False
-                            acc_btts_pred, c_btts_pred, t_btts_pred = compute_acc(btts_pred_correct_s, btts_pred_wrong_s)
-
-
-                            rows += [
-                                {"Modelo": m, "Métrica": "Resultado",            "Acerto (%)": 0 if np.isnan(acc_pred) else round(acc_pred,1), "Acertos": c_pred,  "Total Avaliado": t_pred},
-                                {"Modelo": m, "Métrica": "Sugestão de Aposta",   "Acerto (%)": 0 if np.isnan(acc_bet)  else round(acc_bet,1),  "Acertos": c_bet,   "Total Avaliado": t_bet},
-                                {"Modelo": m, "Métrica": "Sugestão Combo",       "Acerto (%)": 0 if np.isnan(acc_combo) else round(acc_combo,1), "Acertos": c_combo, "Total Avaliado": t_combo},
-                                {"Modelo": m, "Métrica": "Sugestão de Gols",     "Acerto (%)": 0 if np.isnan(acc_goal) else round(acc_goal,1), "Acertos": c_goal,  "Total Avaliado": t_goal},
-                                {"Modelo": m, "Métrica": "Ambos Marcam (Sugestão)", "Acerto (%)": 0 if np.isnan(acc_btts) else round(acc_btts,1), "Acertos": c_btts,  "Total Avaliado": t_btts},
-                                {"Modelo": m, "Métrica": "Ambos Marcam (Prob)",  "Acerto (%)": 0 if np.isnan(acc_btts_pred) else round(acc_btts_pred,1), "Acertos": c_btts_pred, "Total Avaliado": t_btts_pred},
-                                {"Modelo": m, "Métrica": "Placar Previsto",      "Acerto (%)": 0 if np.isnan(acc_score) else round(acc_score,1), "Acertos": c_score, "Total Avaliado": t_score},
-                            ]
-
-                        metrics_df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Modelo","Métrica","Acerto (%)","Acertos","Total Avaliado"])
-
                         st.subheader("Percentual de acerto por modelo (apenas finalizados)")
                         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
 
@@ -436,79 +330,24 @@ try:
                                 )
                             )
                             st.altair_chart(chart + text, use_container_width=True)
-
                     else:
-                        # Um único modelo/seleção: comportamento agregado
-                        pred_eval = df_fin.apply(eval_result_pred_row, axis=1)
-                        pred_correct = pred_eval == True
-                        pred_wrong   = pred_eval == False
-
-                        bet_codes = df_fin.get("bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
-                        bet_eval = pd.Series(index=df_fin.index, dtype="object")
-                        for idx in df_fin.index:
-                            bet_eval.loc[idx] = evaluate_market(bet_codes.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
-                        bet_correct = bet_eval == True
-                        bet_wrong   = bet_eval == False
-
-                        goal_codes = df_fin.get("goal_bet_suggestion", pd.Series(index=df_fin.index, dtype="object"))
-                        goal_eval = pd.Series(index=df_fin.index, dtype="object")
-                        for idx in df_fin.index:
-                            goal_eval.loc[idx] = evaluate_market(goal_codes.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
-                        goal_correct = goal_eval == True
-                        goal_wrong   = goal_eval == False
-
-                        # BTTS separado
-                        btts_mask = goal_codes.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
-                        btts_correct = goal_correct & btts_mask
-                        btts_wrong = goal_wrong & btts_mask
-
-                        # Gols (excluindo BTTS)
-                        goal_correct_no_btts = goal_correct & ~btts_mask
-                        goal_wrong_no_btts   = goal_wrong & ~btts_mask
-
-                        # métricas
-                        acc_pred, c_pred, t_pred = compute_acc2(pred_correct, pred_wrong)
-                        acc_bet,  c_bet,  t_bet  = compute_acc2(bet_correct,  bet_wrong)
-                        acc_btts, c_btts, t_btts = compute_acc2(btts_correct, btts_wrong)
-                        acc_goal, c_goal, t_goal = compute_acc2(goal_correct_no_btts, goal_wrong_no_btts)
-
-                        # Sugestão Combo (modelo único)
-                        combo_eval = df_fin.apply(eval_sugestao_combo_row, axis=1)
-                        combo_correct = combo_eval == True
-                        combo_wrong   = combo_eval == False
-                        acc_combo, c_combo, t_combo = compute_acc2(combo_correct, combo_wrong)
-
-                        # Nova métrica BTTS (Prob) - modelo único
-                        btts_pred = df_fin.apply(predict_btts_from_prob, axis=1)
-                        btts_pred_eval = pd.Series(index=df_fin.index, dtype="object")
-                        for idx in df_fin.index:
-                            btts_pred_eval.loc[idx] = evaluate_market(btts_pred.loc[idx], rh.loc[idx], ra.loc[idx]) if mask_valid.loc[idx] else None
-                        btts_pred_correct = btts_pred_eval == True
-                        btts_pred_wrong   = btts_pred_eval == False
-                        acc_btts_pred, c_btts_pred, t_btts_pred = compute_acc2(btts_pred_correct, btts_pred_wrong)
-
                         st.subheader("Percentual de acerto (apenas finalizados)")
+
+                        # Extrair métricas individuais para os st.metric
+                        metrics = {row['Métrica']: (row['Acerto (%)'], row['Acertos'], row['Total Avaliado']) for index, row in metrics_df.iterrows()}
+
+                        acc_pred, c_pred, t_pred = metrics.get("Resultado", (0, 0, 0))
+                        acc_bet, c_bet, t_bet = metrics.get("Sugestão de Aposta", (0, 0, 0))
+                        acc_combo, c_combo, t_combo = metrics.get("Sugestão Combo", (0, 0, 0))
+                        acc_goal, c_goal, t_goal = metrics.get("Sugestão de Gols", (0, 0, 0))
+                        acc_btts_pred, c_btts_pred, t_btts_pred = metrics.get("Ambos Marcam (Prob)", (0, 0, 0))
+
                         k1, k2, k3, k4, k5 = (st.container(), st.container(), st.container(), st.container(), st.container()) if MODO_MOBILE else st.columns(5)
-                        k1.metric("Resultado", f"{0 if np.isnan(acc_pred) else round(acc_pred,1)}%", f"{c_pred}/{t_pred}")
-                        k2.metric("Sugestão de Aposta", f"{0 if np.isnan(acc_bet) else round(acc_bet,1)}%", f"{c_bet}/{t_bet}")
-                        k3.metric("Sugestão Combo", f"{0 if np.isnan(acc_combo) else round(acc_combo,1)}%", f"{c_combo}/{t_combo}")
-                        k4.metric("Sugestão de Gols", f"{0 if np.isnan(acc_goal) else round(acc_goal,1)}%", f"{c_goal}/{t_goal}")
-                        #k5.metric("Ambos Marcam (Sugestão)", f"{0 if np.isnan(acc_btts) else round(acc_btts,1)}%", f"{c_btts}/{t_btts}")
-                        k5.metric("Ambos Marcam ", f"{0 if np.isnan(acc_btts_pred) else round(acc_btts_pred,1)}%", f"{c_btts_pred}/{t_btts_pred}")
-
-
-                        metrics_df = pd.DataFrame({
-                            "Métrica": ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam (Prob)"],
-                            "Acerto (%)": [
-                                0 if np.isnan(acc_pred) else round(acc_pred, 1),
-                                0 if np.isnan(acc_bet) else round(acc_bet, 1),
-                                0 if np.isnan(acc_combo) else round(acc_combo, 1),
-                                0 if np.isnan(acc_goal) else round(acc_goal, 1),
-                                0 if np.isnan(acc_btts_pred) else round(acc_btts_pred, 1),
-                            ],
-                            "Acertos": [c_pred, c_bet, c_combo, c_goal, c_btts_pred],
-                            "Total Avaliado": [t_pred, t_bet, t_combo, t_goal, t_btts_pred],
-                        })
+                        k1.metric("Resultado", f"{acc_pred}%", f"{c_pred}/{t_pred}")
+                        k2.metric("Sugestão de Aposta", f"{acc_bet}%", f"{c_bet}/{t_bet}")
+                        k3.metric("Sugestão Combo", f"{acc_combo}%", f"{c_combo}/{t_combo}")
+                        k4.metric("Sugestão de Gols", f"{acc_goal}%", f"{c_goal}/{t_goal}")
+                        k5.metric("Ambos Marcam ", f"{acc_btts_pred}%", f"{c_btts_pred}/{t_btts_pred}")
 
                         chart = alt.Chart(metrics_df).mark_bar().encode(
                             x=alt.X('Métrica:N', title=''),

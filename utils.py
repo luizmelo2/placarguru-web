@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import re
 from typing import Any, Tuple, Optional
 import requests
 import streamlit as st
@@ -102,9 +101,6 @@ def is_na_like(x: Any) -> bool:
     if isinstance(x, str) and x.strip().lower() in {"", "nan", "none", "null"}:
         return True
     return False
-
-def safe_text(v: Any, default: str = "Sem previsão calculada") -> str:
-    return default if is_na_like(v) else str(v)
 
 def market_label(v: Any, default: str = "Sem previsão calculada") -> str:
     """Mapa amigável com fallback caso venha NaN/None/vazio."""
