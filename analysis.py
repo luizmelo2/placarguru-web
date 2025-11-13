@@ -5,9 +5,10 @@ import numpy as np
 
 from utils import (
     eval_result_pred_row, eval_bet_row, eval_goal_row,
-    predict_btts_from_prob, evaluate_market, eval_sugestao_combo_row,
+    eval_btts_suggestion_row, evaluate_market, eval_sugestao_combo_row,
     eval_score_pred_row, tournament_label, MARKET_TO_ODDS_COLS, parse_score_pred
 )
+
 
 def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series) -> Tuple[float, int, int]:
     """Calcula a acurácia, o número de acertos e o total de itens avaliados."""
@@ -57,58 +58,17 @@ def _calculate_goal_suggestion_accuracy(sub: pd.DataFrame) -> dict:
     }
 
 
-def _calculate_btts_suggestion_accuracy(sub: pd.DataFrame) -> dict:
+def _calculate_btts_accuracy(sub: pd.DataFrame) -> dict:
     """
-    Calcula a acurácia para as apostas 'Ambos Marcam' que vêm da coluna 'goal_bet_suggestion'.
+    Calcula a acurácia para as previsões de 'Ambos Marcam' baseadas na coluna 'btts_suggestion'.
     """
-    goal_eval_s = sub.apply(eval_goal_row, axis=1)
-    correct_s = goal_eval_s == True
-    wrong_s = goal_eval_s == False
-
-    # Identifica as apostas que SÃO 'Ambos Marcam'
-    goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
-    btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
-
-    # Filtra as avaliações para incluir apenas as apostas 'Ambos Marcam'
-    btts_correct_s = correct_s & btts_mask_s
-    btts_wrong_s = wrong_s & btts_mask_s
-
-    acc, correct, total = compute_acc2(btts_correct_s, btts_wrong_s)
-
-    return {
-        "Métrica": "Ambos Marcam (Sugestão)",
-        "Acerto (%)": 0 if np.isnan(acc) else round(acc, 1),
-        "Acertos": correct,
-        "Total Avaliado": total
-    }
-
-
-def _calculate_btts_prob_accuracy(sub: pd.DataFrame) -> dict:
-    """
-    Calcula a acurácia para as previsões de 'Ambos Marcam' baseadas em probabilidades.
-    """
-    rh_s = sub.get("result_home", pd.Series(index=sub.index, dtype="float"))
-    ra_s = sub.get("result_away", pd.Series(index=sub.index, dtype="float"))
-    mv_s = rh_s.notna() & ra_s.notna()
-
-    btts_pred_s = sub.apply(predict_btts_from_prob, axis=1)
-
-    # Avalia o resultado da previsão
-    eval_s = sub.apply(
-        lambda row: evaluate_market(
-            predict_btts_from_prob(row),
-            row.get("result_home"),
-            row.get("result_away")
-        ),
-        axis=1
-    )
+    eval_s = sub.apply(eval_btts_suggestion_row, axis=1)
     correct_s = eval_s == True
     wrong_s = eval_s == False
-
     acc, correct, total = compute_acc2(correct_s, wrong_s)
 
     return {
-        "Métrica": "Ambos Marcam (Prob)",
+        "Métrica": "Ambos Marcam",
         "Acerto (%)": 0 if np.isnan(acc) else round(acc, 1),
         "Acertos": correct,
         "Total Avaliado": total
@@ -123,19 +83,9 @@ def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None
         _calculate_metric(sub, "Sugestão de Aposta", eval_bet_row),
         _calculate_metric(sub, "Sugestão Combo", eval_sugestao_combo_row),
         _calculate_metric(sub, "Placar Previsto", eval_score_pred_row),
+        _calculate_goal_suggestion_accuracy(sub),
+        _calculate_btts_accuracy(sub),
     ]
-
-    goal_eval_s = sub.apply(eval_goal_row, axis=1)
-    goal_correct_s = goal_eval_s == True
-    goal_wrong_s   = goal_eval_s == False
-
-    goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
-    btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
-
-    rows.append(_calculate_btts_suggestion_accuracy(sub))
-    rows.append(_calculate_goal_suggestion_accuracy(sub))
-
-    rows.append(_calculate_btts_prob_accuracy(sub))
 
     if model_name:
         for row in rows:
@@ -177,7 +127,7 @@ def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
     df_eval['hit_result'] = df_eval.apply(eval_result_pred_row, axis=1)
     df_eval['hit_bet'] = df_eval.apply(eval_bet_row, axis=1)
     df_eval['hit_goal'] = df_eval.apply(eval_goal_row, axis=1)
-    df_eval['hit_btts'] = df_eval.apply(lambda row: evaluate_market(predict_btts_from_prob(row), row.get("result_home"), row.get("result_away")), axis=1)
+    df_eval['hit_btts'] = df_eval.apply(eval_btts_suggestion_row, axis=1)
     df_eval['hit_combo'] = df_eval.apply(eval_sugestao_combo_row, axis=1)
     df_eval['hit_score'] = df_eval.apply(eval_score_pred_row, axis=1)
 
@@ -208,7 +158,7 @@ def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
         'hit_result': 'Resultado Final',
         'hit_bet': 'Sugestão de Aposta',
         'hit_goal': 'Sugestão de Gols',
-        'hit_btts': 'Ambos Marcam (Prob)',
+        'hit_btts': 'Ambos Marcam',
         'hit_combo': 'Sugestão Combo',
         'hit_score': 'Placar Exato'
     })
@@ -235,7 +185,7 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
     df['hit_result'] = df.apply(eval_result_pred_row, axis=1)
     df['hit_bet'] = df.apply(eval_bet_row, axis=1)
     df['hit_goal'] = df.apply(eval_goal_row, axis=1)
-    df['hit_btts'] = df.apply(lambda row: evaluate_market(predict_btts_from_prob(row), row.get("result_home"), row.get("result_away")), axis=1)
+    df['hit_btts'] = df.apply(eval_btts_suggestion_row, axis=1)
 
     # Converte True/False para 1/0 para agregação, mantendo None como NaN
     for col in ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts']:
@@ -265,7 +215,7 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
         'hit_result': 'Resultado Final',
         'hit_bet': 'Sugestão de Aposta',
         'hit_goal': 'Sugestão de Gols',
-        'hit_btts': 'Ambos Marcam (Prob)'
+        'hit_btts': 'Ambos Marcam'
     })
     df_best['tournament_id'] = df_best['tournament_id'].apply(tournament_label)
 

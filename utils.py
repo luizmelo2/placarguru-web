@@ -37,7 +37,7 @@ FRIENDLY_COLS = {
     "btts_yes": "Ambos Marcam Sim",
     "btts_no": "Ambos Marcam Não",
     "final_score": "Resultado Final",
-    "btts_prediction": "Previsão BTTS",
+    "btts_suggestion": "Previsão BTTS",
 }
 
 FRIENDLY_MARKETS = {
@@ -331,6 +331,16 @@ def eval_goal_row(row: pd.Series) -> Optional[bool]:
         row.get("goal_bet_suggestion"), row.get("result_home"), row.get("result_away")
     )
 
+
+def eval_btts_suggestion_row(row: pd.Series) -> Optional[bool]:
+    """Avalia se a sugestão de aposta de BTTS ('btts_suggestion') está correta."""
+    if not _row_is_finished(row):
+        return None
+    return evaluate_market(
+        row.get("btts_suggestion"), row.get("result_home"), row.get("result_away")
+    )
+
+
 def eval_sugestao_combo_row(row: pd.Series) -> Optional[bool]:
     """
     Avalia se tanto a previsão de resultado quanto a sugestão de aposta foram corretas.
@@ -352,46 +362,6 @@ def eval_sugestao_combo_row(row: pd.Series) -> Optional[bool]:
 
     # Se um ou ambos foram erros (e nenhum foi None)
     return False
-
-def predict_btts_from_prob(row) -> Optional[str]:
-    """
-    Prevê o resultado de "Ambos Marcam" com base em um limiar de probabilidade.
-    Retorna 'btts_yes' se a prob. for > 75%, 'btts_no' se a prob. for > 75%, ou None caso contrário.
-    """
-    prob_yes = row.get("prob_btts_yes")
-    prob_no = row.get("prob_btts_no")
-
-    if pd.notna(prob_yes) and prob_yes > BTTS_PROB_THRESHOLD:
-        return "btts_yes"
-
-    if pd.notna(prob_no) and prob_no > BTTS_PROB_THRESHOLD:
-        return "btts_no"
-
-    return None  # Representa "Indefinido"
-
-def safe_btts_code_from_row(row: pd.Series) -> Optional[str]:
-    """
-    Garante que retornamos 'btts_yes' / 'btts_no' (ou None) SEMPRE como string,
-    nunca um pandas.Series/DataFrame.
-    """
-    try:
-        code = predict_btts_from_prob(row)  # pode retornar Series em alguns casos
-        # Se vier um Series/DataFrame por engano, decidimos pelo maior prob_btts_*
-        if isinstance(code, (pd.Series, pd.DataFrame)):
-            py = row.get('prob_btts_yes')
-            pn = row.get('prob_btts_no')
-            if pd.notna(py) and pd.notna(pn):
-                code = 'btts_yes' if float(py) >= float(pn) else 'btts_no'
-            else:
-                code = None
-
-        # Normaliza e garante tipo texto
-        if code is not None:
-            code = normalize_pred_code(code)  # deve padronizar para 'btts_yes'/'btts_no'
-            code = str(code)
-        return code
-    except Exception:
-        return None
 
 
 def _po(row: pd.Series, prob_key: str, odd_key: str) -> str:

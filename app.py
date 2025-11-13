@@ -13,8 +13,7 @@ from email.utils import parsedate_to_datetime
 from utils import (
     fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
-    status_label, FINISHED_TOKENS, predict_btts_from_prob,
-
+    status_label, FINISHED_TOKENS,
 )
 from styles import inject_custom_css
 
@@ -76,11 +75,11 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
         out["score_predicted"] = out["score_predicted"].apply(lambda x: fmt_score_pred_text(x))
 
     # Nova Previsão BTTS
-    if "prob_btts_yes" in out.columns and "prob_btts_no" in out.columns:
-        out["btts_prediction"] = out.apply(predict_btts_from_prob, axis=1).apply(market_label, default="-")
-
+    if "btts_suggestion" in out.columns:
+        out["btts_prediction"] = out["btts_suggestion"].apply(market_label, default="-")
 
     return out.rename(columns=FRIENDLY_COLS)
+
 
 # ============================
 # App principal
@@ -259,7 +258,7 @@ try:
                             "date", "home", "away", "tournament_id", "model",
                             "status", "result_predicted", "score_predicted",
                             "bet_suggestion", "goal_bet_suggestion",
-                            "btts_prediction", "odds_H", "odds_D", "odds_A",
+                            "btts_suggestion", "odds_H", "odds_D", "odds_A",
                             "result_home", "result_away"
                         ]
                         existing_cols = [c for c in cols_to_show if c in df_ag.columns]
@@ -281,7 +280,7 @@ try:
                                 "date", "home", "away", "tournament_id", "model",
                                 "status", "result_predicted", "score_predicted",
                                 "bet_suggestion", "goal_bet_suggestion",
-                                "btts_prediction", "odds_H", "odds_D", "odds_A",
+                                "btts_suggestion", "odds_H", "odds_D", "odds_A",
                                 "result_home", "result_away"
                             ]
                             existing_cols = [c for c in cols_to_show if c in df_fin.columns]
@@ -340,7 +339,7 @@ try:
                         st.subheader("Percentual de acerto (apenas finalizados)")
 
                         # Definir as métricas que queremos exibir e a ordem
-                        metric_order = ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam (Prob)"]
+                        metric_order = ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam"]
 
                         # Criar colunas dinamicamente
                         cols = st.columns(len(metric_order))
