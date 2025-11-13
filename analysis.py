@@ -15,6 +15,7 @@ def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series) -> Tuple[float, int, i
     acc = (correct / total * 100.0) if total > 0 else np.nan
     return acc, correct, total
 
+
 def _calculate_metric(sub: pd.DataFrame, metric_name: str, eval_func, **kwargs) -> dict:
     """Helper genérico para calcular acurácia de uma métrica."""
     eval_series = sub.apply(eval_func, axis=1, **kwargs)
@@ -27,6 +28,7 @@ def _calculate_metric(sub: pd.DataFrame, metric_name: str, eval_func, **kwargs) 
         "Acertos": correct,
         "Total Avaliado": total
     }
+
 
 def _calculate_goal_suggestion_accuracy(sub: pd.DataFrame) -> dict:
     """
@@ -53,6 +55,7 @@ def _calculate_goal_suggestion_accuracy(sub: pd.DataFrame) -> dict:
         "Total Avaliado": total
     }
 
+
 def _calculate_btts_suggestion_accuracy(sub: pd.DataFrame) -> dict:
     """
     Calcula a acurácia para as apostas 'Ambos Marcam' que vêm da coluna 'goal_bet_suggestion'.
@@ -77,6 +80,7 @@ def _calculate_btts_suggestion_accuracy(sub: pd.DataFrame) -> dict:
         "Acertos": correct,
         "Total Avaliado": total
     }
+
 
 def _calculate_btts_prob_accuracy(sub: pd.DataFrame) -> dict:
     """
@@ -109,6 +113,7 @@ def _calculate_btts_prob_accuracy(sub: pd.DataFrame) -> dict:
         "Total Avaliado": total
     }
 
+
 def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None) -> List[dict]:
     """Calcula todas as métricas de KPI para um determinado dataframe (subconjunto de um modelo)."""
 
@@ -136,6 +141,7 @@ def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None
             row["Modelo"] = model_name
 
     return rows
+
 
 def calculate_kpis(df_fin: pd.DataFrame, multi_model: bool) -> pd.DataFrame:
     """

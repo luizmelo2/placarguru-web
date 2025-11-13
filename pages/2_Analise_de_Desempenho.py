@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import altair as alt
 from typing import Optional, List
 
@@ -52,9 +51,15 @@ try:
         # 1. Melhor Resultado (1x2)
         markets_1x2 = ["H", "D", "A"]
         best_1x2_df = df_filtered.apply(
-            lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"], markets_to_search=markets_1x2),
+            lambda row: find_best_bet(
+                row, flt["prob_min"], flt["odd_min"],
+                markets_to_search=markets_1x2
+            ),
             axis=1
-        ).rename(columns={"market": "bet_1x2_market", "prob": "bet_1x2_prob", "odd": "bet_1x2_odd"})
+        ).rename(columns={
+            "market": "bet_1x2_market", "prob": "bet_1x2_prob",
+            "odd": "bet_1x2_odd"
+        })
 
         # 2. Melhor Aposta de Gols
         markets_goals = [
@@ -63,15 +68,24 @@ try:
             "btts_yes", "btts_no"
         ]
         best_goals_df = df_filtered.apply(
-            lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"], markets_to_search=markets_goals),
+            lambda row: find_best_bet(
+                row, flt["prob_min"], flt["odd_min"],
+                markets_to_search=markets_goals
+            ),
             axis=1
-        ).rename(columns={"market": "bet_goals_market", "prob": "bet_goals_prob", "odd": "bet_goals_odd"})
+        ).rename(columns={
+            "market": "bet_goals_market", "prob": "bet_goals_prob",
+            "odd": "bet_goals_odd"
+        })
 
         # 3. Melhor Aposta (Geral)
         best_overall_df = df_filtered.apply(
             lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"]),
             axis=1
-        ).rename(columns={"market": "bet_overall_market", "prob": "bet_overall_prob", "odd": "bet_overall_odd"})
+        ).rename(columns={
+            "market": "bet_overall_market", "prob": "bet_overall_prob",
+            "odd": "bet_overall_odd"
+        })
 
         # 4. Sugestão de "Ambos Marcam"
         btts_sugg_df = df_filtered.apply(suggest_btts, axis=1)
@@ -161,7 +175,10 @@ try:
                     y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Acurácia (%)'),
                     color=alt.Color('Métrica:N', title='Métrica'),
                     xOffset='Métrica:N',
-                    tooltip=['Campeonato', 'Modelo', 'Métrica', 'Acertos', 'Total', alt.Tooltip('Acerto (%):Q', format='.1f')]
+                    tooltip=[
+                        'Campeonato', 'Modelo', 'Métrica', 'Acertos', 'Total',
+                        alt.Tooltip('Acerto (%):Q', format='.1f')
+                    ]
                 ).properties(height=300)
 
                 chart = base.facet(

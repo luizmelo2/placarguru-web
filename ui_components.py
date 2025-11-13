@@ -8,24 +8,33 @@ from utils import (
     eval_result_pred_row, eval_score_pred_row, eval_bet_row,
     eval_goal_row, predict_btts_from_prob, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
-    green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob
+    green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
+    GOAL_MARKET_THRESHOLDS
 )
 
 # ========= Badge de confiança (opcional no caption) =========
 def conf_badge(row: pd.Series) -> str:
     """Gera um texto de 'badge' de confiança com base na maior probabilidade 1x2."""
-    vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A") ]
-    if any(pd.isna(v) for v in vals): return ""
+    vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A")]
+    if any(pd.isna(v) for v in vals):
+        return ""
     try:
         conf = max(vals) * 100.0
     except Exception:
         return ""
-    if pd.isna(conf): return ""
-    if conf >= 70: return "🟢 Conf. Alta"
-    if conf >= 55: return "🟡 Conf. Média"
+    if pd.isna(conf):
+        return ""
+    if conf >= 70:
+        return "🟢 Conf. Alta"
+    if conf >= 55:
+        return "🟡 Conf. Média"
     return "🟠 Conf. Baixa"
 
-def filtros_ui(df: pd.DataFrame, MODO_MOBILE: bool, tournaments_sel_external: Optional[List]=None) -> dict:
+
+def filtros_ui(
+    df: pd.DataFrame, MODO_MOBILE: bool,
+    tournaments_sel_external: Optional[List] = None
+) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
     model_opts  = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
 
@@ -159,7 +168,7 @@ def _prepare_display_data(row: pd.Series) -> dict:
     btts_pred_txt = f"{market_label(btts_pred, default='-')} {get_prob_and_odd_for_market(row, btts_pred)}"
 
     return {
-        "title": f"{dt_txt} • {row.get('home','?')} vs {row.get('away','?')}",
+        "title": f"{dt_txt} • {row.get('home', '?')} vs {row.get('away', '?')}",
         "status_txt": status_label(row.get("status", "N/A")),
         "badge_res": _get_badge(hit_res),
         "badge_score": _get_badge(hit_score),
@@ -181,18 +190,16 @@ def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
     st.markdown("---")
     st.markdown("**Over/Under (Prob. — Odd)**")
 
-    thresholds = ["0.5", "1.5", "2.5", "3.5"]
-
     under_lines = [
         f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}"
-        for v in thresholds if _exists(df, f"prob_under_{v.replace('.', '_')}")
+        for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_under_{v.replace('.', '_')}")
     ]
     if under_lines:
         st.markdown("\n".join(under_lines), unsafe_allow_html=True)
 
     over_lines = [
         f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}"
-        for v in thresholds if _exists(df, f"prob_over_{v.replace('.', '_')}")
+        for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_over_{v.replace('.', '_')}")
     ]
     if over_lines:
         st.markdown("\n".join(over_lines), unsafe_allow_html=True)
@@ -205,8 +212,12 @@ def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
             f"""
             - **Sugestão:** {green_html(data["aposta_txt"])} {data["badge_bet"]}
             - **Sugestão de Gols:** {green_html(data["gols_txt"])} {data["badge_goal"]}
-            - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}
-            - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
+            - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / \
+                {green_html(fmt_odd(row.get('odds_D')))} / \
+                {green_html(fmt_odd(row.get('odds_A')))}
+            - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / \
+                {green_html(fmt_prob(row.get('prob_D')))} / \
+                {green_html(fmt_prob(row.get('prob_A')))}
             """,
             unsafe_allow_html=True
         )

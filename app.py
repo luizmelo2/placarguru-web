@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import altair as alt
 from datetime import timedelta, date, datetime
 from typing import Any, Tuple, Optional, List
@@ -15,9 +14,10 @@ from utils import (
     _exists, fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
-    eval_goal_row, eval_sugestao_combo_row, green_html, FINISHED_TOKENS, fmt_odd, fmt_prob, _po,
-    normalize_pred_code, evaluate_market, parse_score_pred, get_prob_and_odd_for_market,
-    predict_btts_from_prob, safe_btts_code_from_row
+    eval_goal_row, eval_sugestao_combo_row, green_html, FINISHED_TOKENS,
+    fmt_odd, fmt_prob, _po, normalize_pred_code, evaluate_market,
+    parse_score_pred, get_prob_and_odd_for_market, predict_btts_from_prob,
+    safe_btts_code_from_row
 )
 from styles import inject_custom_css
 
@@ -258,12 +258,16 @@ try:
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
+                        cols_to_show = [
+                            "date", "home", "away", "tournament_id", "model",
+                            "status", "result_predicted", "score_predicted",
+                            "bet_suggestion", "goal_bet_suggestion",
+                            "btts_prediction", "odds_H", "odds_D", "odds_A",
+                            "result_home", "result_away"
+                        ]
+                        existing_cols = [c for c in cols_to_show if c in df_ag.columns]
                         st.dataframe(
-                            apply_friendly_for_display(df_ag[
-                                [c for c in ["date","home","away","tournament_id","model","status",
-                                             "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion", "btts_prediction",
-                                             "odds_H","odds_D","odds_A","result_home","result_away"] if c in df_ag.columns]
-                            ]),
+                            apply_friendly_for_display(df_ag[existing_cols]),
                             use_container_width=True, hide_index=True
                         )
 
@@ -276,12 +280,16 @@ try:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
+                            cols_to_show = [
+                                "date", "home", "away", "tournament_id", "model",
+                                "status", "result_predicted", "score_predicted",
+                                "bet_suggestion", "goal_bet_suggestion",
+                                "btts_prediction", "odds_H", "odds_D", "odds_A",
+                                "result_home", "result_away"
+                            ]
+                            existing_cols = [c for c in cols_to_show if c in df_fin.columns]
                             st.dataframe(
-                                apply_friendly_for_display(df_fin[
-                                    [c for c in ["date","home","away","tournament_id","model","status",
-                                                 "result_predicted","score_predicted","bet_suggestion","goal_bet_suggestion", "btts_prediction",
-                                                 "odds_H","odds_D","odds_A","result_home","result_away"] if c in df_fin.columns]
-                                ]),
+                                apply_friendly_for_display(df_fin[existing_cols]),
                                 use_container_width=True, hide_index=True
                             )
 
