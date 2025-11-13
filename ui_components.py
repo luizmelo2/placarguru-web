@@ -174,6 +174,45 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—"
     }
 
+def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
+    """Renderiza o conteúdo dentro do st.expander para a visualização em lista."""
+    with st.expander("Detalhes, Probabilidades & Odds"):
+        # Seção 1: Sugestões e Probabilidades 1x2
+        st.markdown(
+            f"""
+            - **Sugestão:** {green_html(data["aposta_txt"])} {data["badge_bet"]}
+            - **Sugestão de Gols:** {green_html(data["gols_txt"])} {data["badge_goal"]}
+            - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}
+            - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Seção 2: Over/Under
+        st.markdown("---")
+        st.markdown("**Over/Under (Prob. — Odd)**")
+
+        under_lines = [
+            f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}"
+            for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_under_{v.replace('.', '_')}")
+        ]
+        if under_lines:
+            st.markdown("\n".join(under_lines), unsafe_allow_html=True)
+
+        over_lines = [
+            f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}"
+            for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_over_{v.replace('.', '_')}")
+        ]
+        if over_lines:
+            st.markdown("\n".join(over_lines), unsafe_allow_html=True)
+
+        # Seção 3: BTTS
+        if _exists(df, "prob_btts_yes", "prob_btts_no"):
+            st.markdown("---")
+            st.markdown("**BTTS (Prob. — Odd)**")
+            st.markdown(f"- **Ambos marcam — Sim:** {_po(row, 'prob_btts_yes', 'odds_btts_yes')}", unsafe_allow_html=True)
+            st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}", unsafe_allow_html=True)
+
 def display_list_view(df: pd.DataFrame):
     for _, row in df.iterrows():
         data = _prepare_display_data(row)
@@ -203,29 +242,7 @@ def display_list_view(df: pd.DataFrame):
                 if data["is_finished"]:
                     st.markdown(f"**Placar Final:** {data['final_score']}")
 
-            with st.expander("Detalhes, Probabilidades & Odds"):
-                st.markdown(
-                    f'''
-                    - **Sugestão:** {green_html(data["aposta_txt"])} {data["badge_bet"]}
-                    - **Sugestão de Gols:** {green_html(data["gols_txt"])} {data["badge_goal"]}
-                    - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}
-                    - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
-                    ''',
-                    unsafe_allow_html=True
-                )
-                st.markdown("---")
-                st.markdown("**Over/Under (Prob. — Odd)**")
-                under_lines = [f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}" for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_under_{v.replace('.', '_')}")]
-                if under_lines: st.markdown("\n".join(under_lines), unsafe_allow_html=True)
-
-                over_lines = [f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}" for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_over_{v.replace('.', '_')}")]
-                if over_lines: st.markdown("\n".join(over_lines), unsafe_allow_html=True)
-
-                if _exists(df, "prob_btts_yes", "prob_btts_no"):
-                    st.markdown("---")
-                    st.markdown("**BTTS (Prob. — Odd)**")
-                    st.markdown(f"- **Ambos marcam — Sim:** {_po(row, 'prob_btts_yes', 'odds_btts_yes')}", unsafe_allow_html=True)
-                    st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}", unsafe_allow_html=True)
+            _render_expander_details(row, data, df)
 
             st.markdown('</div>', unsafe_allow_html=True)
             st.write("")

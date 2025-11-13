@@ -88,10 +88,14 @@ def _calculate_btts_prob_accuracy(sub: pd.DataFrame) -> dict:
     btts_pred_s = sub.apply(predict_btts_from_prob, axis=1)
 
     # Avalia o resultado da previsão
-    eval_s = pd.Series(index=sub.index, dtype="object")
-    for idx in sub.index:
-        eval_s.loc[idx] = evaluate_market(btts_pred_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
-
+    eval_s = sub.apply(
+        lambda row: evaluate_market(
+            predict_btts_from_prob(row),
+            row.get("result_home"),
+            row.get("result_away")
+        ),
+        axis=1
+    )
     correct_s = eval_s == True
     wrong_s = eval_s == False
 

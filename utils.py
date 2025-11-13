@@ -92,6 +92,11 @@ PRED_NORMALIZER = {
 }
 
 # ============================
+# Constantes de Lógica
+# ============================
+BTTS_PROB_THRESHOLD = 0.65
+
+# ============================
 # Helpers
 # ============================
 def is_na_like(x: Any) -> bool:
@@ -283,13 +288,13 @@ def predict_btts_from_prob(row) -> Optional[str]:
     prob_yes = row.get("prob_btts_yes")
     prob_no = row.get("prob_btts_no")
 
-    if pd.notna(prob_yes) and prob_yes > 0.65:
+    if pd.notna(prob_yes) and prob_yes > BTTS_PROB_THRESHOLD:
         return "btts_yes"
 
-    if pd.notna(prob_no) and prob_no > 0.65:
+    if pd.notna(prob_no) and prob_no > BTTS_PROB_THRESHOLD:
         return "btts_no"
 
-    return None # Representa "Indefinido"
+    return None  # Representa "Indefinido"
 
 def safe_btts_code_from_row(row: pd.Series) -> Optional[str]:
     """
@@ -358,29 +363,21 @@ def _fetch_release_file(local_path: str):
 # ============================
 # Carregamento e normalização
 # ============================
+def _calculate_single_dc(df: pd.DataFrame, prob_col: str, odd_col: str, prob1_col: str, prob2_col: str) -> pd.DataFrame:
+    """Função auxiliar para calcular uma aposta de dupla chance."""
+    if prob_col not in df.columns or df[prob_col].isnull().all():
+        if prob1_col in df.columns and prob2_col in df.columns:
+            df[prob_col] = df[prob1_col] + df[prob2_col]
+
+    if odd_col not in df.columns or df[odd_col].isnull().all():
+        if prob_col in df.columns:
+            df[odd_col] = df[prob_col].apply(lambda p: 1 / p if p > 0 else np.nan)
+    return df
+
 def calculate_double_chance(df: pd.DataFrame) -> pd.DataFrame:
     """Calcula probabilidades e odds para apostas de dupla chance se não existirem."""
-    # Calcula a probabilidade de Casa ou Empate (Hx)
-    if 'prob_Hx' not in df.columns or df['prob_Hx'].isnull().all():
-        if 'prob_H' in df.columns and 'prob_D' in df.columns:
-            df['prob_Hx'] = df['prob_H'] + df['prob_D']
-
-    # Calcula a odd estimada para Casa ou Empate (Hx)
-    if 'odds_Hx' not in df.columns or df['odds_Hx'].isnull().all():
-        if 'prob_Hx' in df.columns:
-            # Evita divisão por zero
-            df['odds_Hx'] = df['prob_Hx'].apply(lambda p: 1 / p if p > 0 else np.nan)
-
-    # Calcula a probabilidade de Empate ou Visitante (xA)
-    if 'prob_xA' not in df.columns or df['prob_xA'].isnull().all():
-        if 'prob_D' in df.columns and 'prob_A' in df.columns:
-            df['prob_xA'] = df['prob_D'] + df['prob_A']
-
-    # Calcula a odd estimada para Empate ou Visitante (xA)
-    if 'odds_xA' not in df.columns or df['odds_xA'].isnull().all():
-        if 'prob_xA' in df.columns:
-            df['odds_xA'] = df['prob_xA'].apply(lambda p: 1 / p if p > 0 else np.nan)
-
+    df = _calculate_single_dc(df, "prob_Hx", "odds_Hx", "prob_H", "prob_D")
+    df = _calculate_single_dc(df, "prob_xA", "odds_xA", "prob_D", "prob_A")
     return df
 
 @st.cache_data(show_spinner=False)
