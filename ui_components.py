@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from utils import (
     FRIENDLY_COLS, market_label, tournament_label, status_label,
     eval_result_pred_row, eval_score_pred_row, eval_bet_row,
-    eval_goal_row, predict_btts_from_prob, evaluate_market,
+    eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
     GOAL_MARKET_THRESHOLDS
@@ -155,8 +155,8 @@ def _prepare_display_data(row: pd.Series) -> dict:
     hit_score = eval_score_pred_row(row)
     hit_bet = eval_bet_row(row)
     hit_goal = eval_goal_row(row)
-    btts_pred = predict_btts_from_prob(row)
-    hit_btts_pred = evaluate_market(btts_pred, row.get("result_home"), row.get("result_away"))
+    btts_pred = row.get("btts_suggestion")
+    hit_btts_pred = eval_btts_suggestion_row(row)
 
     def _get_badge(hit_status):
         return "✅" if hit_status is True else ("❌" if hit_status is False else "")
