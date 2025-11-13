@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import numpy as np
 
 from utils import (
