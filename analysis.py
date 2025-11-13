@@ -8,7 +8,8 @@ from utils import (
     eval_score_pred_row, tournament_label, MARKET_TO_ODDS_COLS, parse_score_pred
 )
 
-def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series):
+def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series) -> Tuple[float, int, int]:
+    """Calcula a acurácia, o número de acertos e o total de itens avaliados."""
     total = int((ok_mask | bad_mask).sum())
     correct = int(ok_mask.sum())
     acc = (correct / total * 100.0) if total > 0 else np.nan
@@ -158,6 +159,9 @@ def calculate_kpis(df_fin: pd.DataFrame, multi_model: bool) -> pd.DataFrame:
 
 
 def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepara os dados para o gráfico de acurácia diária, calculando o acerto para vários mercados.
+    """
     if df.empty or 'date' not in df.columns or 'tournament_id' not in df.columns or 'model' not in df.columns:
         return pd.DataFrame()
 

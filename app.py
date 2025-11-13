@@ -47,6 +47,7 @@ from analysis import prepare_accuracy_chart_data, get_best_model_by_market, crea
 # Exibição amigável
 # ============================
 def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica formatações e traduções em um DataFrame para exibição amigável."""
     out = df.copy()
 
     # Tradução de mercados + fallback amigável

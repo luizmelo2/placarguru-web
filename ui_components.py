@@ -12,7 +12,8 @@ from utils import (
 )
 
 # ========= Badge de confiança (opcional no caption) =========
-def conf_badge(row):
+def conf_badge(row: pd.Series) -> str:
+    """Gera um texto de 'badge' de confiança com base na maior probabilidade 1x2."""
     vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A") ]
     if any(pd.isna(v) for v in vals): return ""
     try:
@@ -25,6 +26,7 @@ def conf_badge(row):
     return "🟠 Conf. Baixa"
 
 def filtros_ui(df: pd.DataFrame, MODO_MOBILE: bool, tournaments_sel_external: Optional[List]=None) -> dict:
+    """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
     model_opts  = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
 
     if {"home", "away"}.issubset(df.columns):
@@ -174,6 +176,27 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—"
     }
 
+def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
+    """Renderiza a seção de 'Over/Under' dentro do expander."""
+    st.markdown("---")
+    st.markdown("**Over/Under (Prob. — Odd)**")
+
+    thresholds = ["0.5", "1.5", "2.5", "3.5"]
+
+    under_lines = [
+        f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}"
+        for v in thresholds if _exists(df, f"prob_under_{v.replace('.', '_')}")
+    ]
+    if under_lines:
+        st.markdown("\n".join(under_lines), unsafe_allow_html=True)
+
+    over_lines = [
+        f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}"
+        for v in thresholds if _exists(df, f"prob_over_{v.replace('.', '_')}")
+    ]
+    if over_lines:
+        st.markdown("\n".join(over_lines), unsafe_allow_html=True)
+
 def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
     """Renderiza o conteúdo dentro do st.expander para a visualização em lista."""
     with st.expander("Detalhes, Probabilidades & Odds"):
@@ -189,22 +212,7 @@ def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
         )
 
         # Seção 2: Over/Under
-        st.markdown("---")
-        st.markdown("**Over/Under (Prob. — Odd)**")
-
-        under_lines = [
-            f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}"
-            for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_under_{v.replace('.', '_')}")
-        ]
-        if under_lines:
-            st.markdown("\n".join(under_lines), unsafe_allow_html=True)
-
-        over_lines = [
-            f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}"
-            for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_over_{v.replace('.', '_')}")
-        ]
-        if over_lines:
-            st.markdown("\n".join(over_lines), unsafe_allow_html=True)
+        _render_over_under_section(row, df)
 
         # Seção 3: BTTS
         if _exists(df, "prob_btts_yes", "prob_btts_no"):
@@ -214,6 +222,7 @@ def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
             st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}", unsafe_allow_html=True)
 
 def display_list_view(df: pd.DataFrame):
+    """Renderiza uma lista de jogos em formato de cards para visualização mobile."""
     for _, row in df.iterrows():
         data = _prepare_display_data(row)
 
@@ -248,6 +257,7 @@ def display_list_view(df: pd.DataFrame):
             st.write("")
 
 def filtros_analise_ui(df: pd.DataFrame) -> dict:
+    """Renderiza a interface de filtros para a página de análise de desempenho."""
     st.sidebar.header("Parâmetros da Análise")
     prob_min = st.sidebar.slider("Probabilidade Mínima (%)", 0, 100, 65, 1, "%d%%") / 100.0
     odd_min = st.sidebar.slider("Odd Mínima", 1.0, 5.0, 1.3, 0.01)

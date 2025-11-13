@@ -95,11 +95,13 @@ PRED_NORMALIZER = {
 # Constantes de Lógica
 # ============================
 BTTS_PROB_THRESHOLD = 0.65
+GOAL_MARKET_THRESHOLDS = ["0.5", "1.5", "2.5", "3.5"]
 
 # ============================
 # Helpers
 # ============================
 def is_na_like(x: Any) -> bool:
+    """Verifica se um valor é 'NA-like' (None, NaN, ou string vazia/nula)."""
     if x is None:
         return True
     if isinstance(x, float) and np.isnan(x):
@@ -115,6 +117,7 @@ def market_label(v: Any, default: str = "Sem previsão calculada") -> str:
     return FRIENDLY_MARKETS.get(v, str(v))
 
 def _canon_tourn_key(x: Any):
+    """Converte a chave de um torneio para um tipo canônico (int ou str)."""
     if x is None or (isinstance(x, float) and np.isnan(x)): return None
     if isinstance(x, (np.integer,)): return int(x)
     if isinstance(x, float): return int(x) if float(x).is_integer() else x
@@ -124,6 +127,7 @@ def _canon_tourn_key(x: Any):
         return str(x).strip()
 
 def tournament_label(x: Any) -> str:
+    """Retorna o nome amigável de um torneio a partir de sua chave."""
     k = _canon_tourn_key(x)
     if k in FRIENDLY_TOURNAMENTS: return FRIENDLY_TOURNAMENTS[k]
     ks = str(k) if k is not None else None
@@ -131,24 +135,29 @@ def tournament_label(x: Any) -> str:
     return f"Torneio {x}"
 
 def norm_status_key(s: Any) -> str:
+    """Normaliza uma string de status para um formato de chave padrão."""
     return str(s).strip().lower().replace("-", "_").replace(" ", "_")
 
 def status_label(s: Any) -> str:
+    """Retorna o rótulo amigável para um status de jogo."""
     return FRIENDLY_STATUS_MAP.get(norm_status_key(s), str(s))
 
 def normalize_pred_code(series: pd.Series) -> pd.Series:
+    """Normaliza uma série de códigos de previsão para um formato padrão (H, D, A, etc.)."""
     if series is None: return pd.Series(dtype="object")
     s = series.astype(str).str.strip().str.upper()
     return s.map(lambda x: PRED_NORMALIZER.get(x, np.nan))
 
 def _parse_threshold(token: str) -> Optional[float]:
+    """Extrai um valor de limiar numérico de uma string (ex: 'over_2_5' -> 2.5)."""
     if token is None: return None
     t = str(token).replace("_", ".").strip()
     try: return float(t)
     except Exception: return None
 
 # ---- formatação e wrappers ----
-def fmt_odd(x):
+def fmt_odd(x: Any) -> str:
+    """Formata um valor numérico como uma string de odd com duas casas decimais."""
     try:
         v = float(x)
         if pd.isna(v): return "N/A"
@@ -156,7 +165,8 @@ def fmt_odd(x):
     except Exception:
         return "N/A"
 
-def fmt_prob(x):
+def fmt_prob(x: Any) -> str:
+    """Formata um valor numérico (0-1) como uma string de porcentagem."""
     try:
         v = float(x)
         if pd.isna(v): return "N/A"
@@ -165,6 +175,7 @@ def fmt_prob(x):
         return "N/A"
 
 def green_html(txt: Any) -> str:
+    """Envolve um texto em uma tag span com a classe CSS 'accent-green'."""
     return f'<span class="accent-green">{txt}</span>'
 
 def get_prob_and_odd_for_market(row: pd.Series, market_code: Any) -> str:
@@ -185,6 +196,7 @@ def get_prob_and_odd_for_market(row: pd.Series, market_code: Any) -> str:
     return ""
 
 def evaluate_market(code: Any, rh: Any, ra: Any) -> Optional[bool]:
+    """Avalia o resultado de um mercado de aposta (código) contra um placar final (rh, ra)."""
     if pd.isna(code) or pd.isna(rh) or pd.isna(ra): return None
     s = str(code).strip().lower()
     if s in ("h", "casa", "home"): return rh > ra
@@ -201,6 +213,7 @@ def evaluate_market(code: Any, rh: Any, ra: Any) -> Optional[bool]:
     return None
 
 def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
+    """Extrai um placar (casa, visitante) de vários formatos de entrada (dict, lista, tupla, str)."""
     if x is None or (isinstance(x, float) and np.isnan(x)): return (None, None)
     if isinstance(x, dict):
         for hk, ak in (("home","away"), ("h","a")):
@@ -217,12 +230,14 @@ def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
     return (None, None)
 
 def fmt_score_pred_text(x: Any, default: str = "Sem previsão calculada") -> str:
+    """Formata um placar previsto em uma string 'C-V' ou retorna um texto padrão."""
     ph, pa = parse_score_pred(x)
     if ph is None or pa is None:
         return default
     return f"{ph}-{pa}"
 
-def eval_result_pred_row(row) -> Optional[bool]:
+def eval_result_pred_row(row: pd.Series) -> Optional[bool]:
+    """Avalia se a previsão do resultado (1x2) está correta para uma linha de dados."""
     if norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
     rh, ra = row.get("result_home"), row.get("result_away")
     if pd.isna(rh) or pd.isna(ra): return None
@@ -236,7 +251,8 @@ def eval_result_pred_row(row) -> Optional[bool]:
         return real in ("D", "A")
     return pred == real
 
-def eval_score_pred_row(row) -> Optional[bool]:
+def eval_score_pred_row(row: pd.Series) -> Optional[bool]:
+    """Avalia se a previsão do placar exato está correta."""
     if norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return None
     rh, ra = row.get("result_home"), row.get("result_away")
     if pd.isna(rh) or pd.isna(ra): return None
@@ -245,20 +261,23 @@ def eval_score_pred_row(row) -> Optional[bool]:
     try: return (int(rh) == int(ph)) and (int(ra) == int(pa))
     except Exception: return None
 
-def _row_is_finished(row) -> bool:
+def _row_is_finished(row: pd.Series) -> bool:
+    """Verifica se uma linha representa um jogo finalizado com placar válido."""
     if norm_status_key(row.get("status","")) not in FINISHED_TOKENS: return False
     rh, ra = row.get("result_home"), row.get("result_away")
     return pd.notna(rh) and pd.notna(ra)
 
-def eval_bet_row(row) -> Optional[bool]:
+def eval_bet_row(row: pd.Series) -> Optional[bool]:
+    """Avalia se a sugestão de aposta principal ('bet_suggestion') está correta."""
     if not _row_is_finished(row): return None
     return evaluate_market(row.get("bet_suggestion"), row.get("result_home"), row.get("result_away"))
 
-def eval_goal_row(row) -> Optional[bool]:
+def eval_goal_row(row: pd.Series) -> Optional[bool]:
+    """Avalia se a sugestão de aposta de gols ('goal_bet_suggestion') está correta."""
     if not _row_is_finished(row): return None
     return evaluate_market(row.get("goal_bet_suggestion"), row.get("result_home"), row.get("result_away"))
 
-def eval_sugestao_combo_row(row) -> Optional[bool]:
+def eval_sugestao_combo_row(row: pd.Series) -> Optional[bool]:
     """
     Avalia se tanto a previsão de resultado quanto a sugestão de aposta foram corretas.
     Retorna True se ambas foram acertos, False se pelo menos uma foi erro, e None se alguma não pôde ser avaliada.
@@ -321,10 +340,12 @@ def safe_btts_code_from_row(row: pd.Series) -> Optional[str]:
         return None
 
 
-def _po(row, prob_key: str, odd_key: str) -> str:
+def _po(row: pd.Series, prob_key: str, odd_key: str) -> str:
+    """Helper para formatar uma string de Probabilidade e Odd."""
     return f"{green_html(fmt_prob(row.get(prob_key)))} - Odd: {green_html(fmt_odd(row.get(odd_key)))}"
 
-def _exists(df: pd.DataFrame, *cols) -> bool:
+def _exists(df: pd.DataFrame, *cols: str) -> bool:
+    """Verifica se uma ou mais colunas existem em um DataFrame."""
     return all(c in df.columns for c in cols)
 
 # ============================
