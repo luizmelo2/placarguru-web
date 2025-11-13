@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from datetime import timedelta, date, datetime
-from typing import Any, Tuple, Optional, List
 from zoneinfo import ZoneInfo  # Python 3.9+
 
 # --- novos imports para baixar a release e controlar cache/tempo ---
@@ -12,13 +11,10 @@ from email.utils import parsedate_to_datetime
 
 # Importa funções e constantes do utils.py
 from utils import (
-    _exists, fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
+    fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
-    status_label, eval_result_pred_row, eval_score_pred_row, eval_bet_row,
-    eval_goal_row, eval_sugestao_combo_row, green_html, FINISHED_TOKENS,
-    fmt_odd, fmt_prob, _po, normalize_pred_code, evaluate_market,
-    parse_score_pred, get_prob_and_odd_for_market, predict_btts_from_prob,
-    safe_btts_code_from_row
+    status_label, FINISHED_TOKENS, predict_btts_from_prob,
+
 )
 from styles import inject_custom_css
 
