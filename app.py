@@ -363,7 +363,7 @@ try:
                             x=alt.X('Métrica:N', title=''),
                             y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
                             tooltip=['Métrica:N', 'Acertos:Q', 'Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
-                        ).properties(height=220 if MODO_MOBILE else 260)
+                        ).properties(height=220 if modo_mobile else 260)
                         text = alt.Chart(metrics_df).mark_text(dy=-8).encode(
                             x='Métrica:N',
                             y='Acerto (%):Q',
