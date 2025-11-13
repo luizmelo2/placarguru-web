@@ -52,6 +52,58 @@ def _calculate_goal_suggestion_accuracy(sub: pd.DataFrame) -> dict:
         "Total Avaliado": total
     }
 
+def _calculate_btts_suggestion_accuracy(sub: pd.DataFrame) -> dict:
+    """
+    Calcula a acurácia para as apostas 'Ambos Marcam' que vêm da coluna 'goal_bet_suggestion'.
+    """
+    goal_eval_s = sub.apply(eval_goal_row, axis=1)
+    correct_s = goal_eval_s == True
+    wrong_s = goal_eval_s == False
+
+    # Identifica as apostas que SÃO 'Ambos Marcam'
+    goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
+    btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
+
+    # Filtra as avaliações para incluir apenas as apostas 'Ambos Marcam'
+    btts_correct_s = correct_s & btts_mask_s
+    btts_wrong_s = wrong_s & btts_mask_s
+
+    acc, correct, total = compute_acc2(btts_correct_s, btts_wrong_s)
+
+    return {
+        "Métrica": "Ambos Marcam (Sugestão)",
+        "Acerto (%)": 0 if np.isnan(acc) else round(acc, 1),
+        "Acertos": correct,
+        "Total Avaliado": total
+    }
+
+def _calculate_btts_prob_accuracy(sub: pd.DataFrame) -> dict:
+    """
+    Calcula a acurácia para as previsões de 'Ambos Marcam' baseadas em probabilidades.
+    """
+    rh_s = sub.get("result_home", pd.Series(index=sub.index, dtype="float"))
+    ra_s = sub.get("result_away", pd.Series(index=sub.index, dtype="float"))
+    mv_s = rh_s.notna() & ra_s.notna()
+
+    btts_pred_s = sub.apply(predict_btts_from_prob, axis=1)
+
+    # Avalia o resultado da previsão
+    eval_s = pd.Series(index=sub.index, dtype="object")
+    for idx in sub.index:
+        eval_s.loc[idx] = evaluate_market(btts_pred_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
+
+    correct_s = eval_s == True
+    wrong_s = eval_s == False
+
+    acc, correct, total = compute_acc2(correct_s, wrong_s)
+
+    return {
+        "Métrica": "Ambos Marcam (Prob)",
+        "Acerto (%)": 0 if np.isnan(acc) else round(acc, 1),
+        "Acertos": correct,
+        "Total Avaliado": total
+    }
+
 def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None) -> List[dict]:
     """Calcula todas as métricas de KPI para um determinado dataframe (subconjunto de um modelo)."""
 
@@ -69,36 +121,10 @@ def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None
     goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
     btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
 
-    btts_correct_s = goal_correct_s & btts_mask_s
-    btts_wrong_s = goal_wrong_s & btts_mask_s
-    acc_btts, c_btts, t_btts = compute_acc2(btts_correct_s, btts_wrong_s)
-    rows.append({
-        "Métrica": "Ambos Marcam (Sugestão)",
-        "Acerto (%)": 0 if np.isnan(acc_btts) else round(acc_btts, 1),
-        "Acertos": c_btts,
-        "Total Avaliado": t_btts
-    })
-
+    rows.append(_calculate_btts_suggestion_accuracy(sub))
     rows.append(_calculate_goal_suggestion_accuracy(sub))
 
-    rh_s = sub.get("result_home", pd.Series(index=sub.index, dtype="float"))
-    ra_s = sub.get("result_away", pd.Series(index=sub.index, dtype="float"))
-    mv_s = rh_s.notna() & ra_s.notna()
-
-    btts_pred_s = sub.apply(predict_btts_from_prob, axis=1)
-    btts_pred_eval_s = pd.Series(index=sub.index, dtype="object")
-    for idx in sub.index:
-        btts_pred_eval_s.loc[idx] = evaluate_market(btts_pred_s.loc[idx], rh_s.loc[idx], ra_s.loc[idx]) if mv_s.loc[idx] else None
-
-    btts_pred_correct_s = btts_pred_eval_s == True
-    btts_pred_wrong_s   = btts_pred_eval_s == False
-    acc_btts_pred, c_btts_pred, t_btts_pred = compute_acc2(btts_pred_correct_s, btts_pred_wrong_s)
-    rows.append({
-        "Métrica": "Ambos Marcam (Prob)",
-        "Acerto (%)": 0 if np.isnan(acc_btts_pred) else round(acc_btts_pred, 1),
-        "Acertos": c_btts_pred,
-        "Total Avaliado": t_btts_pred
-    })
+    rows.append(_calculate_btts_prob_accuracy(sub))
 
     if model_name:
         for row in rows:

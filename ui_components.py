@@ -134,112 +134,98 @@ def filtros_ui(df: pd.DataFrame, MODO_MOBILE: bool, tournaments_sel_external: Op
         selH=selH, selD=selD, selA=selA, q_team=q_team
     )
 
+def _prepare_display_data(row: pd.Series) -> dict:
+    """Prepara todos os dados necessários para a exibição de uma linha."""
+    dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in row.index and pd.notna(row["date"])) else "N/A"
+
+    # Avaliações de acerto
+    hit_res = eval_result_pred_row(row)
+    hit_score = eval_score_pred_row(row)
+    hit_bet = eval_bet_row(row)
+    hit_goal = eval_goal_row(row)
+    btts_pred = predict_btts_from_prob(row)
+    hit_btts_pred = evaluate_market(btts_pred, row.get("result_home"), row.get("result_away"))
+
+    def _get_badge(hit_status):
+        return "✅" if hit_status is True else ("❌" if hit_status is False else "")
+
+    # Textos e odds
+    result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
+    score_txt = fmt_score_pred_text(row.get('score_predicted'))
+    aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
+    gols_txt = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
+    btts_pred_txt = f"{market_label(btts_pred, default='-')} {get_prob_and_odd_for_market(row, btts_pred)}"
+
+    return {
+        "title": f"{dt_txt} • {row.get('home','?')} vs {row.get('away','?')}",
+        "status_txt": status_label(row.get("status", "N/A")),
+        "badge_res": _get_badge(hit_res),
+        "badge_score": _get_badge(hit_score),
+        "badge_bet": _get_badge(hit_bet),
+        "badge_goal": _get_badge(hit_goal),
+        "badge_btts_pred": _get_badge(hit_btts_pred),
+        "result_txt": result_txt,
+        "score_txt": score_txt,
+        "aposta_txt": aposta_txt,
+        "gols_txt": gols_txt,
+        "btts_pred_txt": btts_pred_txt,
+        "cap_line": f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}",
+        "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
+        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—"
+    }
+
 def display_list_view(df: pd.DataFrame):
     for _, row in df.iterrows():
-        dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in df.columns and pd.notna(row["date"])) else "N/A"
-        title = f"{dt_txt} • {row.get('home','?')} vs {row.get('away','?')}"
-        status_txt = status_label(row.get("status","N/A"))
-
-        # badges (resultado e placar)
-        hit_res   = eval_result_pred_row(row)
-        hit_score = eval_score_pred_row(row)
-        badge_res   = "✅" if hit_res is True else ("❌" if hit_res is False else "")
-        badge_score = "✅" if hit_score is True else ("❌" if hit_score is False else "")
-
-        # sugestões + avaliação (com fallback amigável)
-        aposta_txt = market_label(row.get('bet_suggestion'))
-        gols_txt   = market_label(row.get('goal_bet_suggestion'))
-
-        hit_bet  = eval_bet_row(row)
-        hit_goal = eval_goal_row(row)
-        badge_bet  = "✅" if hit_bet is True else ("❌" if hit_bet is False else "")
-        badge_goal = "✅" if hit_goal is True else ("❌" if hit_goal is False else "")
-
-        # Nova previsão "Ambos Marcam"
-        btts_pred = predict_btts_from_prob(row)
-        hit_btts_pred = evaluate_market(btts_pred, row.get("result_home"), row.get("result_away"))
-        badge_btts_pred = "✅" if hit_btts_pred is True else ("❌" if hit_btts_pred is False else "")
-
-        # previsões com fallback amigável e odds
-        result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
-        score_txt  = fmt_score_pred_text(row.get('score_predicted'))
-        aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
-        gols_txt   = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
-        btts_pred_txt = f"{market_label(btts_pred, default='-')} {get_prob_and_odd_for_market(row, btts_pred)}"
-
-        # confiança AO LADO da previsão (e NÃO no caption)
-        conf_txt = conf_badge(row)  # ex.: "🟢 Confiança: Alta"
-        conf_html = f'<span class="conf-inline">({conf_txt})</span>' if conf_txt else ""
+        data = _prepare_display_data(row)
 
         with st.container():
             st.markdown('<div class="card">', unsafe_allow_html=True)
             c1, c2 = st.columns([3, 1])
             with c1:
-                st.markdown(f"**{title}**")
-                # caption SEM confiança
-                cap_line = f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}"
-                st.caption(cap_line)
-
-                # Grid com Confiança ao lado da PREV.
+                st.markdown(f"**{data['title']}**")
+                st.caption(data['cap_line'])
                 st.markdown(
                     f'''
                     <div class="info-grid">
-                        <div><span class="text-label">{badge_res} 🎯 Resultado:</span> {green_html(result_txt)} </div>
-                        <div><span class="text-label">{badge_bet} 💡 Sugestão Aposta:</span> {green_html(aposta_txt)} </div>
-                        <div><span class="text-label">{badge_goal} ⚽ Sugestão Gols:</span> {green_html(gols_txt)}</div>
-                        <div><span class="text-label">{badge_btts_pred} 🥅 Ambos Marcam:</span> {green_html(btts_pred_txt)}</div>
-                        <div><span class="text-label">{badge_score} 📊 Placar Previsto:</span> {green_html(score_txt)} </div>
+                        <div><span class="text-label">{data["badge_res"]} 🎯 Resultado:</span> {green_html(data["result_txt"])}</div>
+                        <div><span class="text-label">{data["badge_bet"]} 💡 Sugestão Aposta:</span> {green_html(data["aposta_txt"])}</div>
+                        <div><span class="text-label">{data["badge_goal"]} ⚽ Sugestão Gols:</span> {green_html(data["gols_txt"])}</div>
+                        <div><span class="text-label">{data["badge_btts_pred"]} 🥅 Ambos Marcam:</span> {green_html(data["btts_pred_txt"])}</div>
+                        <div><span class="text-label">{data["badge_score"]} 📊 Placar Previsto:</span> {green_html(data["score_txt"])}</div>
                     </div>
                     ''',
                     unsafe_allow_html=True
                 )
 
             with c2:
-                badge_class = "badge-finished" if norm_status_key(row.get("status","")) in FINISHED_TOKENS else "badge-wait"
-                st.markdown(f'<span class="badge {badge_class}">{status_txt}</span>', unsafe_allow_html=True)
-                if norm_status_key(row.get("status","")) in FINISHED_TOKENS:
-                    rh, ra = row.get("result_home"), row.get("result_away")
-                    final_txt = f"{int(rh)}-{int(ra)}" if pd.notna(rh) and pd.notna(ra) else "—"
-                    st.markdown(f"**Placar Final:** {final_txt}")
+                badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
+                st.markdown(f'<span class="badge {badge_class}">{data["status_txt"]}</span>', unsafe_allow_html=True)
+                if data["is_finished"]:
+                    st.markdown(f"**Placar Final:** {data['final_score']}")
 
-            # Detalhes com Prob/Odds (valores verdes)
             with st.expander("Detalhes, Probabilidades & Odds"):
                 st.markdown(
                     f'''
-                    - **Sugestão:** {green_html(aposta_txt)} {badge_bet}
-                    - **Sugestão de Gols:** {green_html(gols_txt)} {badge_goal}
+                    - **Sugestão:** {green_html(data["aposta_txt"])} {data["badge_bet"]}
+                    - **Sugestão de Gols:** {green_html(data["gols_txt"])} {data["badge_goal"]}
                     - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}
                     - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}
                     ''',
                     unsafe_allow_html=True
                 )
-
                 st.markdown("---")
                 st.markdown("**Over/Under (Prob. — Odd)**")
+                under_lines = [f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}" for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_under_{v.replace('.', '_')}")]
+                if under_lines: st.markdown("\n".join(under_lines), unsafe_allow_html=True)
 
-                under_lines = []
-                if _exists(df, "prob_under_0_5"): under_lines.append(f"- **Under 0.5:** {_po(row, 'prob_under_0_5', 'odds_match_goals_0.5_under')}")
-                if _exists(df, "prob_under_1_5"): under_lines.append(f"- **Under 1.5:** {_po(row, 'prob_under_1_5', 'odds_match_goals_1.5_under')}")
-                if _exists(df, "prob_under_2_5"): under_lines.append(f"- **Under 2.5:** {_po(row, 'prob_under_2_5', 'odds_match_goals_2.5_under')}")
-                if _exists(df, "prob_under_3_5"): under_lines.append(f"- **Under 3.5:** {_po(row, 'prob_under_3_5', 'odds_match_goals_3.5_under')}")
-                if under_lines:
-                    st.markdown("\n".join(under_lines), unsafe_allow_html=True)
+                over_lines = [f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}" for v in ["0.5", "1.5", "2.5", "3.5"] if _exists(df, f"prob_over_{v.replace('.', '_')}")]
+                if over_lines: st.markdown("\n".join(over_lines), unsafe_allow_html=True)
 
-                over_lines = []
-                if _exists(df, "prob_over_0_5"): over_lines.append(f"- **Over 0.5:** {_po(row, 'prob_over_0_5', 'odds_match_goals_0.5_over')}")
-                if _exists(df, "prob_over_1_5"): over_lines.append(f"- **Over 1.5:** {_po(row, 'prob_over_1_5', 'odds_match_goals_1.5_over')}")
-                if _exists(df, "prob_over_2_5"): over_lines.append(f"- **Over 2.5:** {_po(row, 'prob_over_2_5', 'odds_match_goals_2.5_over')}")
-                if _exists(df, "prob_over_3_5"): over_lines.append(f"- **Over 3.5:** {_po(row, 'prob_over_3_5', 'odds_match_goals_3.5_over')}")
-                if over_lines:
-                    st.markdown("\n".join(over_lines), unsafe_allow_html=True)
-
-                if _exists(df, "prob_btts_yes") or _exists(df, "prob_btts_no"):
+                if _exists(df, "prob_btts_yes", "prob_btts_no"):
                     st.markdown("---")
                     st.markdown("**BTTS (Prob. — Odd)**")
-                    if _exists(df, "prob_btts_yes"):
-                        st.markdown(f"- **Ambos marcam — Sim:** { _po(row, 'prob_btts_yes', 'odds_btts_yes') }", unsafe_allow_html=True)
-                    if _exists(df, "prob_btts_no"):
-                        st.markdown(f"- **Ambos marcam — Não:** { _po(row, 'prob_btts_no', 'odds_btts_no') }", unsafe_allow_html=True)
+                    st.markdown(f"- **Ambos marcam — Sim:** {_po(row, 'prob_btts_yes', 'odds_btts_yes')}", unsafe_allow_html=True)
+                    st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}", unsafe_allow_html=True)
 
             st.markdown('</div>', unsafe_allow_html=True)
             st.write("")
