@@ -27,6 +27,31 @@ def _calculate_metric(sub: pd.DataFrame, metric_name: str, eval_func, **kwargs) 
         "Total Avaliado": total
     }
 
+def _calculate_goal_suggestion_accuracy(sub: pd.DataFrame) -> dict:
+    """
+    Calcula a acurácia da 'Sugestão de Gols', excluindo as apostas 'Ambos Marcam'.
+    """
+    goal_eval_s = sub.apply(eval_goal_row, axis=1)
+    correct_s = goal_eval_s == True
+    wrong_s = goal_eval_s == False
+
+    # Identifica as apostas que NÃO são 'Ambos Marcam'
+    goal_codes_s = sub.get("goal_bet_suggestion", pd.Series(index=sub.index, dtype="object"))
+    btts_mask_s = goal_codes_s.astype(str).str.lower().isin(['btts_yes', 'btts_no'])
+
+    # Filtra as avaliações para incluir apenas as apostas de gols (Over/Under)
+    correct_no_btts_s = correct_s & ~btts_mask_s
+    wrong_no_btts_s = wrong_s & ~btts_mask_s
+
+    acc, correct, total = compute_acc2(correct_no_btts_s, wrong_no_btts_s)
+
+    return {
+        "Métrica": "Sugestão de Gols",
+        "Acerto (%)": 0 if np.isnan(acc) else round(acc, 1),
+        "Acertos": correct,
+        "Total Avaliado": total
+    }
+
 def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None) -> List[dict]:
     """Calcula todas as métricas de KPI para um determinado dataframe (subconjunto de um modelo)."""
 
@@ -54,15 +79,7 @@ def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None
         "Total Avaliado": t_btts
     })
 
-    goal_correct_no_btts = goal_correct_s & ~btts_mask_s
-    goal_wrong_no_btts   = goal_wrong_s & ~btts_mask_s
-    acc_goal, c_goal, t_goal = compute_acc2(goal_correct_no_btts, goal_wrong_no_btts)
-    rows.append({
-        "Métrica": "Sugestão de Gols",
-        "Acerto (%)": 0 if np.isnan(acc_goal) else round(acc_goal, 1),
-        "Acertos": c_goal,
-        "Total Avaliado": t_goal
-    })
+    rows.append(_calculate_goal_suggestion_accuracy(sub))
 
     rh_s = sub.get("result_home", pd.Series(index=sub.index, dtype="float"))
     ra_s = sub.get("result_away", pd.Series(index=sub.index, dtype="float"))
