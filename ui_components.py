@@ -13,23 +13,84 @@ from utils import (
     GOAL_MARKET_THRESHOLDS
 )
 
-# ========= Badge de confiança (opcional no caption) =========
-def conf_badge(row: pd.Series) -> str:
-    """Gera um texto de 'badge' de confiança com base na maior probabilidade 1x2."""
-    vals = [row.get("prob_H"), row.get("prob_D"), row.get("prob_A")]
-    if any(pd.isna(v) for v in vals):
-        return ""
-    try:
-        conf = max(vals) * 100.0
-    except Exception:
-        return ""
-    if pd.isna(conf):
-        return ""
-    if conf >= 70:
-        return "🟢 Conf. Alta"
-    if conf >= 55:
-        return "🟡 Conf. Média"
-    return "🟠 Conf. Baixa"
+def _render_filtros_modelos(container, model_opts: list, default_models: list, modo_mobile: bool):
+    """Renderiza o filtro de seleção de modelos."""
+    col = container.columns(1)[0] if modo_mobile else container.columns(2)[0]
+    return col.multiselect(FRIENDLY_COLS["model"], model_opts, default=default_models)
+
+def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel_external: Optional[List]):
+    """Renderiza os filtros de equipes e a busca rápida."""
+    c1, c2 = container.columns(2)
+    with c1:
+        # Apenas para alinhar com o seletor de equipes
+        st.write(f"**{len(tournaments_sel_external or []):d} torneios selecionados**")
+
+    teams_sel = c2.multiselect(
+        "Equipe (Casa ou Visitante)", team_opts,
+        default=[] if modo_mobile else team_opts
+    )
+    q_team = container.text_input(
+        "🔍 Buscar equipe (Casa/Visitante)",
+        placeholder="Digite parte do nome da equipe..."
+    )
+    return teams_sel, q_team
+
+def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list):
+    """Renderiza os filtros de sugestões de aposta."""
+    c1, c2 = container.columns(2)
+    bet_sel = c1.multiselect(
+        FRIENDLY_COLS["bet_suggestion"], bet_opts, default=[], format_func=market_label
+    )
+    goal_sel = c2.multiselect(
+        FRIENDLY_COLS["goal_bet_suggestion"], goal_opts, default=[], format_func=market_label
+    )
+    return bet_sel, goal_sel
+
+def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date]):
+    """Renderiza o filtro de período com botões de atalho."""
+    selected_date_range = ()
+    with container.expander("Período", expanded=False):
+        if min_date and max_date:
+            today = date.today()
+            btn_cols = st.columns(5)
+            if btn_cols[0].button("Hoje"):
+                selected_date_range = (today, today)
+            if btn_cols[1].button("Próx. 3 dias"):
+                selected_date_range = (today, today + timedelta(days=3))
+            if btn_cols[2].button("Últimos 3 dias"):
+                selected_date_range = (today - timedelta(days=3), today)
+            if btn_cols[3].button("Semana"):
+                start = today - timedelta(days=today.weekday())
+                selected_date_range = (start, start + timedelta(days=6))
+            if btn_cols[4].button("Limpar"):
+                selected_date_range = ()
+
+            if not selected_date_range:
+                selected_date_range = st.date_input(
+                    "Período (intervalo)", value=(min_date, max_date),
+                    min_value=min_date, max_value=max_date
+                )
+    return selected_date_range
+
+def _render_filtros_odds(container, df: pd.DataFrame):
+    """Renderiza os sliders de filtro de odds."""
+    def _range(series: pd.Series, default=(0.0, 1.0)):
+        """Calcula o range (min, max) de uma série, com um valor padrão."""
+        s = series.dropna()
+        return (float(s.min()), float(s.max())) if not s.empty else default
+
+    sel_h, sel_d, sel_a = (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)
+    with container.expander("Odds", expanded=False):
+        if "odds_H" in df.columns:
+            min_h, max_h = _range(df["odds_H"])
+            sel_h = st.slider(FRIENDLY_COLS["odds_H"], min_h, max_h, (min_h, max_h))
+        if "odds_D" in df.columns:
+            min_d, max_d = _range(df["odds_D"])
+            sel_d = st.slider(FRIENDLY_COLS["odds_D"], min_d, max_d, (min_d, max_d))
+        if "odds_A" in df.columns:
+            min_a, max_a = _range(df["odds_A"])
+            sel_a = st.slider(FRIENDLY_COLS["odds_A"], min_a, max_a, (min_a, max_a))
+    return sel_h, sel_d, sel_a
 
 
 def filtros_ui(
@@ -37,127 +98,52 @@ def filtros_ui(
     tournaments_sel_external: Optional[List] = None
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    model_opts  = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
-
-    if {"home", "away"}.issubset(df.columns):
-        team_opts = pd.concat([df["home"], df["away"]], ignore_index=True).dropna()
-        team_opts = sorted(team_opts.astype(str).unique())
-    else:
-        team_opts = []
-
-    bet_opts  = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
+    # --- 1. Extração de Opções ---
+    model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
+    team_opts = sorted(pd.concat([df["home"], df["away"]]).dropna().astype(str).unique()) if _exists(df, "home", "away") else []
+    bet_opts = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
     goal_opts = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
 
-    # DEFAULTS: URL (?model=) ou "Combo"
+    # --- 2. Lógica de Defaults ---
+    default_models = []
     if model_opts:
-        url_models_lower = [v.strip().lower() for v in st.session_state.model_init_raw]
-        wanted_models = [m for m in model_opts if str(m).strip().lower() in url_models_lower]
-        if not wanted_models:
-            wanted_models = [m for m in model_opts if str(m).strip().lower() == "combo"]
-        models_default = wanted_models or model_opts
-    else:
-        models_default = []
+        url_models = [v.strip().lower() for v in st.session_state.get("model_init_raw", [])]
+        wanted = [m for m in model_opts if str(m).strip().lower() in url_models]
+        if not wanted:
+            wanted = [m for m in model_opts if str(m).strip().lower() == "combo"]
+        default_models = wanted or model_opts
 
-    # datas min/max
-    if "date" in df.columns and df["date"].notna().any():
-        min_date = df["date"].dropna().min().date()
-        max_date = df["date"].dropna().max().date()
-    else:
-        min_date = max_date = None
+    min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
+    max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
+    # --- 3. Renderização da UI ---
     target = st.sidebar if not modo_mobile else st
     container = target.expander("🔎 Filtros", expanded=not modo_mobile)
 
-    with container:
-        # Modelos
-        c1 = st.columns(1)[0] if modo_mobile else st.columns(2)[0]
-        with c1:
-            models_sel = st.multiselect(FRIENDLY_COLS["model"], model_opts, default=models_default)
-
-        # Times (o seletor de torneios veio do topo)
-        c3, c4 = st.columns(2)
-        with c3:
-            tournaments_sel = tournaments_sel_external or []
-        with c4:
-            teams_sel = st.multiselect(
-                "Equipe (Casa ou Visitante)", team_opts,
-                default=[] if modo_mobile else team_opts
-            )
-
-        # Busca rápida por equipe
-        q_team = st.text_input(
-            "🔍 Buscar equipe (Casa/Visitante)",
-            placeholder="Digite parte do nome da equipe..."
-        )
-
-        # Sugestões
-        c5, c6 = st.columns(2)
-        with c5:
-            bet_sel = st.multiselect(FRIENDLY_COLS["bet_suggestion"], bet_opts, default=[], format_func=market_label)
-        with c6:
-            goal_sel = st.multiselect(FRIENDLY_COLS["goal_bet_suggestion"], goal_opts, default=[], format_func=market_label)
-
-        # Período
-        with st.expander("Período", expanded=False):
-            selected_date_range = ()
-            if min_date:
-                today = date.today()
-                cc1, cc2, cc3, cc4, cc5  = st.columns(5)
-                with cc1:
-                    if st.button("Hoje"): selected_date_range = (today, today)
-                with cc2:
-                    if st.button("Próx. 3 dias"): selected_date_range = (today, today + timedelta(days=3))
-                with cc3:
-                    if st.button("Últimos 3 dias"): selected_date_range = (today - timedelta(days=3), today)
-                with cc4:
-                    if st.button("Semana"):
-                        start = today - timedelta(days=today.weekday())
-                        end = start + timedelta(days=6)
-                        selected_date_range = (start, end)
-                with cc5:
-                    if st.button("Limpar"): selected_date_range = ()
-
-                if not selected_date_range:
-                    selected_date_range = st.date_input(
-                        "Período (intervalo)", value=(min_date, max_date),
-                        min_value=min_date, max_value=max_date
-                    )
-
-            def _range(series: pd.Series, default=(0.0, 1.0)):
-                s = series.dropna()
-                return (float(s.min()), float(s.max())) if not s.empty else default
-
-        # Odds
-        with st.expander("Odds", expanded=False):
-            sel_h, sel_d, sel_a = (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)
-            if "odds_H" in df.columns:
-                min_h, max_h = _range(df["odds_H"])
-                sel_h = st.slider(
-                    FRIENDLY_COLS["odds_H"], min_h, max_h, (min_h, max_h)
-                )
-            if "odds_D" in df.columns:
-                min_d, max_d = _range(df["odds_D"])
-                sel_d = st.slider(
-                    FRIENDLY_COLS["odds_D"], min_d, max_d, (min_d, max_d)
-                )
-            if "odds_A" in df.columns:
-                min_a, max_a = _range(df["odds_A"])
-                sel_a = st.slider(
-                    FRIENDLY_COLS["odds_A"], min_a, max_a, (min_a, max_a)
-                )
-
-    # Reflete estado na URL — apenas modelo
-    try:
-        st.query_params.update({"model": models_sel or []})
-    except Exception:
-        pass
-
-    return dict(
-        tournaments_sel=tournaments_sel, models_sel=models_sel,
-        teams_sel=teams_sel, bet_sel=bet_sel, goal_sel=goal_sel,
-        selected_date_range=selected_date_range, sel_h=sel_h, sel_d=sel_d,
-        sel_a=sel_a, q_team=q_team
+    models_sel = _render_filtros_modelos(container, model_opts, default_models, modo_mobile)
+    teams_sel, q_team = _render_filtros_equipes(
+        container, team_opts, modo_mobile, tournaments_sel_external
     )
+    bet_sel, goal_sel = _render_filtros_sugestoes(container, bet_opts, goal_opts)
+    selected_date_range = _render_filtros_periodo(container, min_date, max_date)
+    sel_h, sel_d, sel_a = _render_filtros_odds(container, df)
+
+    # --- 4. Sincronização e Retorno ---
+    try:
+        st.query_params["model"] = models_sel or []
+    except Exception:
+        pass  # Pode falhar em alguns contextos de execução
+
+    return {
+        "tournaments_sel": tournaments_sel_external or [],
+        "models_sel": models_sel,
+        "teams_sel": teams_sel,
+        "bet_sel": bet_sel,
+        "goal_sel": goal_sel,
+        "selected_date_range": selected_date_range,
+        "sel_h": sel_h, "sel_d": sel_d, "sel_a": sel_a,
+        "q_team": q_team
+    }
 
 
 def _prepare_display_data(row: pd.Series) -> dict:
