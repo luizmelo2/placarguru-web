@@ -1,3 +1,4 @@
+"""Módulo para geração de relatórios em PDF."""
 import pandas as pd
 from fpdf import FPDF, XPos, YPos
 from datetime import datetime

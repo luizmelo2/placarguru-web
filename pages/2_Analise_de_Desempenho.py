@@ -1,3 +1,4 @@
+"""Página de Análise de Desempenho do Placar Guru."""
 import streamlit as st
 import pandas as pd
 import altair as alt

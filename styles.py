@@ -1,6 +1,9 @@
+"""Módulo para injeção de CSS customizado."""
 import streamlit as st
 
+
 def inject_custom_css():
+    """Insere o CSS customizado na página."""
     st.markdown('''
 <style>
 html, body, .stApp { font-size: 16px; }

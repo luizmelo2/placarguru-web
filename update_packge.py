@@ -1,3 +1,4 @@
+"""Script para atualizar pacotes Python desatualizados."""
 import subprocess
 import json
 import sys

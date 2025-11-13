@@ -1,3 +1,4 @@
+"""Módulo de análise de dados e cálculo de KPIs."""
 import pandas as pd
 from typing import Optional, List, Tuple
 import numpy as np

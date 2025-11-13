@@ -1,3 +1,4 @@
+"""Módulo para componentes de UI reutilizáveis."""
 import streamlit as st
 import pandas as pd
 from typing import Optional, List
@@ -32,7 +33,7 @@ def conf_badge(row: pd.Series) -> str:
 
 
 def filtros_ui(
-    df: pd.DataFrame, MODO_MOBILE: bool,
+    df: pd.DataFrame, modo_mobile: bool,
     tournaments_sel_external: Optional[List] = None
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
@@ -64,12 +65,12 @@ def filtros_ui(
     else:
         min_date = max_date = None
 
-    target = st.sidebar if not MODO_MOBILE else st
-    container = target.expander("🔎 Filtros", expanded=not MODO_MOBILE)
+    target = st.sidebar if not modo_mobile else st
+    container = target.expander("🔎 Filtros", expanded=not modo_mobile)
 
     with container:
         # Modelos
-        c1 = st.columns(1)[0] if MODO_MOBILE else st.columns(2)[0]
+        c1 = st.columns(1)[0] if modo_mobile else st.columns(2)[0]
         with c1:
             models_sel = st.multiselect(FRIENDLY_COLS["model"], model_opts, default=models_default)
 
@@ -78,10 +79,16 @@ def filtros_ui(
         with c3:
             tournaments_sel = tournaments_sel_external or []
         with c4:
-            teams_sel = st.multiselect("Equipe (Casa ou Visitante)", team_opts, default=[] if MODO_MOBILE else team_opts)
+            teams_sel = st.multiselect(
+                "Equipe (Casa ou Visitante)", team_opts,
+                default=[] if modo_mobile else team_opts
+            )
 
         # Busca rápida por equipe
-        q_team = st.text_input("🔍 Buscar equipe (Casa/Visitante)", placeholder="Digite parte do nome da equipe...")
+        q_team = st.text_input(
+            "🔍 Buscar equipe (Casa/Visitante)",
+            placeholder="Digite parte do nome da equipe..."
+        )
 
         # Sugestões
         c5, c6 = st.columns(2)
@@ -122,16 +129,22 @@ def filtros_ui(
 
         # Odds
         with st.expander("Odds", expanded=False):
-            selH = selD = selA = (0.0, 1.0)
+            sel_h, sel_d, sel_a = (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)
             if "odds_H" in df.columns:
-                minH, maxH = _range(df["odds_H"])
-                selH = st.slider(FRIENDLY_COLS["odds_H"], minH, maxH, (minH, maxH))
+                min_h, max_h = _range(df["odds_H"])
+                sel_h = st.slider(
+                    FRIENDLY_COLS["odds_H"], min_h, max_h, (min_h, max_h)
+                )
             if "odds_D" in df.columns:
-                minD, maxD = _range(df["odds_D"])
-                selD = st.slider(FRIENDLY_COLS["odds_D"], minD, maxD, (minD, maxD))
+                min_d, max_d = _range(df["odds_D"])
+                sel_d = st.slider(
+                    FRIENDLY_COLS["odds_D"], min_d, max_d, (min_d, max_d)
+                )
             if "odds_A" in df.columns:
-                minA, maxA = _range(df["odds_A"])
-                selA = st.slider(FRIENDLY_COLS["odds_A"], minA, maxA, (minA, maxA))
+                min_a, max_a = _range(df["odds_A"])
+                sel_a = st.slider(
+                    FRIENDLY_COLS["odds_A"], min_a, max_a, (min_a, max_a)
+                )
 
     # Reflete estado na URL — apenas modelo
     try:
@@ -140,10 +153,12 @@ def filtros_ui(
         pass
 
     return dict(
-        tournaments_sel=tournaments_sel, models_sel=models_sel, teams_sel=teams_sel,
-        bet_sel=bet_sel, goal_sel=goal_sel, selected_date_range=selected_date_range,
-        selH=selH, selD=selD, selA=selA, q_team=q_team
+        tournaments_sel=tournaments_sel, models_sel=models_sel,
+        teams_sel=teams_sel, bet_sel=bet_sel, goal_sel=goal_sel,
+        selected_date_range=selected_date_range, sel_h=sel_h, sel_d=sel_d,
+        sel_a=sel_a, q_team=q_team
     )
+
 
 def _prepare_display_data(row: pd.Series) -> dict:
     """Prepara todos os dados necessários para a exibição de uma linha."""

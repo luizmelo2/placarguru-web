@@ -1,3 +1,4 @@
+"""Módulo principal da aplicação Placar Guru."""
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -33,7 +34,7 @@ st.set_page_config(
 # Toggle manual de modo mobile (controle explícito para layout responsivo)
 col_m1, col_m2 = st.columns([1, 4])
 with col_m1:
-    MODO_MOBILE = st.toggle("📱 Mobile", value=True)
+    modo_mobile = st.toggle("📱 Mobile", value=True)
 with col_m2:
     st.title("Placar Guru")
 
@@ -159,13 +160,13 @@ try:
         # -----------------------------------------------------------------------------------------
 
         # Filtros adicionais (sem torneios; eles vêm do topo)
-        flt = filtros_ui(df, MODO_MOBILE, tournaments_sel_external=top_tournaments_sel)
+        flt = filtros_ui(df, modo_mobile, tournaments_sel_external=top_tournaments_sel)
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
-        selected_date_range, selH, selD, selA = flt["selected_date_range"], flt["selH"], flt["selD"], flt["selA"]
+        selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
         q_team = flt["q_team"]
 
-        use_list_view = True if MODO_MOBILE else st.sidebar.checkbox("Usar visualização em lista (mobile)", value=False)
+        use_list_view = True if modo_mobile else st.sidebar.checkbox("Usar visualização em lista (mobile)", value=False)
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -200,11 +201,11 @@ try:
             final_mask &= (df["date"].dt.date.between(start_date, end_date)) | (df["date"].isna())
 
         if "odds_H" in df.columns:
-            final_mask &= ((df["odds_H"] >= selH[0]) & (df["odds_H"] <= selH[1])) | (df["odds_H"].isna())
+            final_mask &= ((df["odds_H"] >= sel_h[0]) & (df["odds_H"] <= sel_h[1])) | (df["odds_H"].isna())
         if "odds_D" in df.columns:
-            final_mask &= ((df["odds_D"] >= selD[0]) & (df["odds_D"] <= selD[1])) | (df["odds_D"].isna())
+            final_mask &= ((df["odds_D"] >= sel_d[0]) & (df["odds_D"] <= sel_d[1])) | (df["odds_D"].isna())
         if "odds_A" in df.columns:
-            final_mask &= ((df["odds_A"] >= selA[0]) & (df["odds_A"] <= selA[1])) | (df["odds_A"].isna())
+            final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
         df_filtered = df[final_mask]
 
@@ -325,7 +326,7 @@ try:
                                     xOffset='Modelo:N',
                                     tooltip=['Modelo:N','Métrica:N','Acertos:Q','Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
                                 )
-                                .properties(height=240 if MODO_MOBILE else 280)
+                                .properties(height=240 if modo_mobile else 280)
                             )
                             text = (
                                 alt.Chart(metrics_df)
