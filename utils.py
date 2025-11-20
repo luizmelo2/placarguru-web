@@ -46,7 +46,7 @@ FRIENDLY_MARKETS = {
     "over_2_5": "Mais de 2.5 gols", "over_3_5": "Mais de 3.5 gols",
     "under_0_5": "Menos de 0.5 gols", "under_1_5": "Menos de 1.5 gols",
     "under_2_5": "Menos de 2.5 gols", "under_3_5": "Menos de 3.5 gols",
-    "btts_yes": "Sim", "btts_no": "Não",
+    "btts_yes": "BTTS Sim", "btts_no": "BTTS Não",
 }
 
 FRIENDLY_TOURNAMENTS = {
