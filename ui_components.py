@@ -192,14 +192,14 @@ def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
     st.markdown("**Over/Under (Prob. — Odd)**")
 
     under_lines = [
-        f"- **Under {v}:** {_po(row, f'prob_under_{v}', f'odds_match_goals_{v}_under')}"
+        f"- **Under {v}:** {_po(row, f'prob_under_{v.replace('.', '_')}', f'odds_match_goals_{v}_under')}"
         for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_under_{v.replace('.', '_')}")
     ]
     if under_lines:
         st.markdown("\n".join(under_lines), unsafe_allow_html=True)
 
     over_lines = [
-        f"- **Over {v}:** {_po(row, f'prob_over_{v}', f'odds_match_goals_{v}_over')}"
+        f"- **Over {v}:** {_po(row, f'prob_over_{v.replace('.', '_')}', f'odds_match_goals_{v}_over')}"
         for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_over_{v.replace('.', '_')}")
     ]
     if over_lines:
