@@ -38,7 +38,10 @@ inject_custom_css()
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view
-from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+from analysis import (
+    prepare_accuracy_chart_data, get_best_model_by_market,
+    create_summary_pivot_table, calculate_kpis, rank_models_by_last_games
+)
 # ============================
 # Exibição amigável
 # ============================
@@ -272,6 +275,29 @@ try:
                 if df_fin.empty:
                     st.info("Sem jogos finalizados neste recorte.")
                 else:
+                    st.subheader("Análise de Desempenho dos Modelos")
+
+                    # Inicializa o valor no session_state se não existir
+                    st.session_state.setdefault('last_games_to_analyze', 10)
+
+                    st.number_input(
+                        "Analisar os últimos X jogos de cada campeonato:",
+                        min_value=1,
+                        max_value=100,
+                        key='last_games_to_analyze',  # Vincula ao session_state
+                        step=1,
+                        help="Define o número de jogos finalizados mais recentes a serem usados para o ranking de modelos."
+                    )
+
+                    # --- Nova seção de Ranking de Modelos ---
+                    st.subheader(f"🏆 Ranking de Modelos (Últimos {st.session_state.last_games_to_analyze} Jogos)")
+                    ranking_df = rank_models_by_last_games(df_fin.copy(), st.session_state.last_games_to_analyze)
+
+                    if not ranking_df.empty:
+                        st.dataframe(ranking_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Não há dados suficientes para gerar o ranking com os filtros e número de jogos selecionados.")
+
                     if not st.checkbox("Ocultar lista de jogos", value=False):
                         if use_list_view:
                             display_list_view(df_fin)
