@@ -301,3 +301,58 @@ def suggest_btts(row) -> pd.Series:
         "btts_sugg_prob": prob,
         "btts_sugg_odd": odd
     })
+
+def rank_models_by_last_games(df: pd.DataFrame, last_n_games: int) -> pd.DataFrame:
+    """
+    Calcula e ranqueia a acurácia dos modelos com base nos últimos N jogos de cada campeonato.
+    """
+    if df.empty or 'tournament_id' not in df.columns or 'date' not in df.columns or 'model' not in df.columns:
+        return pd.DataFrame()
+
+    # 1. Garante a ordenação por data para pegar os jogos mais recentes
+    df_sorted = df.sort_values('date', ascending=False)
+
+    # 2. Filtra os últimos N jogos por campeonato
+    df_filtered = df_sorted.groupby('tournament_id').head(last_n_games)
+
+    if df_filtered.empty:
+        return pd.DataFrame()
+
+    # 3. Calcula a acurácia para cada modelo no subconjunto de dados
+    rows = []
+    models = df_filtered['model'].unique()
+
+    for model_name in models:
+        sub = df_filtered[df_filtered['model'] == model_name]
+        if sub.empty:
+            continue
+
+        # Calcula as métricas de interesse
+        result_kpi = _calculate_metric(sub, "Resultado", eval_result_pred_row)
+        bet_kpi = _calculate_metric(sub, "Sugestão de Aposta", eval_bet_row)
+        goal_kpi = _calculate_goal_suggestion_accuracy(sub) # Already has a specific name
+        btts_kpi = _calculate_btts_accuracy(sub) # Already has a specific name
+
+        # Adiciona o nome do modelo a cada dicionário e agrupa
+        for kpi_dict in [result_kpi, bet_kpi, goal_kpi, btts_kpi]:
+            kpi_dict['Modelo'] = model_name
+            rows.append(kpi_dict)
+
+    if not rows:
+        return pd.DataFrame()
+
+    # 4. Cria o DataFrame de resultados e formata
+    results_df = pd.DataFrame(rows)
+
+    # 5. Ranqueia os modelos dentro de cada métrica
+    # Usando sort_values é mais direto que `rank` para apresentação
+    results_df = results_df.sort_values(by=['Métrica', 'Acerto (%)'], ascending=[True, False])
+
+    # Adiciona uma coluna de Rank
+    results_df['Rank'] = results_df.groupby('Métrica').cumcount() + 1
+
+    # Reordena colunas para melhor visualização
+    final_cols = ['Métrica', 'Rank', 'Modelo', 'Acerto (%)', 'Acertos', 'Total Avaliado']
+    results_df = results_df[final_cols]
+
+    return results_df.reset_index(drop=True)
