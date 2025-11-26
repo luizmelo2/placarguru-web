@@ -10,7 +10,9 @@ def inject_custom_css(dark_mode: bool = False):
     theme = "dark" if dark_mode else "light"
     css_tpl = Template("""
 <style>
-  :root, [data-pg-theme="light"] {
+  :root,
+  [data-pg-theme="light"],
+  .stApp[data-pg-theme="light"] {
     --bg: #f8fafc;
     --panel: #ffffff;
     --glass: rgba(255,255,255,0.65);
@@ -23,7 +25,8 @@ def inject_custom_css(dark_mode: bool = False):
     --shadow: 0 20px 60px rgba(0,0,0,0.12);
   }
 
-  [data-pg-theme="dark"] {
+  [data-pg-theme="dark"],
+  .stApp[data-pg-theme="dark"] {
     --bg: #0b1224;
     --panel: #0f172a;
     --glass: rgba(255,255,255,0.04);
@@ -188,7 +191,20 @@ def inject_custom_css(dark_mode: bool = False):
   div[data-testid="stDataFrameContainer"] { border-radius: 12px; overflow: hidden; }
 </style>
 <script>
-  document.documentElement.setAttribute('data-pg-theme', '$theme');
+  (function() {
+    const theme = '$theme';
+    const targets = [document.documentElement, document.body, document.querySelector('.stApp')];
+    targets.forEach(el => el && el.setAttribute('data-pg-theme', theme));
+
+    // Atualiza color-scheme para melhorar inputs nativos em cada modo
+    let meta = document.querySelector('meta[name="color-scheme"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'color-scheme';
+      document.head.appendChild(meta);
+    }
+    meta.content = theme === 'dark' ? 'dark light' : 'light dark';
+  })();
 </script>
 """)
 
