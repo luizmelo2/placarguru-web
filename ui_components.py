@@ -1,4 +1,5 @@
 """Módulo para componentes de UI reutilizáveis."""
+import textwrap
 import streamlit as st
 import pandas as pd
 from typing import Optional, List
@@ -289,8 +290,8 @@ def display_list_view(df: pd.DataFrame):
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
             highlight_label = "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>" if data["highlight"] else ""
 
-            st.markdown(
-                f'''
+            card_html = textwrap.dedent(
+                f"""
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
                   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                     <div>
@@ -334,9 +335,10 @@ def display_list_view(df: pd.DataFrame):
                     {f"<span class='badge' style='background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);'>Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}</span>" if data['suggested_prob'] is not None else ''}
                   </div>
                 </div>
-                ''',
-                unsafe_allow_html=True,
+                """
             )
+
+            st.markdown(card_html, unsafe_allow_html=True)
 
             _render_expander_details(row, data, df)
             st.write("")
