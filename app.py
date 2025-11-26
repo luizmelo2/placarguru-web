@@ -15,7 +15,7 @@ from utils import (
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, FINISHED_TOKENS,
 )
-from styles import inject_custom_css
+from styles import inject_custom_css, apply_altair_theme, chart_tokens
 
 # ============================
 # Configuração da página
@@ -26,18 +26,57 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Estado inicial: Light por padrão
+st.session_state.setdefault("pg_dark_mode", False)
+dark_mode = bool(st.session_state["pg_dark_mode"])
+
+# Barra superior inspirada no modelo (Futebol + Data Science Placar Guru)
+st.markdown(
+    """
+    <div class="pg-topbar">
+      <div class="pg-topbar__brand">
+        <div class="pg-logo"></div>
+        <div>
+          <p class="pg-eyebrow">Futebol + Data Science</p>
+          <div class="pg-appname">Futebol + Data Science Placar Guru</div>
+        </div>
+      </div>
+      <div class="pg-topbar__nav">
+        <span class="pg-tab active">Dashboard</span>
+        <span class="pg-tab">Jogos</span>
+        <span class="pg-tab">Modelos</span>
+        <span class="pg-tab">Configurações</span>
+      </div>
+      <div class="pg-topbar__actions">
+        <span class="pg-chip">Insights preditivos em tempo real</span>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2 = st.columns([1, 4])
+col_m1, col_m2 = st.columns([1.2, 4])
 with col_m1:
     modo_mobile = st.toggle("📱 Mobile", value=True)
 with col_m2:
-    st.title("Placar Guru")
+    st.markdown(
+        """
+        <div class="pg-subhead">
+          <span class="pg-chip ghost">Layout mobile-first ativo</span>
+          <span class="pg-chip ghost">Altere para desktop para ver a grade</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# --- Estilos mobile-first + cores ---
-inject_custom_css()
+# --- Estilos mobile-first + cores e tema dos gráficos ---
+inject_custom_css(dark_mode)
+apply_altair_theme(dark_mode)
+chart_theme = chart_tokens(dark_mode)
 
 from reporting import generate_pdf_report
-from ui_components import filtros_ui, display_list_view
+from ui_components import filtros_ui, display_list_view, is_guru_highlight
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 # ============================
 # Exibição amigável
@@ -208,7 +247,49 @@ try:
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
+            highlight_mask = df_filtered.apply(is_guru_highlight, axis=1)
+            highlight_count = int(highlight_mask.sum())
+            total_games = len(df_filtered)
+            tourn_count = int(df_filtered["tournament_id"].nunique()) if "tournament_id" in df_filtered.columns else 0
             status_norm_all = df_filtered["status"].astype(str).map(norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
+
+            st.markdown(
+                f"""
+                <div class="pg-hero">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                    <div>
+                      <div class="pg-meta">Dashboard do dia</div>
+                      <h2 style="margin:4px 0;">Precisão elevada, decisões rápidas</h2>
+                      <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
+                    </div>
+                    <span class="badge">Tema: {'Dark' if dark_mode else 'Light'}</span>
+                  </div>
+                  <div class="pg-kpi-grid">
+                    <div class="pg-kpi">
+                      <div class="label">Jogos filtrados</div>
+                      <div class="value">{total_games}</div>
+                      <div class="delta">Filtro global ativo</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Sugestão Guru</div>
+                      <div class="value">{highlight_count}</div>
+                      <div class="delta">Prob > 60% & Odd > 1.20</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Torneios selecionados</div>
+                      <div class="value">{tourn_count}</div>
+                      <div class="delta">Cobertura ampla</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Status</div>
+                      <div class="value">{status_norm_all.eq('finished').sum()} finalizados</div>
+                      <div class="delta">{status_norm_all.ne('finished').sum()} agendados</div>
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             df_ag  = df_filtered[status_norm_all != "finished"]
             df_fin = df_filtered[status_norm_all == "finished"]
 
@@ -317,7 +398,7 @@ try:
                                 .encode(
                                     x=alt.X('Métrica:N', title=''),
                                     y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0,100])),
-                                    color='Modelo:N',
+                                    color=alt.Color('Modelo:N', scale=alt.Scale(range=chart_theme["palette"])),
                                     xOffset='Modelo:N',
                                     tooltip=['Modelo:N','Métrica:N','Acertos:Q','Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
                                 )
@@ -325,13 +406,13 @@ try:
                             )
                             text = (
                                 alt.Chart(metrics_df)
-                                .mark_text(dy=-8)
+                                .mark_text(dy=-8, color=chart_theme["text"])
                                 .encode(
                                     x='Métrica:N',
                                     y='Acerto (%):Q',
                                     detail='Modelo:N',
                                     text=alt.Text('Acerto (%):Q', format='.1f'),
-                                    color='Modelo:N'
+                                    color=alt.Color('Modelo:N', scale=alt.Scale(range=chart_theme["palette"]))
                                 )
                             )
                             st.altair_chart(chart + text, use_container_width=True)
@@ -354,12 +435,12 @@ try:
                                 short_name = metric_name.replace(" (Sugestão)", "").replace(" (Prob)", "")
                                 cols[i].metric(short_name, f"{acc}%", f"{hits}/{total}")
 
-                        chart = alt.Chart(metrics_df).mark_bar().encode(
+                        chart = alt.Chart(metrics_df).mark_bar(color=chart_theme["accent"]).encode(
                             x=alt.X('Métrica:N', title=''),
                             y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
                             tooltip=['Métrica:N', 'Acertos:Q', 'Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
                         ).properties(height=220 if modo_mobile else 260)
-                        text = alt.Chart(metrics_df).mark_text(dy=-8).encode(
+                        text = alt.Chart(metrics_df).mark_text(dy=-8, color=chart_theme["text"]).encode(
                             x='Métrica:N',
                             y='Acerto (%):Q',
                             text=alt.Text('Acerto (%):Q', format='.1f')
@@ -386,7 +467,7 @@ try:
                                 line_chart = alt.Chart(model_data).mark_line(point=True).encode(
                                     x=alt.X('Data:T', title='Dia'),
                                     y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                    color=alt.Color('Métrica:N', title="Métrica de Aposta"),
+                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])),
                                     tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
                                 ).properties(
                                     height=280
@@ -403,20 +484,31 @@ try:
 
                         st.subheader("Resumo do Melhor Modelo por Mercado")
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
-                        st.dataframe(summary_pivot_table, use_container_width=True)
+                        st.dataframe(summary_pivot_table, use_container_width=True, hide_index=True)
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
-        # --- Rodapé: Última Atualização (da release/servidor GitHub) ---
-        st.markdown(
-            '''
-            <hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />
-            <div style="color:#9CA3AF; font-size:0.95rem;">
-              <strong>Última atualização:</strong> %s
-            </div>
-            ''' % last_update_dt.strftime("%d/%m/%Y %H:%M"),
-            unsafe_allow_html=True
-        )
+        # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
+        st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
+
+        fcol1, fcol2 = st.columns([3, 2])
+        with fcol1:
+            st.markdown(
+                f"""
+                <div style=\"color:#9CA3AF; font-size:0.95rem;\">
+                  <strong>Última atualização:</strong> {last_update_dt.strftime('%d/%m/%Y %H:%M')}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with fcol2:
+            st.toggle(
+                "🌗 Modo escuro",
+                key="pg_dark_mode",
+                value=st.session_state.get("pg_dark_mode", False),
+                help="Alterne para ver o tema escuro premium. Modo padrão: Light.",
+            )
+
         # Botão para forçar atualização (limpa o cache de dados e re-executa o app)
         if st.button("🔄 Atualizar agora"):
             st.cache_data.clear()
