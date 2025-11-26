@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Placar Guru — Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&family=Roboto+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Space Grotesk', 'Inter'],
+            mono: ['Roboto Mono', 'ui-monospace'],
+          },
+          colors: {
+            brand: {
+              500: '#2563eb',
+              400: '#60a5fa',
+              300: '#22d3ee',
+              neon: '#bfff3b',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="assets/chart-theme.js"></script>
+</head>
+<body class="min-h-screen">
+  <div class="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-sky-500/10 to-transparent pointer-events-none"></div>
+  <header class="sticky top-0 z-20 backdrop-blur-xl bg-[color-mix(in_srgb,var(--bg)_90%,transparent)] border-b border-[var(--stroke)]">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-sky-500 to-emerald-300 shadow-lg" aria-hidden="true"></div>
+        <div>
+          <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Futebol + Data Science</p>
+          <h1 class="text-xl font-display font-semibold">Placar Guru</h1>
+        </div>
+      </div>
+      <div class="hidden md:flex items-center gap-3 text-sm">
+        <button class="tab-pill">Dashboard</button>
+        <button class="tab-pill">Jogos</button>
+        <button class="tab-pill">Modelos</button>
+        <button class="tab-pill">Configurações</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="mode-toggle" class="btn-ghost text-sm">Dark Mode</button>
+        <button class="btn-primary text-sm">Exportar PDF</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-10 space-y-8">
+    <section class="grid gap-6 md:grid-cols-[1.2fr,0.8fr] items-start">
+      <div class="data-card p-6">
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Dashboard do dia</p>
+            <h2 class="text-2xl font-semibold">Precisão elevada, decisões rápidas</h2>
+          </div>
+          <span class="badge">Atualizado há 12 min</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-[var(--stroke)]">
+            <p class="text-xs text-slate-500">ROI semanal</p>
+            <p class="text-2xl font-semibold text-emerald-500">+22%</p>
+            <p class="text-xs text-emerald-500">▲ +6% vs última semana</p>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-[var(--stroke)]">
+            <p class="text-xs text-slate-500">Acurácia 1x2</p>
+            <p class="text-2xl font-semibold">74%</p>
+            <p class="text-xs text-emerald-500">▲ +3%</p>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-[var(--stroke)]">
+            <p class="text-xs text-slate-500">BTTS assertivo</p>
+            <p class="text-2xl font-semibold">68%</p>
+            <p class="text-xs text-emerald-500">▲ +5%</p>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-[var(--stroke)]">
+            <p class="text-xs text-slate-500">Jogos hoje</p>
+            <p class="text-2xl font-semibold">36</p>
+            <p class="text-xs text-slate-500">14 com Sugestão Guru</p>
+          </div>
+        </div>
+        <div class="mt-5 grid gap-4 md:grid-cols-3">
+          <div class="md:col-span-2 data-card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold">ROI e tendência</h3>
+              <span class="badge">Curva suavizada</span>
+            </div>
+            <canvas id="roi-chart" height="120"></canvas>
+          </div>
+          <div class="data-card p-4 flex flex-col gap-4 justify-between">
+            <div>
+              <h3 class="font-semibold">Confiança do modelo</h3>
+              <p class="text-sm text-slate-500">Combina Neural + xG + Monte Carlo</p>
+            </div>
+            <canvas id="gauge-chart" height="140"></canvas>
+            <div class="flex items-center gap-2 text-sm">
+              <span class="w-3 h-3 rounded-full bg-brand-neon"></span>
+              <p class="text-slate-500">Intensidade do destaque ajustada</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="data-card p-6 bg-gradient-to-br from-white/60 via-white to-sky-50 dark:from-slate-900/60 dark:via-slate-900 dark:to-slate-800">
+        <p class="text-xs uppercase tracking-[0.08em] text-slate-500">Como calculamos</p>
+        <h3 class="text-xl font-semibold mb-4">Modelos ensemble com calibragem contínua</h3>
+        <ul class="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+          <li class="flex gap-3"><span class="timeline-dot mt-1"></span> Rede neural para probabilidade 1x2 com features de forma e xG.</li>
+          <li class="flex gap-3"><span class="timeline-dot mt-1"></span> Simulações Monte Carlo para placar exato e over/under.</li>
+          <li class="flex gap-3"><span class="timeline-dot mt-1"></span> Ajuste bayesiano com odds de mercado para calibragem.</li>
+          <li class="flex gap-3"><span class="timeline-dot mt-1"></span> Detecção de value bets com regra prob > 60% e odd > 1.20.</li>
+        </ul>
+        <div class="mt-5 flex flex-wrap gap-2">
+          <span class="badge">Combo Neural</span>
+          <span class="badge">Expected Goals</span>
+          <span class="badge">Monte Carlo</span>
+          <span class="badge">BTTS Booster</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="data-card p-6 flex items-center gap-4 overflow-x-auto">
+      <button class="tab-pill active">Hoje</button>
+      <button class="tab-pill">Amanhã</button>
+      <button class="tab-pill">Ao vivo</button>
+      <button class="tab-pill">Sugestão Guru</button>
+      <button class="tab-pill">Odds 1.20+</button>
+      <button class="tab-pill">Campeonatos</button>
+      <button class="tab-pill">Modelos</button>
+    </section>
+
+    <section class="grid gap-4 md:grid-cols-[2fr,1fr]">
+      <div class="data-card p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold">Jogos do dia</h3>
+          <button class="btn-ghost text-sm">Ver em grade</button>
+        </div>
+        <div id="games-grid" class="grid gap-4 md:grid-cols-2"></div>
+      </div>
+
+      <div class="data-card p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold">Distribuição de gols</h3>
+          <span class="badge">Por modelo</span>
+        </div>
+        <canvas id="goals-chart" height="200"></canvas>
+        <div class="pt-2 border-t border-[var(--stroke)] text-sm text-slate-500">
+          Tip: combine filtros de modelo + campeonato para focar em nichos com ROI positivo.
+        </div>
+      </div>
+    </section>
+
+    <section class="data-card p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Recomendações</h3>
+        <span class="badge">Realce automático prob > 60% & odd > 1.20</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full table-soft text-sm">
+          <thead class="text-left text-slate-500">
+            <tr>
+              <th class="py-2">Campeonato</th>
+              <th class="py-2">Jogo</th>
+              <th class="py-2 text-center">Prob</th>
+              <th class="py-2 text-center">Odd</th>
+              <th class="py-2 text-center">Status</th>
+              <th class="py-2 text-right">ROI</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="text-[var(--text)]"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="data-card p-6 grid gap-4 md:grid-cols-3">
+      <div class="md:col-span-2 space-y-2">
+        <h3 class="text-lg font-semibold">Modal de análise detalhada</h3>
+        <p class="text-sm text-slate-500">Estrutura pronta para insights textuais + gráficos e CTA de aposta.</p>
+        <div class="p-4 rounded-2xl border border-[var(--stroke)] bg-[color-mix(in_srgb,var(--panel)_85%,transparent)]">
+          <p class="text-sm font-semibold mb-2">Insight exemplo</p>
+          <p class="text-sm text-slate-600 dark:text-slate-300">Probabilidade combinada 68% com odd 1.72 gera valor esperado positivo. Histórico recente mostra BTTS em 4/5 jogos.</p>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <h4 class="text-sm font-semibold">Estado do carregamento</h4>
+        <div class="skeleton h-10 rounded-xl"></div>
+        <div class="skeleton h-10 rounded-xl"></div>
+        <div class="skeleton h-10 rounded-xl"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 pb-10 text-sm text-slate-500">
+    Feito para transmitir credibilidade, inteligência, tecnologia e precisão — Placar Guru.
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>
