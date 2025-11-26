@@ -12,7 +12,8 @@ def inject_custom_css(dark_mode: bool = False):
 <style>
   :root,
   [data-pg-theme="light"],
-  .stApp[data-pg-theme="light"] {
+  .stApp[data-pg-theme="light"],
+  .pg-theme-light {
     --bg: #f8fafc;
     --panel: #ffffff;
     --glass: rgba(255,255,255,0.65);
@@ -26,7 +27,8 @@ def inject_custom_css(dark_mode: bool = False):
   }
 
   [data-pg-theme="dark"],
-  .stApp[data-pg-theme="dark"] {
+  .stApp[data-pg-theme="dark"],
+  .pg-theme-dark {
     --bg: #0b1224;
     --panel: #0f172a;
     --glass: rgba(255,255,255,0.04);
@@ -67,11 +69,23 @@ def inject_custom_css(dark_mode: bool = False):
     gap: 14px;
     align-items: center;
     padding: 14px 18px;
-    margin: 0 -1rem 10px -1rem;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
-    backdrop-filter: blur(14px);
+    margin: 0 -1rem 12px -1rem;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--stroke);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.08);
+    position: sticky;
   }
+  .pg-topbar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--primary) 24%, transparent) 0, transparent 40%),
+                radial-gradient(circle at 84% 10%, color-mix(in srgb, var(--primary-2) 22%, transparent) 0, transparent 42%);
+    opacity: 0.8;
+  }
+  .pg-topbar > * { position: relative; z-index: 1; }
   .pg-topbar__brand { display: flex; align-items: center; gap: 12px; min-width: 220px; }
   .pg-logo {
     width: 44px; height: 44px;
@@ -88,7 +102,7 @@ def inject_custom_css(dark_mode: bool = False):
     padding: 8px 12px;
     border-radius: 999px;
     border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
     font-weight: 700;
     font-size: 13px;
     color: var(--muted);
@@ -98,7 +112,8 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-tab.active {
     color: var(--text);
     border-color: var(--primary);
-    box-shadow: 0 10px 28px rgba(37,99,235,0.18);
+    background: color-mix(in srgb, var(--primary) 12%, var(--panel));
+    box-shadow: 0 10px 28px rgba(37,99,235,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
   }
   .pg-tab:hover { border-color: var(--primary); color: var(--text); background: color-mix(in srgb, var(--panel) 96%, transparent); transform: translateY(-1px); box-shadow: 0 12px 32px rgba(37,99,235,0.18); }
   .pg-topbar__actions { display: flex; justify-content: flex-end; }
@@ -218,12 +233,14 @@ def inject_custom_css(dark_mode: bool = False):
     width: 100%;
     background: color-mix(in srgb, var(--panel) 94%, transparent);
     color: var(--text);
-    border-radius: 14px;
+    border-radius: 16px;
     overflow: hidden;
+    box-shadow: var(--shadow);
   }
-  div[data-testid="stDataFrameContainer"] {
+  div[data-testid="stDataFrameContainer"],
+  div[data-testid="stTable"] {
     border: 1px solid var(--stroke);
-    border-radius: 14px;
+    border-radius: 16px;
     box-shadow: var(--shadow);
     background: color-mix(in srgb, var(--panel) 90%, transparent);
     padding: 4px;
@@ -233,16 +250,28 @@ def inject_custom_css(dark_mode: bool = False):
     background: color-mix(in srgb, var(--panel) 86%, transparent);
     color: var(--muted);
     font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     border-bottom: 1px solid var(--stroke);
+    padding: 12px 14px;
   }
   div[data-testid="stTable"] tbody td,
   div[data-testid="stDataFrameContainer"] tbody td {
     border-bottom: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-    padding: 10px 12px;
+    padding: 12px 14px;
+  }
+  div[data-testid="stTable"] tbody tr,
+  div[data-testid="stDataFrameContainer"] tbody tr {
+    transition: background 180ms ease, transform 180ms ease;
+  }
+  div[data-testid="stTable"] tbody tr:nth-child(even),
+  div[data-testid="stDataFrameContainer"] tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
   }
   div[data-testid="stTable"] tbody tr:hover,
   div[data-testid="stDataFrameContainer"] tbody tr:hover {
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    background: color-mix(in srgb, var(--panel) 80%, var(--primary) 6%);
+    transform: translateX(2px);
   }
 
   /* Moldura para gráficos Altair */
@@ -271,17 +300,34 @@ def inject_custom_css(dark_mode: bool = False):
 <script>
   (function() {
     const theme = '$theme';
-    const targets = [document.documentElement, document.body, document.querySelector('.stApp')];
-    targets.forEach(el => el && el.setAttribute('data-pg-theme', theme));
+    const applyTheme = (mode) => {
+      const isDark = mode === 'dark';
+      const targets = [document.documentElement, document.body, document.querySelector('.stApp')];
+      targets.forEach(el => {
+        if (!el) return;
+        el.setAttribute('data-pg-theme', mode);
+        el.classList.toggle('pg-theme-dark', isDark);
+        el.classList.toggle('pg-theme-light', !isDark);
+      });
 
-    // Atualiza color-scheme para melhorar inputs nativos em cada modo
-    let meta = document.querySelector('meta[name="color-scheme"]');
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.name = 'color-scheme';
-      document.head.appendChild(meta);
-    }
-    meta.content = theme === 'dark' ? 'dark light' : 'light dark';
+      let meta = document.querySelector('meta[name="color-scheme"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'color-scheme';
+        document.head.appendChild(meta);
+      }
+      meta.content = isDark ? 'dark light' : 'light dark';
+    };
+
+    // aplica imediatamente e revalida quando o container do Streamlit é recriado
+    applyTheme(theme);
+    const observer = new MutationObserver(() => {
+      const app = document.querySelector('.stApp');
+      if (app && app.getAttribute('data-pg-theme') !== theme) {
+        applyTheme(theme);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
   })();
 </script>
 """)

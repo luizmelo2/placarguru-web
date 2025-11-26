@@ -30,6 +30,11 @@ st.set_page_config(
 st.session_state.setdefault("pg_dark_mode", False)
 dark_mode = bool(st.session_state["pg_dark_mode"])
 
+# --- Estilos mobile-first + cores e tema dos gráficos ---
+inject_custom_css(dark_mode)
+apply_altair_theme(dark_mode)
+chart_theme = chart_tokens(dark_mode)
+
 # Barra superior inspirada no modelo (Futebol + Data Science Placar Guru)
 st.markdown(
     """
@@ -69,11 +74,6 @@ with col_m2:
         """,
         unsafe_allow_html=True,
     )
-
-# --- Estilos mobile-first + cores e tema dos gráficos ---
-inject_custom_css(dark_mode)
-apply_altair_theme(dark_mode)
-chart_theme = chart_tokens(dark_mode)
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view, is_guru_highlight
