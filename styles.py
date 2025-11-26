@@ -227,52 +227,60 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-pill .label { color: var(--muted); font-size: 12px; }
   .pg-pill .value { font-weight: 700; font-size: 1.05rem; }
 
-  /* Tabelas com visual de card */
-  div[data-testid="stTable"] table,
-  div[data-testid="stDataFrameContainer"] table {
-    border-collapse: collapse;
+  /* Data cards (tabelas) com visual do protótipo Tailwind */
+  div[data-testid="stDataFrameContainer"] table, div[data-testid="stTable"] table {
+    border-collapse: separate;
+    border-spacing: 0;
     width: 100%;
-    background: color-mix(in srgb, var(--panel) 94%, transparent);
-    color: var(--text);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--stroke);
     border-radius: 16px;
     overflow: hidden;
     box-shadow: var(--shadow);
   }
-  div[data-testid="stDataFrameContainer"],
-  div[data-testid="stTable"] {
-    border: 1px solid var(--stroke);
+  div[data-testid="stDataFrameContainer"], div[data-testid="stTable"] {
     border-radius: 16px;
-    box-shadow: var(--shadow);
-    background: color-mix(in srgb, var(--panel) 90%, transparent);
-    padding: 4px;
+    overflow: hidden;
   }
-  div[data-testid="stTable"] thead th,
-  div[data-testid="stDataFrameContainer"] thead th {
-    background: color-mix(in srgb, var(--panel) 86%, transparent);
-    color: var(--muted);
+  div[data-testid="stDataFrameContainer"] thead tr, div[data-testid="stTable"] thead tr {
+    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent));
+    color: var(--text);
+  }
+  div[data-testid="stDataFrameContainer"] thead th, div[data-testid="stTable"] thead th {
+    padding: 12px;
     font-weight: 800;
+    font-size: 13px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--stroke);
-    padding: 12px 14px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
   }
-  div[data-testid="stTable"] tbody td,
-  div[data-testid="stDataFrameContainer"] tbody td {
-    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-    padding: 12px 14px;
+  div[data-testid="stDataFrameContainer"] tbody tr, div[data-testid="stTable"] tbody tr {
+    transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
   }
-  div[data-testid="stTable"] tbody tr,
-  div[data-testid="stDataFrameContainer"] tbody tr {
-    transition: background 180ms ease, transform 180ms ease;
+  div[data-testid="stDataFrameContainer"] tbody tr:nth-child(odd), div[data-testid="stTable"] tbody tr:nth-child(odd) {
+    background: color-mix(in srgb, var(--panel) 96%, transparent);
   }
-  div[data-testid="stTable"] tbody tr:nth-child(even),
-  div[data-testid="stDataFrameContainer"] tbody tr:nth-child(even) {
-    background: color-mix(in srgb, var(--panel) 90%, transparent);
+  div[data-testid="stDataFrameContainer"] tbody tr:hover, div[data-testid="stTable"] tbody tr:hover {
+    background: color-mix(in srgb, var(--primary) 12%, var(--panel));
+    transform: translateY(-1px);
+    box-shadow: 0 10px 32px rgba(37,99,235,0.14);
   }
-  div[data-testid="stTable"] tbody tr:hover,
-  div[data-testid="stDataFrameContainer"] tbody tr:hover {
-    background: color-mix(in srgb, var(--panel) 80%, var(--primary) 6%);
-    transform: translateX(2px);
+  div[data-testid="stDataFrameContainer"] td, div[data-testid="stTable"] td {
+    padding: 11px 12px;
+    border-right: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
+    color: var(--text);
+  }
+  div[data-testid="stDataFrameContainer"] tbody tr td:first-child, div[data-testid="stTable"] tbody tr td:first-child {
+    font-weight: 700;
+    color: var(--text);
+  }
+  div[data-testid="stDataFrameContainer"] td:last-child, div[data-testid="stTable"] td:last-child { border-right: none; }
+  div[data-testid="stDataFrameContainer"] th:last-child, div[data-testid="stTable"] th:last-child { border-right: none; }
+  div[data-testid="stDataFrameContainer"] th, div[data-testid="stDataFrameContainer"] td, div[data-testid="stTable"] th, div[data-testid="stTable"] td {
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
+  }
+  div[data-testid="stDataFrameContainer"] tbody tr:last-child td, div[data-testid="stTable"] tbody tr:last-child td {
+    border-bottom: none;
   }
 
   /* Moldura para gráficos Altair */
@@ -296,78 +304,55 @@ def inject_custom_css(dark_mode: bool = False):
   button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(37,99,235,0.35); }
 
   div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.02rem; font-weight: 700; }
-  div[data-testid="stDataFrameContainer"], div[data-testid="stTable"] { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
-  div[data-testid="stDataFrameContainer"] table, div[data-testid="stTable"] table {
-    width: 100%;
-    border-collapse: collapse;
-    background: color-mix(in srgb, var(--panel) 95%, transparent);
-    color: var(--text);
-  }
-  div[data-testid="stDataFrameContainer"] thead th, div[data-testid="stTable"] thead th {
-    background: color-mix(in srgb, var(--panel) 88%, var(--primary) 6%);
-    color: var(--text);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-size: 0.82rem;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--stroke);
-  }
-  div[data-testid="stDataFrameContainer"] tbody tr, div[data-testid="stTable"] tbody tr {
-    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
-    transition: background 140ms ease, transform 140ms ease;
-  }
-  div[data-testid="stDataFrameContainer"] tbody tr:nth-child(odd), div[data-testid="stTable"] tbody tr:nth-child(odd) {
-    background: color-mix(in srgb, var(--panel) 96%, transparent);
-  }
-  div[data-testid="stDataFrameContainer"] tbody tr:hover, div[data-testid="stTable"] tbody tr:hover {
-    background: color-mix(in srgb, var(--primary) 10%, var(--panel));
-    transform: translateY(-1px);
-  }
-  div[data-testid="stDataFrameContainer"] td, div[data-testid="stTable"] td {
-    padding: 10px 12px;
-    border-right: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
-    color: var(--text);
-  }
-  div[data-testid="stDataFrameContainer"] td:last-child, div[data-testid="stTable"] td:last-child { border-right: none; }
 </style>
-<script>
-  (function() {
-    const theme = '$theme';
-    const applyTheme = (mode) => {
-      const isDark = mode === 'dark';
-      const targets = [
-        document.documentElement,
-        document.body,
-        document.querySelector('.stApp'),
-        document.querySelector('main'),
-      ];
-      targets.forEach(el => {
-        if (!el) return;
-        el.setAttribute('data-pg-theme', mode);
-        el.classList.toggle('pg-theme-dark', isDark);
-        el.classList.toggle('pg-theme-light', !isDark);
-      });
+  <script>
+    (function() {
+      const theme = '$theme';
+      const applyTheme = (mode) => {
+        const isDark = mode === 'dark';
+        const targets = [
+          document.documentElement,
+          document.body,
+          document.querySelector('.stApp'),
+          document.querySelector('main'),
+          document.querySelector('section.main'),
+          document.querySelector('div.block-container'),
+        ];
+        targets.forEach(el => {
+          if (!el) return;
+          el.setAttribute('data-pg-theme', mode);
+          el.classList.toggle('pg-theme-dark', isDark);
+          el.classList.toggle('pg-theme-light', !isDark);
+          el.style.background = 'var(--bg)';
+          el.style.color = 'var(--text)';
+        });
 
-      let meta = document.querySelector('meta[name="color-scheme"]');
-      if (!meta) {
-        meta = document.createElement('meta');
-        meta.name = 'color-scheme';
-        document.head.appendChild(meta);
-      }
-      meta.content = isDark ? 'dark light' : 'light dark';
-    };
+        let meta = document.querySelector('meta[name="color-scheme"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.name = 'color-scheme';
+          document.head.appendChild(meta);
+        }
+        meta.content = isDark ? 'dark light' : 'light dark';
+      };
 
-    // aplica imediatamente e revalida quando o container do Streamlit é recriado
-    applyTheme(theme);
-    const observer = new MutationObserver(() => {
-      const app = document.querySelector('.stApp');
-      if (app && app.getAttribute('data-pg-theme') !== theme) {
+      // aplica imediatamente e revalida quando o container do Streamlit é recriado
+      applyTheme(theme);
+      let ticks = 0;
+      const interval = setInterval(() => {
         applyTheme(theme);
-      }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  })();
-</script>
+        ticks += 1;
+        if (ticks > 12) clearInterval(interval);
+      }, 200);
+      const observer = new MutationObserver(() => {
+        const app = document.querySelector('.stApp');
+        if (app && app.getAttribute('data-pg-theme') !== theme) {
+          applyTheme(theme);
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+  </script>
 """)
 
     st.markdown(css_tpl.substitute(theme=theme), unsafe_allow_html=True)
