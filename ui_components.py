@@ -288,55 +288,72 @@ def display_list_view(df: pd.DataFrame):
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
-            highlight_label = "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>" if data["highlight"] else ""
+            highlight_label = (
+                "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>"
+                if data["highlight"]
+                else ""
+            )
+            final_score_badge = (
+                f"<span class=\"badge badge-finished\">Placar Final {data['final_score']}</span>"
+                if data["is_finished"]
+                else ""
+            )
+            prob_odd_badge = ""
+            if data["suggested_prob"] is not None:
+                prob_odd_badge = (
+                    f"<span class=\"badge\" style=\"background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);\">"
+                    f"Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • "
+                    f"Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}"
+                    "</span>"
+                )
 
             card_html = textwrap.dedent(
                 f"""
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
-                  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                    <div>
-                      <div class="pg-meta">{data['cap_line']}</div>
-                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
-                        <span class="badge">{data['kickoff']}</span>
-                        {highlight_label}
-                      </div>
-                    </div>
-                    <span class="badge {badge_class}">{data['status_txt']}</span>
-                  </div>
-
-                  <div class="pg-grid" style="margin-top:10px;">
-                    <div class="pg-pill">
-                      <div class="label">🎯 Resultado</div>
-                      <div class="value">{green_html(data['result_txt'])}</div>
-                    </div>
-                    <div class="pg-pill">
-                      <div class="label">💡 Sugestão</div>
-                      <div class="value">{green_html(data['aposta_txt'])}</div>
-                      <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
-                    </div>
-                    <div class="pg-pill">
-                      <div class="label">⚽ Gols</div>
-                      <div class="value">{green_html(data['gols_txt'])}</div>
-                    </div>
-                    <div class="pg-pill">
-                      <div class="label">🥅 Ambos marcam</div>
-                      <div class="value">{green_html(data['btts_pred_txt'])}</div>
-                    </div>
-                    <div class="pg-pill">
-                      <div class="label">📊 Placar Previsto</div>
-                      <div class="value">{green_html(data['score_txt'])}</div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <div>
+                    <div class="pg-meta">{data['cap_line']}</div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
+                      <span class="badge">{data['kickoff']}</span>
+                      {highlight_label}
                     </div>
                   </div>
+                  <span class="badge {badge_class}">{data['status_txt']}</span>
+                </div>
 
-                  <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                    <span class="badge {badge_class}">{data['status_txt']}</span>
-                    {f"<span class='badge badge-finished'>Placar Final {data['final_score']}</span>" if data['is_finished'] else ''}
-                    {f"<span class='badge' style='background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);'>Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}</span>" if data['suggested_prob'] is not None else ''}
+                <div class="pg-grid" style="margin-top:10px;">
+                  <div class="pg-pill">
+                    <div class="label">🎯 Resultado</div>
+                    <div class="value">{green_html(data['result_txt'])}</div>
+                  </div>
+                  <div class="pg-pill">
+                    <div class="label">💡 Sugestão</div>
+                    <div class="value">{green_html(data['aposta_txt'])}</div>
+                    <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
+                  </div>
+                  <div class="pg-pill">
+                    <div class="label">⚽ Gols</div>
+                    <div class="value">{green_html(data['gols_txt'])}</div>
+                  </div>
+                  <div class="pg-pill">
+                    <div class="label">🥅 Ambos marcam</div>
+                    <div class="value">{green_html(data['btts_pred_txt'])}</div>
+                  </div>
+                  <div class="pg-pill">
+                    <div class="label">📊 Placar Previsto</div>
+                    <div class="value">{green_html(data['score_txt'])}</div>
                   </div>
                 </div>
+
+                <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                  <span class="badge {badge_class}">{data['status_txt']}</span>
+                  {final_score_badge}
+                  {prob_odd_badge}
+                </div>
+                </div>
                 """
-            )
+            ).strip()
 
             st.markdown(card_html, unsafe_allow_html=True)
 
