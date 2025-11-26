@@ -30,12 +30,45 @@ st.set_page_config(
 st.session_state.setdefault("pg_dark_mode", False)
 dark_mode = bool(st.session_state["pg_dark_mode"])
 
+# Barra superior inspirada no modelo (Futebol + Data Science Placar Guru)
+st.markdown(
+    """
+    <div class="pg-topbar">
+      <div class="pg-topbar__brand">
+        <div class="pg-logo"></div>
+        <div>
+          <p class="pg-eyebrow">Futebol + Data Science</p>
+          <div class="pg-appname">Futebol + Data Science Placar Guru</div>
+        </div>
+      </div>
+      <div class="pg-topbar__nav">
+        <span class="pg-tab active">Dashboard</span>
+        <span class="pg-tab">Jogos</span>
+        <span class="pg-tab">Modelos</span>
+        <span class="pg-tab">Configurações</span>
+      </div>
+      <div class="pg-topbar__actions">
+        <span class="pg-chip">Insights preditivos em tempo real</span>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2 = st.columns([1, 5])
+col_m1, col_m2 = st.columns([1.2, 4])
 with col_m1:
     modo_mobile = st.toggle("📱 Mobile", value=True)
 with col_m2:
-    st.title("Placar Guru")
+    st.markdown(
+        """
+        <div class="pg-subhead">
+          <span class="pg-chip ghost">Layout mobile-first ativo</span>
+          <span class="pg-chip ghost">Altere para desktop para ver a grade</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
