@@ -130,6 +130,49 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-pill .label { color: var(--muted); font-size: 12px; }
   .pg-pill .value { font-weight: 700; font-size: 1.05rem; }
 
+  /* Tabelas com visual de card */
+  div[data-testid="stTable"] table,
+  div[data-testid="stDataFrameContainer"] table {
+    border-collapse: collapse;
+    width: 100%;
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    color: var(--text);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  div[data-testid="stDataFrameContainer"] {
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    padding: 4px;
+  }
+  div[data-testid="stTable"] thead th,
+  div[data-testid="stDataFrameContainer"] thead th {
+    background: color-mix(in srgb, var(--panel) 86%, transparent);
+    color: var(--muted);
+    font-weight: 800;
+    border-bottom: 1px solid var(--stroke);
+  }
+  div[data-testid="stTable"] tbody td,
+  div[data-testid="stDataFrameContainer"] tbody td {
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
+    padding: 10px 12px;
+  }
+  div[data-testid="stTable"] tbody tr:hover,
+  div[data-testid="stDataFrameContainer"] tbody tr:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  /* Moldura para gráficos Altair */
+  .vega-embed {
+    background: color-mix(in srgb, var(--panel) 90%, transparent) !important;
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 8px;
+  }
+
   .info-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 0.8rem; margin-top: 0.25rem; }
   @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; gap: 0.25rem; } }
 

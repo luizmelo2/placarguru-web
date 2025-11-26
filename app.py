@@ -449,7 +449,7 @@ try:
 
                         st.subheader("Resumo do Melhor Modelo por Mercado")
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
-                        st.dataframe(summary_pivot_table, use_container_width=True)
+                        st.dataframe(summary_pivot_table, use_container_width=True, hide_index=True)
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
