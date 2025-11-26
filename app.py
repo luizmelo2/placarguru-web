@@ -26,14 +26,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Estado inicial: Light por padrão
+st.session_state.setdefault("pg_dark_mode", False)
+dark_mode = bool(st.session_state["pg_dark_mode"])
+
 # Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2, col_m3 = st.columns([1, 3, 2])
+col_m1, col_m2 = st.columns([1, 5])
 with col_m1:
     modo_mobile = st.toggle("📱 Mobile", value=True)
 with col_m2:
     st.title("Placar Guru")
-with col_m3:
-    dark_mode = st.toggle("🌗 Dark Mode", value=True, help="Tema inspirado no redesign (elegante, sem preto absoluto)")
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -227,7 +229,7 @@ try:
                       <h2 style="margin:4px 0;">Precisão elevada, decisões rápidas</h2>
                       <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
                     </div>
-                    <span class="badge">Dark mode {'on' if dark_mode else 'off'}</span>
+                    <span class="badge">Tema: {'Dark' if dark_mode else 'Light'}</span>
                   </div>
                   <div class="pg-kpi-grid">
                     <div class="pg-kpi">
@@ -453,16 +455,27 @@ try:
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
-        # --- Rodapé: Última Atualização (da release/servidor GitHub) ---
-        st.markdown(
-            '''
-            <hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />
-            <div style="color:#9CA3AF; font-size:0.95rem;">
-              <strong>Última atualização:</strong> %s
-            </div>
-            ''' % last_update_dt.strftime("%d/%m/%Y %H:%M"),
-            unsafe_allow_html=True
-        )
+        # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
+        st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
+
+        fcol1, fcol2 = st.columns([3, 2])
+        with fcol1:
+            st.markdown(
+                f"""
+                <div style=\"color:#9CA3AF; font-size:0.95rem;\">
+                  <strong>Última atualização:</strong> {last_update_dt.strftime('%d/%m/%Y %H:%M')}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with fcol2:
+            st.toggle(
+                "🌗 Modo escuro",
+                key="pg_dark_mode",
+                value=st.session_state.get("pg_dark_mode", False),
+                help="Alterne para ver o tema escuro premium. Modo padrão: Light.",
+            )
+
         # Botão para forçar atualização (limpa o cache de dados e re-executa o app)
         if st.button("🔄 Atualizar agora"):
             st.cache_data.clear()
