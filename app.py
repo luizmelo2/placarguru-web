@@ -247,28 +247,58 @@ try:
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
-            highlight_mask = df_filtered.apply(is_guru_highlight, axis=1)
-            highlight_count = int(highlight_mask.sum())
-            total_games = len(df_filtered)
-            tourn_count = int(df_filtered["tournament_id"].nunique()) if "tournament_id" in df_filtered.columns else 0
             status_norm_all = df_filtered["status"].astype(str).map(norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
+
+            df_ag  = df_filtered[status_norm_all != "finished"]
+            df_fin = df_filtered[status_norm_all == "finished"]
+            status_view = st.radio(
+                "Dashboard por status",
+                options=["🗓️ Agendados", "✅ Finalizados"],
+                horizontal=True,
+                key="pg_status_view",
+            )
+
+            if status_view.startswith("🗓️"):
+                curr_df = df_ag
+                curr_label = "Agendados"
+            else:
+                curr_df = df_fin
+                curr_label = "Finalizados"
+
+            total_games = len(curr_df)
+            highlight_count = int(curr_df.apply(is_guru_highlight, axis=1).sum()) if not curr_df.empty else 0
+            tourn_count = int(curr_df["tournament_id"].nunique()) if (not curr_df.empty and "tournament_id" in curr_df.columns) else 0
+            today_count = 0
+            if not curr_df.empty and "date" in curr_df.columns and curr_df["date"].notna().any():
+                today_count = int(curr_df[curr_df["date"].dt.date == date.today()].shape[0])
+
+            metrics_df = pd.DataFrame()
+            acc_result = acc_bet = 0.0
+            if curr_label == "Finalizados" and not curr_df.empty:
+                metrics_df = calculate_kpis(curr_df, multi_model=False)
+                _res = metrics_df.loc[metrics_df["Métrica"] == "Resultado"]
+                _bet = metrics_df.loc[metrics_df["Métrica"] == "Sugestão de Aposta"]
+                if not _res.empty:
+                    acc_result = float(_res.iloc[0]["Acerto (%)"])
+                if not _bet.empty:
+                    acc_bet = float(_bet.iloc[0]["Acerto (%)"])
 
             st.markdown(
                 f"""
                 <div class="pg-hero">
                   <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
                     <div>
-                      <div class="pg-meta">Dashboard do dia</div>
-                      <h2 style="margin:4px 0;">Precisão elevada, decisões rápidas</h2>
+                      <div class="pg-meta">Dashboard — {curr_label}</div>
+                      <h2 style="margin:4px 0;">Informações essenciais por status</h2>
                       <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
                     </div>
                     <span class="badge">Tema: {'Dark' if dark_mode else 'Light'}</span>
                   </div>
                   <div class="pg-kpi-grid">
                     <div class="pg-kpi">
-                      <div class="label">Jogos filtrados</div>
+                      <div class="label">Total no filtro</div>
                       <div class="value">{total_games}</div>
-                      <div class="delta">Filtro global ativo</div>
+                      <div class="delta">{today_count} hoje</div>
                     </div>
                     <div class="pg-kpi">
                       <div class="label">Sugestão Guru</div>
@@ -276,22 +306,20 @@ try:
                       <div class="delta">Prob > 60% & Odd > 1.20</div>
                     </div>
                     <div class="pg-kpi">
-                      <div class="label">Torneios selecionados</div>
+                      <div class="label">Torneios</div>
                       <div class="value">{tourn_count}</div>
-                      <div class="delta">Cobertura ampla</div>
+                      <div class="delta">Filtro ativo</div>
                     </div>
                     <div class="pg-kpi">
-                      <div class="label">Status</div>
-                      <div class="value">{status_norm_all.eq('finished').sum()} finalizados</div>
-                      <div class="delta">{status_norm_all.ne('finished').sum()} agendados</div>
+                      <div class="label">Acurácia (finalizados)</div>
+                      <div class="value">{acc_result:.1f}%</div>
+                      <div class="delta">Sugestões {acc_bet:.1f}%</div>
                     </div>
                   </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            df_ag  = df_filtered[status_norm_all != "finished"]
-            df_fin = df_filtered[status_norm_all == "finished"]
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
@@ -318,10 +346,8 @@ try:
                 df_fin = df_fin.sort_values("date", ascending=False, na_position="last")
             # --------------------------------------------------------------------------
 
-            tab_ag, tab_fin = st.tabs(["🗓️ Agendados", "✅ Finalizados"])
-
-            # --- ABA AGENDADOS (sem KPIs) ---
-            with tab_ag:
+            # --- VISÃO POR STATUS (seleção acima) ---
+            if status_view.startswith("🗓️"):
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
@@ -348,8 +374,7 @@ try:
                             use_container_width=True, hide_index=True
                         )
 
-            # --- ABA FINALIZADOS (com KPIs e gráfico) ---
-            with tab_fin:
+            else:
                 if df_fin.empty:
                     st.info("Sem jogos finalizados neste recorte.")
                 else:
