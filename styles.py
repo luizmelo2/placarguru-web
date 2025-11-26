@@ -45,8 +45,8 @@ def inject_custom_css(dark_mode: bool = False):
     font-size: 16px;
     background: radial-gradient(circle at 20% 20%, rgba(96,165,250,0.08), transparent 25%),
                 radial-gradient(circle at 80% 0%, rgba(34,211,238,0.06), transparent 30%),
-                var(--bg);
-    color: var(--text);
+                var(--bg) !important;
+    color: var(--text) !important;
     transition: background 260ms ease, color 260ms ease;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
@@ -56,6 +56,7 @@ def inject_custom_css(dark_mode: bool = False):
   }
 
   .block-container { padding-top: 0.5rem !important; max-width: 1200px; }
+  .stMain, .block-container, .main { background: transparent !important; }
   h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
   h2 { font-size: 1.25rem; font-weight: 700; }
   h3 { font-size: 1.1rem; font-weight: 700; }
@@ -295,14 +296,51 @@ def inject_custom_css(dark_mode: bool = False):
   button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(37,99,235,0.35); }
 
   div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.02rem; font-weight: 700; }
-  div[data-testid="stDataFrameContainer"] { border-radius: 12px; overflow: hidden; }
+  div[data-testid="stDataFrameContainer"], div[data-testid="stTable"] { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  div[data-testid="stDataFrameContainer"] table, div[data-testid="stTable"] table {
+    width: 100%;
+    border-collapse: collapse;
+    background: color-mix(in srgb, var(--panel) 95%, transparent);
+    color: var(--text);
+  }
+  div[data-testid="stDataFrameContainer"] thead th, div[data-testid="stTable"] thead th {
+    background: color-mix(in srgb, var(--panel) 88%, var(--primary) 6%);
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.82rem;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--stroke);
+  }
+  div[data-testid="stDataFrameContainer"] tbody tr, div[data-testid="stTable"] tbody tr {
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
+    transition: background 140ms ease, transform 140ms ease;
+  }
+  div[data-testid="stDataFrameContainer"] tbody tr:nth-child(odd), div[data-testid="stTable"] tbody tr:nth-child(odd) {
+    background: color-mix(in srgb, var(--panel) 96%, transparent);
+  }
+  div[data-testid="stDataFrameContainer"] tbody tr:hover, div[data-testid="stTable"] tbody tr:hover {
+    background: color-mix(in srgb, var(--primary) 10%, var(--panel));
+    transform: translateY(-1px);
+  }
+  div[data-testid="stDataFrameContainer"] td, div[data-testid="stTable"] td {
+    padding: 10px 12px;
+    border-right: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
+    color: var(--text);
+  }
+  div[data-testid="stDataFrameContainer"] td:last-child, div[data-testid="stTable"] td:last-child { border-right: none; }
 </style>
 <script>
   (function() {
     const theme = '$theme';
     const applyTheme = (mode) => {
       const isDark = mode === 'dark';
-      const targets = [document.documentElement, document.body, document.querySelector('.stApp')];
+      const targets = [
+        document.documentElement,
+        document.body,
+        document.querySelector('.stApp'),
+        document.querySelector('main'),
+      ];
       targets.forEach(el => {
         if (!el) return;
         el.setAttribute('data-pg-theme', mode);
