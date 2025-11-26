@@ -10,8 +10,37 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS
+    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
+
+
+HIGHLIGHT_PROB_THRESHOLD = 0.60
+HIGHLIGHT_ODD_THRESHOLD = 1.20
+
+
+def is_guru_highlight(row: pd.Series) -> bool:
+    """Aplica a regra de destaque (prob > 60% e odd > 1.20) usando a sugestão de aposta."""
+    market_code = row.get("bet_suggestion")
+    if pd.isna(market_code):
+        return False
+
+    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+    if not cols:
+        return False
+
+    prob = row.get(cols[0])
+    odd = row.get(cols[1])
+
+    try:
+        prob_val = float(prob)
+        odd_val = float(odd)
+    except Exception:
+        return False
+
+    if pd.isna(prob_val) or pd.isna(odd_val):
+        return False
+
+    return prob_val >= HIGHLIGHT_PROB_THRESHOLD and odd_val > HIGHLIGHT_ODD_THRESHOLD
 
 def _render_filtros_modelos(container, model_opts: list, default_models: list, modo_mobile: bool):
     """Renderiza o filtro de seleção de modelos."""
@@ -150,6 +179,15 @@ def _prepare_display_data(row: pd.Series) -> dict:
     """Prepara todos os dados necessários para a exibição de uma linha."""
     dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in row.index and pd.notna(row["date"])) else "N/A"
 
+    market_code = row.get("bet_suggestion")
+    prob_val = odd_val = None
+    if pd.notna(market_code):
+        cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+        if cols:
+            prob_val = row.get(cols[0])
+            odd_val = row.get(cols[1])
+    highlight = is_guru_highlight(row)
+
     # Avaliações de acerto
     hit_res = eval_result_pred_row(row)
     hit_score = eval_score_pred_row(row)
@@ -183,7 +221,12 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "btts_pred_txt": btts_pred_txt,
         "cap_line": f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}",
         "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
-        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—"
+        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—",
+        "highlight": highlight,
+        "suggested_prob": prob_val,
+        "suggested_odd": odd_val,
+        "match_title": f"{row.get('home','?')} vs {row.get('away','?')}",
+        "kickoff": dt_txt,
     }
 
 def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
@@ -191,17 +234,21 @@ def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
     st.markdown("---")
     st.markdown("**Over/Under (Prob. — Odd)**")
 
-    under_lines = [
-        f"- **Under {v}:** {_po(row, f'prob_under_{v.replace('.', '_')}', f'odds_match_goals_{v}_under')}"
-        for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_under_{v.replace('.', '_')}")
-    ]
+    under_lines = []
+    for v in GOAL_MARKET_THRESHOLDS:
+        prob_key = f"prob_under_{str(v).replace('.', '_')}"
+        odd_key = f"odds_match_goals_{v}_under"
+        if _exists(df, prob_key):
+            under_lines.append(f"- **Under {v}:** {_po(row, prob_key, odd_key)}")
     if under_lines:
         st.markdown("\n".join(under_lines), unsafe_allow_html=True)
 
-    over_lines = [
-        f"- **Over {v}:** {_po(row, f'prob_over_{v.replace('.', '_')}', f'odds_match_goals_{v}_over')}"
-        for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_over_{v.replace('.', '_')}")
-    ]
+    over_lines = []
+    for v in GOAL_MARKET_THRESHOLDS:
+        prob_key = f"prob_over_{str(v).replace('.', '_')}"
+        odd_key = f"odds_match_goals_{v}_over"
+        if _exists(df, prob_key):
+            over_lines.append(f"- **Over {v}:** {_po(row, prob_key, odd_key)}")
     if over_lines:
         st.markdown("\n".join(over_lines), unsafe_allow_html=True)
 
@@ -239,33 +286,59 @@ def display_list_view(df: pd.DataFrame):
         data = _prepare_display_data(row)
 
         with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                st.markdown(f"**{data['title']}**")
-                st.caption(data['cap_line'])
-                st.markdown(
-                    f'''
-                    <div class="info-grid">
-                        <div><span class="text-label">{data["badge_res"]} 🎯 Resultado:</span> {green_html(data["result_txt"])}</div>
-                        <div><span class="text-label">{data["badge_bet"]} 💡 Sugestão Aposta:</span> {green_html(data["aposta_txt"])}</div>
-                        <div><span class="text-label">{data["badge_goal"]} ⚽ Sugestão Gols:</span> {green_html(data["gols_txt"])}</div>
-                        <div><span class="text-label">{data["badge_btts_pred"]} 🥅 Ambos Marcam:</span> {green_html(data["btts_pred_txt"])}</div>
-                        <div><span class="text-label">{data["badge_score"]} 📊 Placar Previsto:</span> {green_html(data["score_txt"])}</div>
-                    </div>
-                    ''',
-                    unsafe_allow_html=True
-                )
+            badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
+            highlight_label = "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>" if data["highlight"] else ""
 
-            with c2:
-                badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
-                st.markdown(f'<span class="badge {badge_class}">{data["status_txt"]}</span>', unsafe_allow_html=True)
-                if data["is_finished"]:
-                    st.markdown(f"**Placar Final:** {data['final_score']}")
+            st.markdown(
+                f'''
+                <div class="pg-card {'neon' if data['highlight'] else ''}">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <div>
+                      <div class="pg-meta">{data['cap_line']}</div>
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
+                        <span class="badge">{data['kickoff']}</span>
+                        {highlight_label}
+                      </div>
+                    </div>
+                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                  </div>
+
+                  <div class="pg-grid" style="margin-top:10px;">
+                    <div class="pg-pill">
+                      <div class="label">🎯 Resultado</div>
+                      <div class="value">{green_html(data['result_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">💡 Sugestão</div>
+                      <div class="value">{green_html(data['aposta_txt'])}</div>
+                      <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">⚽ Gols</div>
+                      <div class="value">{green_html(data['gols_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">🥅 Ambos marcam</div>
+                      <div class="value">{green_html(data['btts_pred_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">📊 Placar Previsto</div>
+                      <div class="value">{green_html(data['score_txt'])}</div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                    {f"<span class='badge badge-finished'>Placar Final {data['final_score']}</span>" if data['is_finished'] else ''}
+                    {f"<span class='badge' style='background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);'>Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}</span>" if data['suggested_prob'] is not None else ''}
+                  </div>
+                </div>
+                ''',
+                unsafe_allow_html=True,
+            )
 
             _render_expander_details(row, data, df)
-
-            st.markdown('</div>', unsafe_allow_html=True)
             st.write("")
 
 def filtros_analise_ui(df: pd.DataFrame) -> dict:

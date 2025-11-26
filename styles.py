@@ -2,76 +2,147 @@
 import streamlit as st
 
 
-def inject_custom_css():
-    """Insere o CSS customizado na página."""
-    st.markdown('''
+def inject_custom_css(dark_mode: bool = False):
+    """Insere o CSS customizado na página, inspirado no redesign do Placar Guru."""
+
+    theme = "dark" if dark_mode else "light"
+    st.markdown(f"""
 <style>
-html, body, .stApp { font-size: 16px; }
-@media (max-width: 768px) {
-  html, body, .stApp { font-size: 17px; }
-  section[data-testid="stSidebar"] { display:none !important; }
-}
+  :root, [data-pg-theme="light"] {{
+    --bg: #f8fafc;
+    --panel: #ffffff;
+    --glass: rgba(255,255,255,0.65);
+    --stroke: #e2e8f0;
+    --text: #0f172a;
+    --muted: #475569;
+    --primary: #2563eb;
+    --primary-2: #22d3ee;
+    --neon: #bfff3b;
+    --shadow: 0 20px 60px rgba(0,0,0,0.12);
+  }}
 
-/* Títulos menores */
-h1 { font-size: 1.6rem; line-height: 1.2; margin-bottom: .25rem; }
-h2 { font-size: 1.25rem; line-height: 1.25; margin: .5rem 0 .25rem 0; }
-h3 { font-size: 1.10rem; line-height: 1.3; margin: .35rem 0 .15rem 0; }
-@media (max-width: 768px) {
-  h1 { font-size: 1.35rem; }
-  h2 { font-size: 1.15rem; }
-  h3 { font-size: 1.00rem; }
-}
+  [data-pg-theme="dark"] {{
+    --bg: #0b1224;
+    --panel: #0f172a;
+    --glass: rgba(255,255,255,0.04);
+    --stroke: #1f2937;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --primary: #60a5fa;
+    --primary-2: #22d3ee;
+    --neon: #bfff3b;
+    --shadow: 0 20px 60px rgba(0,0,0,0.35);
+  }}
 
-/* Containers e componentes */
-.block-container { padding-top: 0.5rem !important; }
-.card {
-  border: 1px solid #1f2937; border-radius: 14px; padding: 12px;
-  background: #0b0b0b; box-shadow: 0 1px 8px rgba(0,0,0,.2);
-}
-.badge { padding: 2px 8px; border-radius: 999px; font-weight: 600; }
-.badge-ok { background:#14532d; color:#d1fae5; }
-.badge-bad { background:#7f1d1d; color:#fee2e2; }
-.badge-wait { background:#334155; color:#e2e8f0; }
-.badge-finished { background: #1e3a8a; color: #dbeafe; } /* Royal Blue */
-button, .stButton>button { border-radius: 12px; padding: 10px 14px; font-weight: 600; }
-div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.05rem; font-weight: 700; }
-.stDataFrame { overflow-x: auto; }
+  html, body, .stApp {{
+    font-size: 16px;
+    background: radial-gradient(circle at 20% 20%, rgba(96,165,250,0.08), transparent 25%),
+                radial-gradient(circle at 80% 0%, rgba(34,211,238,0.06), transparent 30%),
+                var(--bg);
+    color: var(--text);
+    transition: background 260ms ease, color 260ms ease;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }}
+  @media (max-width: 768px) {{
+    html, body, .stApp {{ font-size: 17px; }}
+    section[data-testid="stSidebar"] {{ display:none !important; }}
+  }}
 
-/* Tipografia/cores dentro dos cards */
-.text-label { color:#9CA3AF; font-weight:600; }   /* rótulos (Prev., Placar, etc.) */
-.text-muted { color:#9CA3AF; }
-.text-strong { color:#E5E7EB; font-weight:700; }
+  .block-container {{ padding-top: 0.5rem !important; max-width: 1200px; }}
+  h1 {{ font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }}
+  h2 {{ font-size: 1.25rem; font-weight: 700; }}
+  h3 {{ font-size: 1.1rem; font-weight: 700; }}
 
-/* ÚNICA cor destaque (verde) para previsão, placar, sugestões, probabilidades e odds */
-.accent-green { color:#22C55E; font-weight:700; }
-.text-odds { color: #9CA3AF; font-size: 0.9em; margin-left: 0.5rem; }
+  .pg-hero {{
+    border: 1px solid var(--stroke);
+    border-radius: 18px;
+    padding: 18px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    box-shadow: var(--shadow);
+    display: grid;
+    gap: 12px;
+  }}
 
-.value-soft { color:#E5E7EB; }
-.info-line { margin-top:.25rem; }
-.info-line > .sep { color:#6B7280; margin: 0 .35rem; }
+  .pg-kpi-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap: 12px; }}
+  .pg-kpi {{
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    padding: 12px;
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+  }}
+  .pg-kpi .label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
+  .pg-kpi .value {{ font-size: 1.35rem; font-weight: 700; }}
+  .pg-kpi .delta {{ color: #10b981; font-size: 12px; font-weight: 600; }}
 
-/* Grid de detalhes */
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.1rem 0.8rem;
-  margin-top: 0.25rem;
-}
-@media (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
-  }
-}
+  .tourn-box {{
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    padding: 14px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+  }}
+  .tourn-title {{ font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }}
 
-/* Caixa do filtro (C2) */
-.tourn-box {
-  border: 1px solid #1f2937; border-radius: 12px; padding: 12px;
-  background: #0c0c0c; margin-bottom: 8px;
-}
-.tourn-title { font-weight:800; font-size:1.05rem; }
+  .badge {{ padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; border: 1px solid var(--stroke); }}
+  .badge-ok { background: #14532d; color: #d1fae5; }
+  .badge-bad { background: #7f1d1d; color: #fee2e2; }
+  .badge-wait { background: #1f2937; color: #e2e8f0; }
+  .badge-finished { background: #1e3a8a; color: #dbeafe; }
 
-/* Confiança ao lado da Previsão */
-.conf-inline { margin-left: .4rem; color:#9CA3AF; font-weight:600; white-space:nowrap; }
+  .accent-green {{ color:#22c55e; font-weight:700; }}
+  .text-odds {{ color: var(--muted); font-size: 0.9em; margin-left: 0.35rem; }}
+  .text-label {{ color: var(--muted); font-weight:600; }}
+  .text-muted {{ color: var(--muted); }}
+
+  .pg-card {{
+    position: relative;
+    border: 1px solid var(--stroke);
+    border-radius: 18px;
+    padding: 14px 16px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }}
+  .pg-card:hover {{ transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 20px 50px rgba(37,99,235,0.16); }}
+  .pg-card.neon {{
+    border: 1.5px solid var(--neon);
+    box-shadow: 0 0 0 1px rgba(191,255,59,0.35), 0 10px 40px rgba(191,255,59,0.25);
+  }}
+  .pg-card.neon::after {{
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 24px rgba(191,255,59,0.18);
+    opacity: 0;
+    animation: pg-pulse 2.4s ease-in-out infinite;
+    pointer-events: none;
+  }}
+  @keyframes pg-pulse {{ 0% {{opacity:0;}} 50% {{opacity:1;}} 100% {{opacity:0;}} }}
+
+  .pg-meta {{ color: var(--muted); font-size: 13px; margin-top: -2px; margin-bottom: 8px; }}
+  .pg-grid {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px; }}
+  .pg-pill {{ border: 1px solid var(--stroke); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--panel) 88%, transparent); }}
+  .pg-pill .label {{ color: var(--muted); font-size: 12px; }}
+  .pg-pill .value {{ font-weight: 700; font-size: 1.05rem; }}
+
+  .info-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 0.8rem; margin-top: 0.25rem; }}
+  @media (max-width: 768px) {{ .info-grid {{ grid-template-columns: 1fr; gap: 0.25rem; }} }}
+
+  button, .stButton>button {{
+    border-radius: 14px; padding: 10px 14px; font-weight: 700;
+    background: linear-gradient(120deg, var(--primary), var(--primary-2));
+    color: white; border: 1px solid color-mix(in srgb, var(--primary) 70%, var(--stroke));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 10px 30px rgba(37,99,235,0.25);
+  }}
+  button:hover, .stButton>button:hover {{ transform: translateY(-1px); box-shadow: 0 12px 40px rgba(37,99,235,0.35); }}
+
+  div[data-testid="stExpander"] summary {{ padding: 10px 12px; font-size: 1.02rem; font-weight: 700; }}
+  div[data-testid="stDataFrameContainer"] {{ border-radius: 12px; overflow: hidden; }}
 </style>
-''', unsafe_allow_html=True)
+<script>
+  document.documentElement.setAttribute('data-pg-theme', '{theme}');
+</script>
+""", unsafe_allow_html=True)

@@ -27,17 +27,19 @@ st.set_page_config(
 )
 
 # Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2 = st.columns([1, 4])
+col_m1, col_m2, col_m3 = st.columns([1, 3, 2])
 with col_m1:
     modo_mobile = st.toggle("📱 Mobile", value=True)
 with col_m2:
     st.title("Placar Guru")
+with col_m3:
+    dark_mode = st.toggle("🌗 Dark Mode", value=True, help="Tema inspirado no redesign (elegante, sem preto absoluto)")
 
 # --- Estilos mobile-first + cores ---
-inject_custom_css()
+inject_custom_css(dark_mode)
 
 from reporting import generate_pdf_report
-from ui_components import filtros_ui, display_list_view
+from ui_components import filtros_ui, display_list_view, is_guru_highlight
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 # ============================
 # Exibição amigável
@@ -208,7 +210,49 @@ try:
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
         else:
+            highlight_mask = df_filtered.apply(is_guru_highlight, axis=1)
+            highlight_count = int(highlight_mask.sum())
+            total_games = len(df_filtered)
+            tourn_count = int(df_filtered["tournament_id"].nunique()) if "tournament_id" in df_filtered.columns else 0
             status_norm_all = df_filtered["status"].astype(str).map(norm_status_key) if "status" in df_filtered.columns else pd.Series("", index=df_filtered.index)
+
+            st.markdown(
+                f"""
+                <div class="pg-hero">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                    <div>
+                      <div class="pg-meta">Dashboard do dia</div>
+                      <h2 style="margin:4px 0;">Precisão elevada, decisões rápidas</h2>
+                      <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
+                    </div>
+                    <span class="badge">Dark mode {'on' if dark_mode else 'off'}</span>
+                  </div>
+                  <div class="pg-kpi-grid">
+                    <div class="pg-kpi">
+                      <div class="label">Jogos filtrados</div>
+                      <div class="value">{total_games}</div>
+                      <div class="delta">Filtro global ativo</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Sugestão Guru</div>
+                      <div class="value">{highlight_count}</div>
+                      <div class="delta">Prob > 60% & Odd > 1.20</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Torneios selecionados</div>
+                      <div class="value">{tourn_count}</div>
+                      <div class="delta">Cobertura ampla</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Status</div>
+                      <div class="value">{status_norm_all.eq('finished').sum()} finalizados</div>
+                      <div class="delta">{status_norm_all.ne('finished').sum()} agendados</div>
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             df_ag  = df_filtered[status_norm_all != "finished"]
             df_fin = df_filtered[status_norm_all == "finished"]
 
