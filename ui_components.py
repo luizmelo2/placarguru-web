@@ -321,6 +321,20 @@ def display_list_view(df: pd.DataFrame):
                     "</span>"
                 )
 
+            hit_badges = []
+            for label, key in [
+                ("Resultado", "badge_res"),
+                ("Placar", "badge_score"),
+                ("Sugestão", "badge_bet"),
+                ("Gols", "badge_goal"),
+                ("BTTS", "badge_btts_pred"),
+            ]:
+                icon = data.get(key)
+                if icon:
+                    cls = "badge-ok" if icon == "✅" else "badge-bad"
+                    hit_badges.append(f"<span class='badge {cls}'>{icon} {label}</span>")
+            hit_html = " ".join(hit_badges)
+
             card_html = _compact_html(
                 f"""
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
@@ -361,9 +375,9 @@ def display_list_view(df: pd.DataFrame):
                   </div>
 
                   <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                    <span class="badge {badge_class}">{data['status_txt']}</span>
                     {final_score_badge}
                     {prob_odd_badge}
+                    {hit_html}
                   </div>
                 </div>
                 """
