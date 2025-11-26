@@ -1,4 +1,5 @@
-"""Módulo para injeção de CSS customizado."""
+"""Módulo para injeção de CSS customizado e temas de gráficos."""
+import altair as alt
 import streamlit as st
 from string import Template
 
@@ -149,3 +150,72 @@ def inject_custom_css(dark_mode: bool = False):
 """)
 
     st.markdown(css_tpl.substitute(theme=theme), unsafe_allow_html=True)
+
+
+def chart_tokens(dark_mode: bool):
+    """Retorna tokens cromáticos para uso nos gráficos Altair."""
+
+    if dark_mode:
+        return {
+            "background": "#0b1224",
+            "panel": "#0f172a",
+            "stroke": "#1f2937",
+            "text": "#e2e8f0",
+            "grid": "#1f2a3c",
+            "palette": [
+                "#60a5fa",
+                "#22d3ee",
+                "#bfff3b",
+                "#a855f7",
+                "#f97316",
+                "#c7d2fe",
+            ],
+            "accent": "#60a5fa",
+        }
+
+    return {
+        "background": "#f8fafc",
+        "panel": "#ffffff",
+        "stroke": "#e2e8f0",
+        "text": "#0f172a",
+        "grid": "#e2e8f0",
+        "palette": [
+            "#2563eb",
+            "#22d3ee",
+            "#bfff3b",
+            "#a855f7",
+            "#f97316",
+            "#0ea5e9",
+        ],
+        "accent": "#2563eb",
+    }
+
+
+def apply_altair_theme(dark_mode: bool = False):
+    """Configura tema do Altair com base na paleta do redesign."""
+
+    tokens = chart_tokens(dark_mode)
+    name = "pg-dark" if dark_mode else "pg-light"
+
+    theme = {
+        "config": {
+            "background": tokens["background"],
+            "view": {"stroke": "transparent", "cornerRadius": 14, "fill": tokens["panel"]},
+            "axis": {
+                "domainColor": tokens["stroke"],
+                "gridColor": tokens["grid"],
+                "labelColor": tokens["text"],
+                "titleColor": tokens["text"],
+            },
+            "legend": {"labelColor": tokens["text"], "titleColor": tokens["text"]},
+            "title": {"color": tokens["text"], "fontSize": 16, "fontWeight": 700},
+            "range": {
+                "category": tokens["palette"],
+                "ordinal": tokens["palette"],
+                "ramp": tokens["palette"],
+            },
+        }
+    }
+
+    alt.themes.register(name, lambda theme=theme: theme)
+    alt.themes.enable(name)

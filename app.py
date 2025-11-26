@@ -15,7 +15,7 @@ from utils import (
     tournament_label, market_label, norm_status_key, fmt_score_pred_text,
     status_label, FINISHED_TOKENS,
 )
-from styles import inject_custom_css
+from styles import inject_custom_css, apply_altair_theme, chart_tokens
 
 # ============================
 # Configuração da página
@@ -35,8 +35,10 @@ with col_m2:
 with col_m3:
     dark_mode = st.toggle("🌗 Dark Mode", value=True, help="Tema inspirado no redesign (elegante, sem preto absoluto)")
 
-# --- Estilos mobile-first + cores ---
+# --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
+apply_altair_theme(dark_mode)
+chart_theme = chart_tokens(dark_mode)
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view, is_guru_highlight
@@ -361,7 +363,7 @@ try:
                                 .encode(
                                     x=alt.X('Métrica:N', title=''),
                                     y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0,100])),
-                                    color='Modelo:N',
+                                    color=alt.Color('Modelo:N', scale=alt.Scale(range=chart_theme["palette"])),
                                     xOffset='Modelo:N',
                                     tooltip=['Modelo:N','Métrica:N','Acertos:Q','Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
                                 )
@@ -369,13 +371,13 @@ try:
                             )
                             text = (
                                 alt.Chart(metrics_df)
-                                .mark_text(dy=-8)
+                                .mark_text(dy=-8, color=chart_theme["text"])
                                 .encode(
                                     x='Métrica:N',
                                     y='Acerto (%):Q',
                                     detail='Modelo:N',
                                     text=alt.Text('Acerto (%):Q', format='.1f'),
-                                    color='Modelo:N'
+                                    color=alt.Color('Modelo:N', scale=alt.Scale(range=chart_theme["palette"]))
                                 )
                             )
                             st.altair_chart(chart + text, use_container_width=True)
@@ -398,12 +400,12 @@ try:
                                 short_name = metric_name.replace(" (Sugestão)", "").replace(" (Prob)", "")
                                 cols[i].metric(short_name, f"{acc}%", f"{hits}/{total}")
 
-                        chart = alt.Chart(metrics_df).mark_bar().encode(
+                        chart = alt.Chart(metrics_df).mark_bar(color=chart_theme["accent"]).encode(
                             x=alt.X('Métrica:N', title=''),
                             y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100])),
                             tooltip=['Métrica:N', 'Acertos:Q', 'Total Avaliado:Q', alt.Tooltip('Acerto (%):Q', format='.1f')]
                         ).properties(height=220 if modo_mobile else 260)
-                        text = alt.Chart(metrics_df).mark_text(dy=-8).encode(
+                        text = alt.Chart(metrics_df).mark_text(dy=-8, color=chart_theme["text"]).encode(
                             x='Métrica:N',
                             y='Acerto (%):Q',
                             text=alt.Text('Acerto (%):Q', format='.1f')
@@ -430,7 +432,7 @@ try:
                                 line_chart = alt.Chart(model_data).mark_line(point=True).encode(
                                     x=alt.X('Data:T', title='Dia'),
                                     y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                    color=alt.Color('Métrica:N', title="Métrica de Aposta"),
+                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])),
                                     tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
                                 ).properties(
                                     height=280
