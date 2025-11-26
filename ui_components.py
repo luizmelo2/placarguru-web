@@ -230,6 +230,20 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "kickoff": dt_txt,
     }
 
+
+def _compact_html(html: str) -> str:
+    """Remove indentação e quebras de linha para evitar renderização como texto Markdown.
+
+    Streamlit pode exibir tags literalmente se a string HTML começar com espaços/linhas
+    vazias, pois o Markdown interpreta como bloco de código. Este helper normaliza
+    o HTML em uma única linha, preservando a legibilidade no app.
+    """
+    return " ".join(
+        line.strip()
+        for line in textwrap.dedent(html).splitlines()
+        if line.strip()
+    )
+
 def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
     """Renderiza a seção de 'Over/Under' dentro do expander."""
     st.markdown("---")
@@ -307,53 +321,53 @@ def display_list_view(df: pd.DataFrame):
                     "</span>"
                 )
 
-            card_html = textwrap.dedent(
+            card_html = _compact_html(
                 f"""
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                  <div>
-                    <div class="pg-meta">{data['cap_line']}</div>
-                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                      <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
-                      <span class="badge">{data['kickoff']}</span>
-                      {highlight_label}
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <div>
+                      <div class="pg-meta">{data['cap_line']}</div>
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
+                        <span class="badge">{data['kickoff']}</span>
+                        {highlight_label}
+                      </div>
+                    </div>
+                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                  </div>
+
+                  <div class="pg-grid" style="margin-top:10px;">
+                    <div class="pg-pill">
+                      <div class="label">🎯 Resultado</div>
+                      <div class="value">{green_html(data['result_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">💡 Sugestão</div>
+                      <div class="value">{green_html(data['aposta_txt'])}</div>
+                      <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">⚽ Gols</div>
+                      <div class="value">{green_html(data['gols_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">🥅 Ambos marcam</div>
+                      <div class="value">{green_html(data['btts_pred_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">📊 Placar Previsto</div>
+                      <div class="value">{green_html(data['score_txt'])}</div>
                     </div>
                   </div>
-                  <span class="badge {badge_class}">{data['status_txt']}</span>
-                </div>
 
-                <div class="pg-grid" style="margin-top:10px;">
-                  <div class="pg-pill">
-                    <div class="label">🎯 Resultado</div>
-                    <div class="value">{green_html(data['result_txt'])}</div>
+                  <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                    {final_score_badge}
+                    {prob_odd_badge}
                   </div>
-                  <div class="pg-pill">
-                    <div class="label">💡 Sugestão</div>
-                    <div class="value">{green_html(data['aposta_txt'])}</div>
-                    <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
-                  </div>
-                  <div class="pg-pill">
-                    <div class="label">⚽ Gols</div>
-                    <div class="value">{green_html(data['gols_txt'])}</div>
-                  </div>
-                  <div class="pg-pill">
-                    <div class="label">🥅 Ambos marcam</div>
-                    <div class="value">{green_html(data['btts_pred_txt'])}</div>
-                  </div>
-                  <div class="pg-pill">
-                    <div class="label">📊 Placar Previsto</div>
-                    <div class="value">{green_html(data['score_txt'])}</div>
-                  </div>
-                </div>
-
-                <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                  <span class="badge {badge_class}">{data['status_txt']}</span>
-                  {final_score_badge}
-                  {prob_odd_badge}
-                </div>
                 </div>
                 """
-            ).strip()
+            )
 
             st.markdown(card_html, unsafe_allow_html=True)
 
