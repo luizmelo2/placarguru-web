@@ -599,12 +599,12 @@ try:
                               .pg-chart-grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
                               @media (min-width: 1000px) { .pg-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
                               .pg-chart-cluster { border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent); border-radius: 16px; padding: 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
-                              .pg-chart-cluster__head { display:flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+                              .pg-chart-cluster__head { display:flex; justify-content: space-between; align-items: center; gap:12px; margin-bottom: 8px; }
                               .pg-chart-card { border: 1px solid var(--stroke); border-radius: 18px; padding: 10px 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent)); box-shadow: var(--shadow); position: relative; overflow: hidden; }
                               .pg-chart-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 32%); pointer-events: none; opacity: 0.8; }
                               .pg-chart-card > * { position: relative; z-index: 1; }
                               .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
-                              .pg-chart-card .vega-embed { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.08); padding: 8px; }
+                              .pg-chart-card .vega-embed, .pg-chart-card .vega-embed * { color: var(--text); }
                               .vega-actions { display: none; }
                               svg text { fill: var(--text); }
                             </style>
@@ -622,107 +622,82 @@ try:
                             shadow=shadow,
                         )
 
-                        panel_parts = [
-                            panel_style,
+                        st.markdown(panel_style, unsafe_allow_html=True)
+                        st.markdown(
                             """
                             <div class='pg-stats-panel'>
-                              <div class=\"pg-stats-header\">
+                              <div class="pg-stats-header">
                                 <div>
-                                  <p class=\"pg-eyebrow\">Desempenho Diário por Campeonato e Métrica</p>
-                                  <h4 style=\"margin:0;\">Evolução de acerto por torneio e modelo</h4>
-                                  <p class=\"pg-stats-desc\">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
+                                  <p class="pg-eyebrow">Desempenho Diário por Campeonato e Métrica</p>
+                                  <h4 style="margin:0;">Evolução de acerto por torneio e modelo</h4>
+                                  <p class="pg-stats-desc">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
                                 </div>
-                                <div class=\"pg-stats-tags\">
-                                  <span class=\"pg-chip ghost\">Linhas</span>
-                                  <span class=\"pg-chip ghost\">Interativo</span>
+                                <div class="pg-stats-tags">
+                                  <span class="pg-chip ghost">Linhas</span>
+                                  <span class="pg-chip ghost">Interativo</span>
                                 </div>
                               </div>
                               <div class='pg-chart-grid nested'>
-                            """
-                        ]
-
-                        render_queue = []
-                        chart_count = 0
-                        base_height = 420
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
                         for tourn in tournaments:
                             tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
                             models = sorted(tourn_data['Modelo'].unique())
 
-                            cluster_html = [
+                            st.markdown(
                                 f"""
-                                <div class=\"pg-chart-cluster\">
-                                  <div class=\"pg-chart-cluster__head\">
+                                <div class="pg-chart-cluster">
+                                  <div class="pg-chart-cluster__head">
                                     <div>
-                                      <p class=\"pg-eyebrow\">Campeonato</p>
-                                      <h4 style=\\\"margin:0;\\\">{tourn}</h4>
+                                      <p class="pg-eyebrow">Campeonato</p>
+                                      <h4 style=\"margin:0;\">{tourn}</h4>
                                     </div>
-                                    <div class=\"pg-stats-tags\">
-                                      <span class=\"pg-chip ghost\">{len(models)} modelo(s)</span>
-                                      <span class=\"pg-chip ghost\">Métricas múltiplas</span>
+                                    <div class="pg-stats-tags">
+                                      <span class="pg-chip ghost">{len(models)} modelo(s)</span>
+                                      <span class="pg-chip ghost">Métricas múltiplas</span>
                                     </div>
                                   </div>
-                                """
-                            ]
+                                """,
+                                unsafe_allow_html=True,
+                            )
 
                             for model in models:
                                 model_data = tourn_data[tourn_data['Modelo'] == model].copy()
                                 model_data['Data'] = pd.to_datetime(model_data['Data']).dt.strftime('%Y-%m-%d')
-                                spec = (
+                                chart = (
                                     alt.Chart(model_data)
                                     .mark_line(point=True)
                                     .encode(
                                         x=alt.X('Data:T', title='Dia'),
                                         y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                        color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])),
+                                        color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"]))
+                                        ,
                                         tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
                                     )
                                     .properties(
                                         height=240 if modo_mobile else 280,
                                         background=chart_theme.get("plot_bg", "transparent"),
                                     )
-                                ).to_dict()
+                                )
 
-                                chart_id = f"pg-chart-{chart_count}"
-                                chart_count += 1
-                                render_queue.append({"target": chart_id, "spec": spec})
-
-                                cluster_html.append(
+                                st.markdown(
                                     f"""
                                       <div class='pg-chart-card nested'>
                                         <div class='pg-chart-card__title'>Modelo: {model}</div>
-                                        <div id='{chart_id}' class='pg-vega-slot'></div>
-                                      </div>
-                                    """
+                                    """,
+                                    unsafe_allow_html=True,
                                 )
+                                st.altair_chart(chart, use_container_width=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
 
-                            cluster_html.append("</div>")
-                            panel_parts.append("\n".join(cluster_html))
+                            st.markdown("</div>", unsafe_allow_html=True)
 
-                        panel_parts.append("</div></div>")
-
-                        script = f"""
-                          <script src=\\"https://cdn.jsdelivr.net/npm/vega@5\\"></script>
-                          <script src=\\"https://cdn.jsdelivr.net/npm/vega-lite@5\\"></script>
-                          <script src=\\"https://cdn.jsdelivr.net/npm/vega-embed@6\\"></script>
-                          <script>
-                            const renderQueue = {json.dumps(render_queue)};
-                            renderQueue.forEach(({{target, spec}}) => {{
-                              const host = document.getElementById(target);
-                              if (!host) return;
-                              vegaEmbed(host, spec, {{actions: false, renderer: 'svg'}}).then((res) => {{
-                                const card = host.closest('.pg-chart-card');
-                                if (card) card.classList.add('hydrated');
-                              }}).catch((err) => console.error('vega embed error', err));
-                            }});
-                          </script>
-                        """
-
-                        panel_html = "\n".join(panel_parts) + script
-                        estimated_height = base_height + chart_count * (300 if modo_mobile else 360)
-                        components.html(panel_html, height=estimated_height, scrolling=True)
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
+
 # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
                     st.subheader("Melhor Modelo por Campeonato e Mercado")
