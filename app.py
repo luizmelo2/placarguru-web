@@ -884,9 +884,43 @@ try:
                             table_id=tbl2_id,
                         )
 
+                        palette = {
+                            "bg": "#0b1224" if st.session_state.get("pg_dark_mode", False) else "#f8fafc",
+                            "panel": "#0f172a" if st.session_state.get("pg_dark_mode", False) else "#ffffff",
+                            "glass": "rgba(255,255,255,0.08)" if st.session_state.get("pg_dark_mode", False) else "rgba(255,255,255,0.65)",
+                            "stroke": "#1f2937" if st.session_state.get("pg_dark_mode", False) else "#e2e8f0",
+                            "text": "#e2e8f0" if st.session_state.get("pg_dark_mode", False) else "#0f172a",
+                            "muted": "#94a3b8" if st.session_state.get("pg_dark_mode", False) else "#475569",
+                            "primary": "#60a5fa" if st.session_state.get("pg_dark_mode", False) else "#2563eb",
+                            "primary2": "#22d3ee",
+                            "neon": "#bfff3b",
+                            "shadow": "0 20px 60px rgba(0,0,0,0.35)" if st.session_state.get("pg_dark_mode", False) else "0 20px 60px rgba(0,0,0,0.12)",
+                        }
+
                         best_panel_tpl = Template(
                             """
                             <style>
+                              :root {
+                                --bg: ${bg};
+                                --panel: ${panel};
+                                --glass: ${glass};
+                                --stroke: ${stroke};
+                                --text: ${text};
+                                --muted: ${muted};
+                                --primary: ${primary};
+                                --primary-2: ${primary2};
+                                --neon: ${neon};
+                                --shadow: ${shadow};
+                                --accent: ${primary};
+                                --white: #ffffff;
+                                --text-strong: ${text};
+                              }
+                              body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+                              .pg-eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; font-size: 11px; color: var(--muted); margin: 0 0 4px 0; }
+                              .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
+                              .pg-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text); font-weight:700; font-size:12px; }
+                              .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 75%, transparent); color: var(--muted); }
+                              .pg-stats-panel { border:1px solid var(--stroke); border-radius:16px; padding:16px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
                               .pg-best-panel { padding: 18px; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: 0 12px 60px color-mix(in srgb, var(--shadow) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent) inset; }
                               .pg-best-panel .pg-stats-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
                               .pg-best-panel .pg-table-stack { display:flex; flex-direction:column; gap:16px; }
@@ -947,6 +981,16 @@ try:
                         )
 
                         panel_html = best_panel_tpl.safe_substitute(
+                            bg=palette["bg"],
+                            panel=palette["panel"],
+                            glass=palette["glass"],
+                            stroke=palette["stroke"],
+                            text=palette["text"],
+                            muted=palette["muted"],
+                            primary=palette["primary"],
+                            primary2=palette["primary2"],
+                            neon=palette["neon"],
+                            shadow=palette["shadow"],
                             table1=table1_html,
                             table2=table2_html,
                         )
