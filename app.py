@@ -651,17 +651,19 @@ try:
 
                             st.markdown(
                                 f"""
-                                <div class="pg-chart-cluster">
-                                  <div class="pg-chart-cluster__head">
+                                <details class="pg-details pg-chart-accordion" open>
+                                  <summary>
                                     <div>
-                                      <p class="pg-eyebrow">Campeonato</p>
-                                      <h4 style=\"margin:0;\">{tourn}</h4>
+                                      <div class="pg-details-title">{tourn}</div>
+                                      <div class="pg-details-hint">Campeonato • {len(models)} modelo(s) • métricas múltiplas</div>
                                     </div>
                                     <div class="pg-stats-tags">
                                       <span class="pg-chip ghost">{len(models)} modelo(s)</span>
-                                      <span class="pg-chip ghost">Métricas múltiplas</span>
+                                      <span class="pg-chip ghost">Diário</span>
                                     </div>
-                                  </div>
+                                  </summary>
+                                  <div class="pg-details-body">
+                                    <div class="pg-chart-grid">
                                 """,
                                 unsafe_allow_html=True,
                             )
@@ -695,7 +697,14 @@ try:
                                 st.altair_chart(chart, use_container_width=True)
                                 st.markdown("</div>", unsafe_allow_html=True)
 
-                            st.markdown("</div>", unsafe_allow_html=True)
+                            st.markdown(
+                                """
+                                    </div>
+                                  </div>
+                                </details>
+                                """,
+                                unsafe_allow_html=True,
+                            )
 
                         st.markdown("</div></div>", unsafe_allow_html=True)
                     else:
