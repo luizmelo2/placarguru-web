@@ -612,12 +612,12 @@ try:
 
                                 # Usa a serialização JSON do Altair para evitar objetos datetime
                                 # não serializáveis (Timestamp/date) ao montar o embed no front-end.
-                                spec = json.loads(line_chart.to_json())
+                                spec_json = line_chart.to_json()
                                 chart_id = f"pg-chart-{chart_idx}"
                                 chart_idx += 1
                                 chart_entries.append({
                                     "id": chart_id,
-                                    "spec": spec,
+                                    "spec": spec_json,
                                 })
 
                                 model_blocks.append(
@@ -659,7 +659,8 @@ try:
                         <script>
                           const charts = {json.dumps(chart_entries)};
                           charts.forEach(({id, spec}) => {{
-                            vegaEmbed('#' + id, spec, {{actions: false}});
+                            const parsedSpec = typeof spec === 'string' ? JSON.parse(spec) : spec;
+                            vegaEmbed('#' + id, parsedSpec, {{actions: false}});
                           }});
                         </script>
                         """
