@@ -593,50 +593,56 @@ try:
 
                         if not accuracy_data.empty:
                             tournaments = sorted(accuracy_data['Campeonato'].unique())
+                            cols_per_row = 1 if modo_mobile else 2
 
-                            for tourn in tournaments:
-                                tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
-                                models = sorted(tourn_data['Modelo'].unique())
+                            for row_start in range(0, len(tournaments), cols_per_row):
+                                row_tournaments = tournaments[row_start:row_start + cols_per_row]
+                                row_cols = st.columns(len(row_tournaments))
 
-                                st.markdown(
-                                    f"""
-                                    <div class="pg-chart-cluster">
-                                      <div class="pg-chart-cluster__head">
-                                        <div>
-                                          <p class="pg-eyebrow">Campeonato</p>
-                                          <h4 style="margin:0;">{tourn}</h4>
-                                        </div>
-                                        <div class="pg-stats-tags">
-                                          <span class="pg-chip ghost">{len(models)} modelo(s)</span>
-                                          <span class="pg-chip ghost">Métricas múltiplas</span>
-                                        </div>
-                                      </div>
-                                    """,
-                                    unsafe_allow_html=True,
-                                )
+                                for col_idx, tourn in enumerate(row_tournaments):
+                                    tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
+                                    models = sorted(tourn_data['Modelo'].unique())
 
-                                for model in models:
-                                    model_data = tourn_data[tourn_data['Modelo'] == model]
+                                    with row_cols[col_idx]:
+                                        st.markdown(
+                                            f"""
+                                            <div class="pg-chart-cluster">
+                                              <div class="pg-chart-cluster__head">
+                                                <div>
+                                                  <p class="pg-eyebrow">Campeonato</p>
+                                                  <h4 style="margin:0;">{tourn}</h4>
+                                                </div>
+                                                <div class="pg-stats-tags">
+                                                  <span class="pg-chip ghost">{len(models)} modelo(s)</span>
+                                                  <span class="pg-chip ghost">Métricas múltiplas</span>
+                                                </div>
+                                              </div>
+                                            """,
+                                            unsafe_allow_html=True,
+                                        )
 
-                                    line_chart = alt.Chart(model_data).mark_line(point=True).encode(
-                                        x=alt.X('Data:T', title='Dia'),
-                                        y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                        color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])) ,
-                                        tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
-                                    ).properties(
-                                        height=280
-                                    )
-                                    st.markdown(
-                                        f"""
-                                        <div class='pg-chart-card nested'>
-                                          <div class='pg-chart-card__title'>Modelo: {model}</div>
-                                        """,
-                                        unsafe_allow_html=True,
-                                    )
-                                    st.altair_chart(line_chart, use_container_width=True)
-                                    st.markdown("</div>", unsafe_allow_html=True)
+                                        for model in models:
+                                            model_data = tourn_data[tourn_data['Modelo'] == model]
 
-                                st.markdown("</div>", unsafe_allow_html=True)
+                                            line_chart = alt.Chart(model_data).mark_line(point=True).encode(
+                                                x=alt.X('Data:T', title='Dia'),
+                                                y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
+                                                color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])) ,
+                                                tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                                            ).properties(
+                                                height=280
+                                            )
+                                            st.markdown(
+                                                f"""
+                                                <div class='pg-chart-card nested'>
+                                                  <div class='pg-chart-card__title'>Modelo: {model}</div>
+                                                """,
+                                                unsafe_allow_html=True,
+                                            )
+                                            st.altair_chart(line_chart, use_container_width=True)
+                                            st.markdown("</div>", unsafe_allow_html=True)
+
+                                        st.markdown("</div>", unsafe_allow_html=True)
 
                             # fecha grid + painel
                             st.markdown("</div></div>", unsafe_allow_html=True)
