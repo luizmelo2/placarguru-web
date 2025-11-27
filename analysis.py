@@ -231,49 +231,51 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
     return df_final.sort_values(by=['Campeonato', 'Mercado de Aposta']).reset_index(drop=True)
 
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Cria um resumo por mercado exibindo o modelo mais frequente, a taxa média
-    de acerto, o volume de jogos avaliados e a lista de campeonatos cobertos.
-    Mantém a coluna "Mercado de Aposta" visível para evitar perda de contexto
-    na renderização.
+    """Agrupa o resumo por **campeonato e modelo**, mantendo o recorte de mercado.
+
+    A tabela final destaca para cada combinação (Campeonato, Modelo) a
+    cobertura dos mercados, taxa média de acerto e volume avaliado para
+    facilitar a leitura segmentada por status.
     """
 
     if best_model_df.empty:
         return pd.DataFrame()
 
     df_copy = best_model_df.copy()
-    grouped = df_copy.groupby("Mercado de Aposta")
 
-    def _mode_or_first(series: pd.Series) -> str:
-        modes = series.mode()
-        return modes.iloc[0] if not modes.empty else series.iloc[0]
+    # Consolida as métricas por Campeonato + Modelo, preservando a lista de mercados
+    grouped = df_copy.groupby(["Campeonato", "Melhor Modelo"])
 
     summary = grouped.agg(
         {
-            "Melhor Modelo": _mode_or_first,
+            "Mercado de Aposta": lambda s: ", ".join(sorted(set(map(str, s)))),
             "Taxa de Acerto (%)": "mean",
             "Total de Jogos Avaliados": "sum",
-            "Campeonato": lambda s: ", ".join(sorted(set(map(str, s))))
         }
     ).reset_index()
 
     summary = summary.rename(
         columns={
-            "Melhor Modelo": "Modelo campeão",
+            "Melhor Modelo": "Modelo",
+            "Mercado de Aposta": "Mercados de Aposta",
             "Taxa de Acerto (%)": "Taxa média (%)",
             "Total de Jogos Avaliados": "Jogos avaliados",
-            "Campeonato": "Campeonatos"
         }
     )
 
     summary["Taxa média (%)"] = summary["Taxa média (%)"].round(2)
 
+    # Ordena para leitura consistente por campeonato e performance média
+    summary = summary.sort_values(
+        by=["Campeonato", "Taxa média (%)"], ascending=[True, False]
+    )
+
     return summary[[
-        "Mercado de Aposta",
-        "Modelo campeão",
+        "Campeonato",
+        "Modelo",
+        "Mercados de Aposta",
         "Taxa média (%)",
         "Jogos avaliados",
-        "Campeonatos",
     ]]
 
 def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optional[List[str]] = None) -> pd.Series:
