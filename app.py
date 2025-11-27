@@ -655,7 +655,7 @@ try:
                           <script src=\\"https://cdn.jsdelivr.net/npm/vega-embed@6\\"></script>
                           <script>
                             const renderQueue = {json.dumps(render_queue)};
-                            renderQueue.forEach(({target, spec}) => {{
+                            renderQueue.forEach(({{target, spec}}) => {{
                               const host = document.getElementById(target);
                               if (!host) return;
                               vegaEmbed(host, spec, {{actions: false, renderer: 'svg'}}).then((res) => {{
