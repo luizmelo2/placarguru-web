@@ -580,6 +580,7 @@ try:
                               <span class="pg-chip ghost">Interativo</span>
                             </div>
                           </div>
+                          <div class="pg-chart-grid">
                         """,
                         unsafe_allow_html=True,
                     )
@@ -589,29 +590,51 @@ try:
                         tournaments = sorted(accuracy_data['Campeonato'].unique())
 
                         for tourn in tournaments:
-                            st.markdown(f"### {tourn}")
                             tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
                             models = sorted(tourn_data['Modelo'].unique())
 
+                            st.markdown(
+                                f"""
+                                <div class="pg-chart-cluster">
+                                  <div class="pg-chart-cluster__head">
+                                    <div>
+                                      <p class="pg-eyebrow">Campeonato</p>
+                                      <h4 style="margin:0;">{tourn}</h4>
+                                    </div>
+                                    <div class="pg-stats-tags">
+                                      <span class="pg-chip ghost">{len(models)} modelo(s)</span>
+                                      <span class="pg-chip ghost">Métricas múltiplas</span>
+                                    </div>
+                                  </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
                             for model in models:
-                                st.markdown(f"#### Modelo: {model}")
                                 model_data = tourn_data[tourn_data['Modelo'] == model]
 
                                 line_chart = alt.Chart(model_data).mark_line(point=True).encode(
                                     x=alt.X('Data:T', title='Dia'),
                                     y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])),
+                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])) ,
                                     tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
                                 ).properties(
                                     height=280
                                 )
-                                st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
+                                st.markdown(
+                                    f"""
+                                    <div class='pg-chart-card nested'>
+                                      <div class='pg-chart-card__title'>Modelo: {model}</div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
                                 st.altair_chart(line_chart, use_container_width=True)
                                 st.markdown("</div>", unsafe_allow_html=True)
+
+                            st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
-                    st.markdown("</div>", unsafe_allow_html=True)
-
+                    st.markdown("</div></div>", unsafe_allow_html=True)
                     # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
                     st.subheader("Melhor Modelo por Campeonato e Mercado")
