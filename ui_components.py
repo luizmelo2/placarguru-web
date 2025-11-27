@@ -11,12 +11,42 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
+GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
 
 
 HIGHLIGHT_PROB_THRESHOLD = 0.60
 HIGHLIGHT_ODD_THRESHOLD = 1.20
+
+
+def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
+    """Renderiza uma tabela interativa com visual glassy e ordenação por cabeçalho.
+
+    show_index: força a exibição do índice. Quando None, ativa para índices nomeados
+    ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
+    """
+
+    if df is None or df.empty:
+        st.info("Sem dados para exibir.")
+        return
+
+    df_to_render = df.copy()
+    if show_index is None:
+        show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
+
+    if show_index and not df_to_render.index.name:
+        df_to_render.index.name = ""
+
+    with st.container():
+        st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
+        st.dataframe(
+            df_to_render,
+            use_container_width=True,
+            hide_index=not show_index,
+        )
+        if caption:
+            st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def is_guru_highlight(row: pd.Series) -> bool:
@@ -128,6 +158,8 @@ def filtros_ui(
     tournaments_sel_external: Optional[List] = None
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
+    st.session_state.setdefault("pg_filters_open", True)
+    st.session_state.setdefault("pg_filters_cache", {})
     # --- 1. Extração de Opções ---
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
     team_opts = sorted(pd.concat([df["home"], df["away"]]).dropna().astype(str).unique()) if _exists(df, "home", "away") else []
@@ -146,17 +178,65 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
-    # --- 3. Renderização da UI ---
-    target = st.sidebar if not modo_mobile else st
-    container = target.expander("🔎 Filtros", expanded=not modo_mobile)
+    # --- 3. Renderização da UI (card com opção de ocultar) ---
+    # Mantém no fluxo principal, mas permite recolher para ganhar espaço
+    with st.container():
+        st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
+        hcol1, hcol2 = st.columns([3.4, 1.2])
+        with hcol1:
+            st.markdown(
+                """
+                <div class="pg-filter-header">
+                  <div>
+                    <p class="pg-eyebrow">Filtros principais</p>
+                    <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with hcol2:
+            st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar</div>", unsafe_allow_html=True)
+            st.toggle(
+                "Exibir filtros",
+                key="pg_filters_open",
+                value=st.session_state.get("pg_filters_open", True),
+            )
 
-    models_sel = _render_filtros_modelos(container, model_opts, default_models, modo_mobile)
-    teams_sel, q_team = _render_filtros_equipes(
-        container, team_opts, modo_mobile, tournaments_sel_external
-    )
-    bet_sel, goal_sel = _render_filtros_sugestoes(container, bet_opts, goal_opts)
-    selected_date_range = _render_filtros_periodo(container, min_date, max_date)
-    sel_h, sel_d, sel_a = _render_filtros_odds(container, df)
+        if st.session_state.get("pg_filters_open", True):
+            models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
+            teams_sel, q_team = _render_filtros_equipes(
+                st, team_opts, modo_mobile, tournaments_sel_external
+            )
+            bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
+            selected_date_range = _render_filtros_periodo(st, min_date, max_date)
+            sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
+
+            st.session_state.pg_filters_cache = {
+                "models_sel": models_sel,
+                "teams_sel": teams_sel,
+                "q_team": q_team,
+                "bet_sel": bet_sel,
+                "goal_sel": goal_sel,
+                "selected_date_range": selected_date_range,
+                "sel_h": sel_h,
+                "sel_d": sel_d,
+                "sel_a": sel_a,
+            }
+        else:
+            cache = st.session_state.get("pg_filters_cache", {})
+            models_sel = cache.get("models_sel", default_models)
+            teams_sel = cache.get("teams_sel", [])
+            q_team = cache.get("q_team", "")
+            bet_sel = cache.get("bet_sel", [])
+            goal_sel = cache.get("goal_sel", [])
+            selected_date_range = cache.get("selected_date_range", ())
+            sel_h = cache.get("sel_h", None)
+            sel_d = cache.get("sel_d", None)
+            sel_a = cache.get("sel_a", None)
+            st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Ative o toggle para ajustar.</div>", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # --- 4. Sincronização e Retorno ---
     try:
@@ -244,56 +324,76 @@ def _compact_html(html: str) -> str:
         if line.strip()
     )
 
-def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
-    """Renderiza a seção de 'Over/Under' dentro do expander."""
-    st.markdown("---")
-    st.markdown("**Over/Under (Prob. — Odd)**")
+def _build_over_under_lists(row: pd.Series, df: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """Gera listas com os mercados under/over disponíveis para renderização em HTML."""
 
-    under_lines = []
+    under_lines, over_lines = [], []
+
     for v in GOAL_MARKET_THRESHOLDS:
-        prob_key = f"prob_under_{str(v).replace('.', '_')}"
-        odd_key = f"odds_match_goals_{v}_under"
-        if _exists(df, prob_key):
-            under_lines.append(f"- **Under {v}:** {_po(row, prob_key, odd_key)}")
-    if under_lines:
-        st.markdown("\n".join(under_lines), unsafe_allow_html=True)
+        prob_key_under = f"prob_under_{str(v).replace('.', '_')}"
+        odd_key_under = f"odds_match_goals_{v}_under"
+        if _exists(df, prob_key_under):
+            under_lines.append(f"<li><strong>Under {v}:</strong> {_po(row, prob_key_under, odd_key_under)}</li>")
 
-    over_lines = []
-    for v in GOAL_MARKET_THRESHOLDS:
-        prob_key = f"prob_over_{str(v).replace('.', '_')}"
-        odd_key = f"odds_match_goals_{v}_over"
-        if _exists(df, prob_key):
-            over_lines.append(f"- **Over {v}:** {_po(row, prob_key, odd_key)}")
-    if over_lines:
-        st.markdown("\n".join(over_lines), unsafe_allow_html=True)
+        prob_key_over = f"prob_over_{str(v).replace('.', '_')}"
+        odd_key_over = f"odds_match_goals_{v}_over"
+        if _exists(df, prob_key_over):
+            over_lines.append(f"<li><strong>Over {v}:</strong> {_po(row, prob_key_over, odd_key_over)}</li>")
 
-def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
-    """Renderiza o conteúdo dentro do st.expander para a visualização em lista."""
-    with st.expander("Detalhes, Probabilidades & Odds"):
-        # Seção 1: Sugestões e Probabilidades 1x2
-        st.markdown(
-            f"""
-            - **Sugestão:** {green_html(data["aposta_txt"])} {data["badge_bet"]}
-            - **Sugestão de Gols:** {green_html(data["gols_txt"])} {data["badge_goal"]}
-            - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / \
-                {green_html(fmt_odd(row.get('odds_D')))} / \
-                {green_html(fmt_odd(row.get('odds_A')))}
-            - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / \
-                {green_html(fmt_prob(row.get('prob_D')))} / \
-                {green_html(fmt_prob(row.get('prob_A')))}
-            """,
-            unsafe_allow_html=True
+    return under_lines, over_lines
+
+
+def _build_details_html(row: pd.Series, data: dict, df: pd.DataFrame) -> str:
+    """Monta o HTML do bloco de "Detalhes" dentro do card, evitando expanders externos."""
+
+    under_lines, over_lines = _build_over_under_lists(row, df)
+    under_html = "".join(under_lines)
+    over_html = "".join(over_lines)
+
+    btts_html = ""
+    if _exists(df, "prob_btts_yes", "prob_btts_no"):
+        btts_html = """
+        <div class="pg-details-block">
+          <div class="pg-details-subtitle">BTTS (Prob. — Odd)</div>
+          <ul class="pg-details-list">
+            <li><strong>Ambos marcam — Sim:</strong> {btts_yes}</li>
+            <li><strong>Ambos marcam — Não:</strong> {btts_no}</li>
+          </ul>
+        </div>
+        """.format(
+            btts_yes=_po(row, "prob_btts_yes", "odds_btts_yes"),
+            btts_no=_po(row, "prob_btts_no", "odds_btts_no"),
         )
 
-        # Seção 2: Over/Under
-        _render_over_under_section(row, df)
+    details_html = f"""
+    <details class="pg-details" open>
+      <summary>
+        <span class="pg-details-title">Detalhes, Probabilidades & Odds</span>
+        <span class="pg-details-hint">Toque para abrir os mercados 1x2, O/U e BTTS</span>
+      </summary>
+      <div class="pg-details-body">
+        <div class="pg-details-block">
+          <div class="pg-details-subtitle">Sugestões e 1x2</div>
+          <ul class="pg-details-list">
+            <li><strong>Sugestão:</strong> {green_html(data['aposta_txt'])} {data['badge_bet']}</li>
+            <li><strong>Sugestão de Gols:</strong> {green_html(data['gols_txt'])} {data['badge_goal']}</li>
+            <li><strong>Odds 1x2:</strong> {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}</li>
+            <li><strong>Prob. (H/D/A):</strong> {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}</li>
+          </ul>
+        </div>
+        <div class="pg-details-block">
+          <div class="pg-details-subtitle">Over/Under (Prob. — Odd)</div>
+          <div class="pg-details-two-cols">
+            <ul class="pg-details-list">{under_html}</ul>
+            <ul class="pg-details-list">{over_html}</ul>
+          </div>
+        </div>
+        {btts_html}
+      </div>
+    </details>
+    """
 
-        # Seção 3: BTTS
-        if _exists(df, "prob_btts_yes", "prob_btts_no"):
-            st.markdown("---")
-            st.markdown("**BTTS (Prob. — Odd)**")
-            st.markdown(f"- **Ambos marcam — Sim:** {_po(row, 'prob_btts_yes', 'odds_btts_yes')}", unsafe_allow_html=True)
-            st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}", unsafe_allow_html=True)
+    return _compact_html(details_html)
 
 def display_list_view(df: pd.DataFrame):
     """Renderiza uma lista de jogos em formato de cards para visualização mobile."""
@@ -334,6 +434,8 @@ def display_list_view(df: pd.DataFrame):
                     cls = "badge-ok" if icon == "✅" else "badge-bad"
                     hit_badges.append(f"<span class='badge {cls}'>{icon} {label}</span>")
             hit_html = " ".join(hit_badges)
+
+            details_html = _build_details_html(row, data, df)
 
             card_html = _compact_html(
                 f"""
@@ -379,13 +481,13 @@ def display_list_view(df: pd.DataFrame):
                     {prob_odd_badge}
                     {hit_html}
                   </div>
+
+                  {details_html}
                 </div>
                 """
             )
 
             st.markdown(card_html, unsafe_allow_html=True)
-
-            _render_expander_details(row, data, df)
             st.write("")
 
 def filtros_analise_ui(df: pd.DataFrame) -> dict:
