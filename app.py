@@ -63,10 +63,10 @@ st.markdown(
         </div>
       </div>
       <div class="pg-topbar__nav">
-        <span class="pg-tab active">Dashboard</span>
+        <!--<span class="pg-tab active">Dashboard</span>
         <span class="pg-tab">Jogos</span>
         <span class="pg-tab">Modelos</span>
-        <span class="pg-tab">Configurações</span>
+        <span class="pg-tab">Configurações</span>-->
       </div>
       <div class="pg-topbar__actions">
         <span class="pg-chip">Insights preditivos em tempo real</span>
