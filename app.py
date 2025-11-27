@@ -897,6 +897,7 @@ try:
                         
                         best_panel_tpl = Template(
                             """
+                            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.13.6/css/jquery.dataTables.min.css" />
                             <style>
                               :root {
                                 --bg: ${bg};
@@ -925,10 +926,10 @@ try:
                               .pg-best-panel .pg-table-block { padding:12px; background: color-mix(in srgb, var(--panel) 94%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius:14px; box-shadow: 0 6px 36px color-mix(in srgb, var(--shadow) 14%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) inset; }
                               .pg-best-panel .pg-table-block h5 { color: var(--text); }
                               .pg-best-panel .dataTables_wrapper { background: color-mix(in srgb, var(--panel) 94%, transparent); padding: 6px; border-radius: 14px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent); }
-                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; background: color-mix(in srgb, var(--panel) 97%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
+                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; background: color-mix(in srgb, var(--panel) 97%, transparent) !important; border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent) !important; border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
                               .pg-best-panel table.dataTable thead th { background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 78%, transparent)) !important; color: var(--text-strong) !important; font-weight:700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; cursor:pointer; }
-                              .pg-best-panel table.dataTable tbody tr.pg-row-odd { background: color-mix(in srgb, var(--panel) 96%, transparent); }
-                              .pg-best-panel table.dataTable tbody tr.pg-row-even { background: color-mix(in srgb, var(--panel) 92%, transparent); }
+                              .pg-best-panel table.dataTable tbody tr.pg-row-odd { background: color-mix(in srgb, var(--panel) 96%, transparent) !important; }
+                              .pg-best-panel table.dataTable tbody tr.pg-row-even { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; }
                               .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)) !important; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
                               .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px !important; color: var(--text) !important; border:none !important; }
                               .pg-best-panel .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%,transparent); }
@@ -960,7 +961,6 @@ try:
                                 </div>
                               </div>
                             </div>
-                            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.13.6/css/jquery.dataTables.min.css" />
                             <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
                             <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
                             <script>
