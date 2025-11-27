@@ -309,6 +309,50 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-pill .label { color: var(--muted); font-size: 12px; }
   .pg-pill .value { font-weight: 700; font-size: 1.05rem; }
 
+  /* Detalhes dentro do card (substitui o expander solto) */
+  .pg-details {
+    margin-top: 12px;
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 98%, transparent));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    overflow: hidden;
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+  .pg-details[open] { box-shadow: 0 10px 36px rgba(37,99,235,0.14); transform: translateY(-1px); }
+  .pg-details summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+  .pg-details summary::-webkit-details-marker { display: none; }
+  .pg-details summary:after {
+    content: "⇵";
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform 160ms ease;
+  }
+  .pg-details[open] summary:after { transform: rotate(180deg); }
+  .pg-details-title { font-weight: 800; letter-spacing: -0.01em; }
+  .pg-details-hint { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .pg-details-body { padding: 0 14px 14px; display: grid; gap: 12px; }
+  .pg-details-block {
+    border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .pg-details-subtitle { font-weight: 800; color: var(--text-strong); margin-bottom: 6px; font-size: 0.95rem; }
+  .pg-details-list { margin: 0; padding-left: 16px; color: var(--text); display: grid; gap: 4px; }
+  .pg-details-two-cols { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
     /* Data cards (tabelas) com visual do protótipo Tailwind */
   .pg-table-card {
     border: 1px solid var(--stroke);
