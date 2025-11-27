@@ -78,12 +78,12 @@ def _render_filtros_modelos(container, model_opts: list, default_models: list, m
     col = container.columns(1)[0] if modo_mobile else container.columns(2)[0]
     return col.multiselect(FRIENDLY_COLS["model"], model_opts, default=default_models)
 
-def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel_external: Optional[List]):
+def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel: Optional[List]):
     """Renderiza os filtros de equipes e a busca rápida."""
     c1, c2 = container.columns(2)
     with c1:
         # Apenas para alinhar com o seletor de equipes
-        st.write(f"**{len(tournaments_sel_external or []):d} torneios selecionados**")
+        st.write(f"**{len(tournaments_sel or []):d} torneios selecionados**")
 
     teams_sel = c2.multiselect(
         "Equipe (Casa ou Visitante)", team_opts,
@@ -155,7 +155,6 @@ def _render_filtros_odds(container, df: pd.DataFrame):
 
 def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
-    tournaments_sel_external: Optional[List] = None
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
     # Mantém o controle dos filtros no menu lateral esquerdo, oculto por padrão
@@ -163,6 +162,7 @@ def filtros_ui(
     st.session_state.setdefault("pg_filters_cache", {})
     # --- 1. Extração de Opções ---
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
+    tourn_opts = sorted(df["tournament_id"].dropna().unique()) if "tournament_id" in df.columns else []
     team_opts = sorted(pd.concat([df["home"], df["away"]]).dropna().astype(str).unique()) if _exists(df, "home", "away") else []
     bet_opts = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
     goal_opts = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
@@ -178,6 +178,16 @@ def filtros_ui(
 
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
+
+    # controle de campeonatos no sidebar
+    st.session_state.setdefault("sel_tournaments", list(tourn_opts))
+    # mantém apenas válidos
+    valid_sel = [t for t in st.session_state.sel_tournaments if t in tourn_opts]
+    if valid_sel != st.session_state.sel_tournaments:
+        st.session_state.sel_tournaments = valid_sel
+    if not st.session_state.sel_tournaments and tourn_opts:
+        st.session_state.sel_tournaments = list(tourn_opts)
+    tournaments_sel = list(st.session_state.sel_tournaments)
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -201,15 +211,36 @@ def filtros_ui(
         )
 
         if st.session_state.get("pg_filters_open", False):
+            st.markdown("<div class='pg-filter-section'><p class='pg-eyebrow'>Campeonatos</p>", unsafe_allow_html=True)
+            csel_all, cclear = st.columns(2)
+            with csel_all:
+                if st.button("Selecionar Todos", use_container_width=True, key="btn_sel_all_tourn"):
+                    st.session_state.sel_tournaments = list(tourn_opts)
+                    tournaments_sel = list(tourn_opts)
+            with cclear:
+                if st.button("Limpar", use_container_width=True, key="btn_clear_tourn"):
+                    st.session_state.sel_tournaments = []
+                    tournaments_sel = []
+
+            st.multiselect(
+                label="Selecione campeonatos",
+                options=tourn_opts,
+                key="sel_tournaments",
+                format_func=tournament_label,
+                placeholder="Escolha um ou mais campeonatos...",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
             models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
             teams_sel, q_team = _render_filtros_equipes(
-                st, team_opts, modo_mobile, tournaments_sel_external
+                st, team_opts, modo_mobile, tournaments_sel
             )
             bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
             selected_date_range = _render_filtros_periodo(st, min_date, max_date)
             sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
 
             st.session_state.pg_filters_cache = {
+                "tournaments_sel": tournaments_sel,
                 "models_sel": models_sel,
                 "teams_sel": teams_sel,
                 "q_team": q_team,
@@ -222,6 +253,7 @@ def filtros_ui(
             }
         else:
             cache = st.session_state.get("pg_filters_cache", {})
+            tournaments_sel = cache.get("tournaments_sel", tournaments_sel)
             models_sel = cache.get("models_sel", default_models)
             teams_sel = cache.get("teams_sel", [])
             q_team = cache.get("q_team", "")
@@ -242,14 +274,14 @@ def filtros_ui(
         pass  # Pode falhar em alguns contextos de execução
 
     return {
-        "tournaments_sel": tournaments_sel_external or [],
+        "tournaments_sel": tournaments_sel,
         "models_sel": models_sel,
         "teams_sel": teams_sel,
         "bet_sel": bet_sel,
         "goal_sel": goal_sel,
         "selected_date_range": selected_date_range,
         "sel_h": sel_h, "sel_d": sel_d, "sel_a": sel_a,
-        "q_team": q_team
+        "q_team": q_team,
     }
 
 
