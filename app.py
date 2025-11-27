@@ -610,7 +610,9 @@ try:
                                     background=chart_theme.get("plot_bg", "transparent"),
                                 )
 
-                                spec = line_chart.to_dict()
+                                # Usa a serialização JSON do Altair para evitar objetos datetime
+                                # não serializáveis (Timestamp/date) ao montar o embed no front-end.
+                                spec = json.loads(line_chart.to_json())
                                 chart_id = f"pg-chart-{chart_idx}"
                                 chart_idx += 1
                                 chart_entries.append({
