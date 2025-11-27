@@ -167,6 +167,14 @@ def filtros_ui(
     bet_opts = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
     goal_opts = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
 
+    def _odds_default(col: str, default: tuple[float, float] = (0.0, 1.0)) -> tuple[float, float]:
+        """Retorna o range padrão para a coluna de odds quando o filtro está oculto."""
+        if col in df.columns:
+            s = df[col].dropna()
+            if not s.empty:
+                return (float(s.min()), float(s.max()))
+        return default
+
     # --- 2. Lógica de Defaults ---
     default_models = []
     if model_opts:
@@ -260,9 +268,15 @@ def filtros_ui(
             bet_sel = cache.get("bet_sel", [])
             goal_sel = cache.get("goal_sel", [])
             selected_date_range = cache.get("selected_date_range", ())
-            sel_h = cache.get("sel_h", None)
-            sel_d = cache.get("sel_d", None)
-            sel_a = cache.get("sel_a", None)
+            sel_h = cache.get("sel_h")
+            sel_d = cache.get("sel_d")
+            sel_a = cache.get("sel_a")
+            if sel_h is None:
+                sel_h = _odds_default("odds_H")
+            if sel_d is None:
+                sel_d = _odds_default("odds_D")
+            if sel_a is None:
+                sel_a = _odds_default("odds_A")
             st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Use o toggle acima para ajustar.</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
