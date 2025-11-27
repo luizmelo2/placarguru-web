@@ -232,25 +232,49 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
 
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Cria uma tabela resumo (pivot) mostrando o melhor modelo e sua taxa de acerto.
+    Cria um resumo por mercado exibindo o modelo mais frequente, a taxa média
+    de acerto, o volume de jogos avaliados e a lista de campeonatos cobertos.
+    Mantém a coluna "Mercado de Aposta" visível para evitar perda de contexto
+    na renderização.
     """
+
     if best_model_df.empty:
         return pd.DataFrame()
 
-    # Cria uma nova coluna combinando o modelo e a taxa de acerto
     df_copy = best_model_df.copy()
-    df_copy['display_value'] = df_copy.apply(
-        lambda row: f"{row['Melhor Modelo']} ({row['Taxa de Acerto (%)']:.1f}%)", axis=1
+    grouped = df_copy.groupby("Mercado de Aposta")
+
+    def _mode_or_first(series: pd.Series) -> str:
+        modes = series.mode()
+        return modes.iloc[0] if not modes.empty else series.iloc[0]
+
+    summary = grouped.agg(
+        {
+            "Melhor Modelo": _mode_or_first,
+            "Taxa de Acerto (%)": "mean",
+            "Total de Jogos Avaliados": "sum",
+            "Campeonato": lambda s: ", ".join(sorted(set(map(str, s))))
+        }
+    ).reset_index()
+
+    summary = summary.rename(
+        columns={
+            "Melhor Modelo": "Modelo campeão",
+            "Taxa de Acerto (%)": "Taxa média (%)",
+            "Total de Jogos Avaliados": "Jogos avaliados",
+            "Campeonato": "Campeonatos"
+        }
     )
 
-    pivot_df = df_copy.pivot_table(
-        index='Campeonato',
-        columns='Mercado de Aposta',
-        values='display_value',
-        aggfunc='first'
-    ).fillna('-')
+    summary["Taxa média (%)"] = summary["Taxa média (%)"].round(2)
 
-    return pivot_df
+    return summary[[
+        "Mercado de Aposta",
+        "Modelo campeão",
+        "Taxa média (%)",
+        "Jogos avaliados",
+        "Campeonatos",
+    ]]
 
 def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optional[List[str]] = None) -> pd.Series:
     """Encontra a melhor aposta para uma linha de dados, considerando os mercados especificados."""
