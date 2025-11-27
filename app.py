@@ -6,6 +6,7 @@ import pandas as pd
 import altair as alt
 from datetime import timedelta, date, datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
+from string import Template
 
 # --- novos imports para baixar a release e controlar cache/tempo ---
 from email.utils import parsedate_to_datetime
@@ -574,7 +575,58 @@ try:
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
                     if not accuracy_data.empty:
                         tournaments = sorted(accuracy_data['Campeonato'].unique())
+                        muted = "#94a3b8" if dark_mode else "#475569"
+                        shadow = "0 18px 48px rgba(0,0,0,0.35)" if dark_mode else "0 18px 48px rgba(0,0,0,0.12)"
+
+                        panel_style_tpl = Template(
+                            """
+                            <style>
+                              :root {
+                                --bg: ${bg};
+                                --panel: ${panel};
+                                --stroke: ${stroke};
+                                --text: ${text};
+                                --muted: ${muted};
+                                --primary: ${primary};
+                                --primary-2: ${primary2};
+                                --shadow: ${shadow};
+                              }
+                              body { margin:0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+                              .pg-stats-panel { border: 1px solid var(--stroke); border-radius: 16px; padding: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
+                              .pg-stats-header { display:flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+                              .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
+                              .pg-eyebrow { margin:0; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color: var(--muted); }
+                              .pg-stats-tags { display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+                              .pg-chip { border-radius: 999px; padding: 6px 10px; font-weight: 700; border: 1px solid var(--stroke); color: var(--text); background: color-mix(in srgb, var(--panel) 90%, transparent); }
+                              .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); }
+                              .pg-chart-grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
+                              @media (min-width: 1000px) { .pg-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+                              .pg-chart-cluster { border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent); border-radius: 16px; padding: 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
+                              .pg-chart-cluster__head { display:flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+                              .pg-chart-card { border: 1px solid var(--stroke); border-radius: 18px; padding: 10px 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent)); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+                              .pg-chart-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 32%); pointer-events: none; opacity: 0.8; }
+                              .pg-chart-card > * { position: relative; z-index: 1; }
+                              .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
+                              .pg-chart-card .vega-embed { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.08); padding: 8px; }
+                              .vega-actions { display: none; }
+                              svg text { fill: var(--text); }
+                            </style>
+                            """
+                        )
+
+                        panel_style = panel_style_tpl.substitute(
+                            bg=chart_theme["background"],
+                            panel=chart_theme["panel"],
+                            stroke=chart_theme["stroke"],
+                            text=chart_theme["text"],
+                            muted=muted,
+                            primary=chart_theme["accent"],
+                            primary2=chart_theme["palette"][1],
+                            shadow=shadow,
+                        )
+
                         panel_parts = [
+                            panel_style,
                             """
                             <div class='pg-stats-panel'>
                               <div class=\"pg-stats-header\">
