@@ -570,10 +570,10 @@ try:
                         st.markdown("</div>", unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    # --- Gráficos de linha de acurácia por dia (todos aninhados dentro da sessão) ---
+                    # --- Gráficos de linha de acurácia por dia (todos aninhados dentro da sessão, sem iframe para preservar o estilo) ---
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
-                    # Painel único com grid aninhado; renderizado via components.html para manter tudo dentro do container
-                    panel_header = """
+                    st.markdown(
+                        """
                         <div class='pg-stats-panel'>
                           <div class="pg-stats-header">
                             <div>
@@ -587,52 +587,18 @@ try:
                             </div>
                           </div>
                           <div class='pg-chart-grid nested'>
-                    """
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
                     if not accuracy_data.empty:
                         tournaments = sorted(accuracy_data['Campeonato'].unique())
-                        cols_per_row = 1 if modo_mobile else 2
-                        chart_entries = []
-                        clusters_html = []
-                        chart_idx = 0
 
                         for tourn in tournaments:
                             tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
                             models = sorted(tourn_data['Modelo'].unique())
 
-                            model_blocks = []
-                            for model in models:
-                                model_data = tourn_data[tourn_data['Modelo'] == model]
-                                line_chart = alt.Chart(model_data).mark_line(point=True).encode(
-                                    x=alt.X('Data:T', title='Dia'),
-                                    y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])) ,
-                                    tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
-                                ).properties(
-                                    height=240 if modo_mobile else 280,
-                                    background=chart_theme.get("plot_bg", "transparent"),
-                                )
-
-                                # Usa a serialização JSON do Altair para evitar objetos datetime
-                                # não serializáveis (Timestamp/date) ao montar o embed no front-end.
-                                spec_json = line_chart.to_json()
-                                chart_id = f"pg-chart-{chart_idx}"
-                                chart_idx += 1
-                                chart_entries.append({
-                                    "id": chart_id,
-                                    "spec": spec_json,
-                                })
-
-                                model_blocks.append(
-                                    f"""
-                                      <div class='pg-chart-card nested'>
-                                        <div class='pg-chart-card__title'>Modelo: {model}</div>
-                                        <div id="{chart_id}" class="pg-chart-slot"></div>
-                                      </div>
-                                    """
-                                )
-
-                            clusters_html.append(
+                            st.markdown(
                                 f"""
                                   <div class="pg-chart-cluster">
                                     <div class="pg-chart-cluster__head">
@@ -645,42 +611,37 @@ try:
                                         <span class="pg-chip ghost">Métricas múltiplas</span>
                                       </div>
                                     </div>
-                                    {''.join(model_blocks)}
-                                  </div>
-                                """
+                                """,
+                                unsafe_allow_html=True,
                             )
 
-                        panel_body = "".join(clusters_html)
-                        panel_footer = """
-                          </div>
-                        </div>
-                        """
-                        embed_script = f"""
-                        <script src=\"https://cdn.jsdelivr.net/npm/vega@5\"></script>
-                        <script src=\"https://cdn.jsdelivr.net/npm/vega-lite@5\"></script>
-                        <script src=\"https://cdn.jsdelivr.net/npm/vega-embed@6\"></script>
-                        <script>
-                          const charts = {json.dumps(chart_entries)};
-                          charts.forEach(({{id, spec}}) => {{
-                            const parsedSpec = typeof spec === 'string' ? JSON.parse(spec) : spec;
-                            vegaEmbed('#' + id, parsedSpec, {{actions: false}});
-                          }});
-                        </script>
-                        """
-                        # Altura aproximada: cabeçalho + clusters (2 cards por linha em desktop)
-                        rows = max(1, (len(tournaments) + cols_per_row - 1) // cols_per_row)
-                        avg_models = max(1, len(chart_entries) / max(len(tournaments), 1))
-                        per_cluster = (260 if modo_mobile else 320) * avg_models + 100
-                        height = int(240 + rows * per_cluster)
-                        height = max(800, min(2200, height))
+                            for model in models:
+                                model_data = tourn_data[tourn_data['Modelo'] == model]
+                                line_chart = alt.Chart(model_data).mark_line(point=True).encode(
+                                    x=alt.X('Data:T', title='Dia'),
+                                    y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
+                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])) ,
+                                    tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                                ).properties(
+                                    height=240 if modo_mobile else 280,
+                                    background=chart_theme.get("plot_bg", "transparent"),
+                                )
 
-                        components.html(
-                            panel_header + panel_body + panel_footer + embed_script,
-                            height=height,
-                            scrolling=True,
-                        )
+                                st.markdown(
+                                    f"""
+                                      <div class='pg-chart-card nested'>
+                                        <div class='pg-chart-card__title'>Modelo: {model}</div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                                st.altair_chart(line_chart, use_container_width=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                            st.markdown("</div>", unsafe_allow_html=True)
+
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                     else:
-                        st.markdown(panel_header + "</div></div>", unsafe_allow_html=True)
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
                     # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
