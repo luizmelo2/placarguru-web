@@ -76,7 +76,7 @@ with col_m2:
     )
 
 from reporting import generate_pdf_report
-from ui_components import filtros_ui, display_list_view, is_guru_highlight
+from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 # ============================
 # Exibição amigável
@@ -369,9 +369,9 @@ try:
                             "result_home", "result_away"
                         ]
                         existing_cols = [c for c in cols_to_show if c in df_ag.columns]
-                        st.dataframe(
+                        render_glassy_table(
                             apply_friendly_for_display(df_ag[existing_cols]),
-                            use_container_width=True, hide_index=True
+                            caption="Jogos agendados",
                         )
 
             else:
@@ -390,9 +390,9 @@ try:
                                 "result_home", "result_away"
                             ]
                             existing_cols = [c for c in cols_to_show if c in df_fin.columns]
-                            st.dataframe(
+                            render_glassy_table(
                                 apply_friendly_for_display(df_fin[existing_cols]),
-                                use_container_width=True, hide_index=True
+                                caption="Jogos finalizados",
                             )
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
@@ -413,7 +413,7 @@ try:
 
                     if multi_model:
                         st.subheader("Percentual de acerto por modelo (apenas finalizados)")
-                        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+                        render_glassy_table(metrics_df, caption="Acurácia por modelo")
 
                         # Gráfico de barras agrupadas por modelo
                         if not metrics_df.empty:
@@ -440,7 +440,9 @@ try:
                                     color=alt.Color('Modelo:N', scale=alt.Scale(range=chart_theme["palette"]))
                                 )
                             )
+                            st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
                             st.altair_chart(chart + text, use_container_width=True)
+                            st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.subheader("Percentual de acerto (apenas finalizados)")
 
@@ -470,7 +472,9 @@ try:
                             y='Acerto (%):Q',
                             text=alt.Text('Acerto (%):Q', format='.1f')
                         )
+                        st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
                         st.altair_chart(chart + text, use_container_width=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
 
                     # --- Gráficos de linha de acurácia por dia (um para cada campeonato e modelo) ---
                     st.subheader("Desempenho Diário por Campeonato e Métrica")
@@ -497,7 +501,9 @@ try:
                                 ).properties(
                                     height=280
                                 )
+                                st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
                                 st.altair_chart(line_chart, use_container_width=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
@@ -505,11 +511,11 @@ try:
                     st.subheader("Melhor Modelo por Campeonato e Mercado")
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
-                        st.dataframe(best_model_data, use_container_width=True, hide_index=True)
+                        render_glassy_table(best_model_data, caption="Melhor modelo por campeonato e mercado")
 
                         st.subheader("Resumo do Melhor Modelo por Mercado")
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
-                        st.dataframe(summary_pivot_table, use_container_width=True, hide_index=True)
+                        render_glassy_table(summary_pivot_table, caption="Resumo por mercado")
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 

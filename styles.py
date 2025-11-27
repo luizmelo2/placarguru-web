@@ -227,70 +227,72 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-pill .label { color: var(--muted); font-size: 12px; }
   .pg-pill .value { font-weight: 700; font-size: 1.05rem; }
 
-  /* Data cards (tabelas) com visual do protótipo Tailwind */
-  div[data-testid="stDataFrameContainer"] table, div[data-testid="stTable"] table {
+    /* Data cards (tabelas) com visual do protótipo Tailwind */
+  .pg-table-card {
+    border: 1px solid var(--stroke);
+    border-radius: 18px;
+    padding: 8px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 96%, transparent));
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+  }
+  .pg-table {
+    width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    width: 100%;
-    background: color-mix(in srgb, var(--panel) 92%, transparent);
-    border: 1px solid var(--stroke);
-    border-radius: 16px;
     overflow: hidden;
-    box-shadow: var(--shadow);
+    border-radius: 14px;
   }
-  div[data-testid="stDataFrameContainer"], div[data-testid="stTable"] {
-    border-radius: 16px;
-    overflow: hidden;
+  .pg-table thead tr {
+    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 82%, transparent), color-mix(in srgb, var(--panel) 95%, transparent));
   }
-  div[data-testid="stDataFrameContainer"] thead tr, div[data-testid="stTable"] thead tr {
-    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent));
-    color: var(--text);
-  }
-  div[data-testid="stDataFrameContainer"] thead th, div[data-testid="stTable"] thead th {
-    padding: 12px;
+  .pg-table thead th {
+    padding: 12px 14px;
     font-weight: 800;
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--muted);
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
   }
-  div[data-testid="stDataFrameContainer"] tbody tr, div[data-testid="stTable"] tbody tr {
+  .pg-table tbody tr {
     transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
   }
-  div[data-testid="stDataFrameContainer"] tbody tr:nth-child(odd), div[data-testid="stTable"] tbody tr:nth-child(odd) {
-    background: color-mix(in srgb, var(--panel) 96%, transparent);
-  }
-  div[data-testid="stDataFrameContainer"] tbody tr:hover, div[data-testid="stTable"] tbody tr:hover {
+  .pg-table tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--panel) 96%, transparent); }
+  .pg-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 92%, transparent); }
+  .pg-table tbody tr:hover {
     background: color-mix(in srgb, var(--primary) 12%, var(--panel));
     transform: translateY(-1px);
     box-shadow: 0 10px 32px rgba(37,99,235,0.14);
   }
-  div[data-testid="stDataFrameContainer"] td, div[data-testid="stTable"] td {
-    padding: 11px 12px;
-    border-right: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
+  .pg-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 72%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--stroke) 60%, transparent);
     color: var(--text);
   }
-  div[data-testid="stDataFrameContainer"] tbody tr td:first-child, div[data-testid="stTable"] tbody tr td:first-child {
-    font-weight: 700;
-    color: var(--text);
-  }
-  div[data-testid="stDataFrameContainer"] td:last-child, div[data-testid="stTable"] td:last-child { border-right: none; }
-  div[data-testid="stDataFrameContainer"] th:last-child, div[data-testid="stTable"] th:last-child { border-right: none; }
-  div[data-testid="stDataFrameContainer"] th, div[data-testid="stDataFrameContainer"] td, div[data-testid="stTable"] th, div[data-testid="stTable"] td {
-    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
-  }
-  div[data-testid="stDataFrameContainer"] tbody tr:last-child td, div[data-testid="stTable"] tbody tr:last-child td {
-    border-bottom: none;
-  }
+  .pg-table td:first-child { font-weight: 700; color: var(--text); }
+  .pg-table td:last-child { border-right: none; }
+  .pg-table tbody tr:last-child td { border-bottom: none; }
+  .pg-table-caption { margin-top: 8px; color: var(--muted); font-size: 13px; }
 
   /* Moldura para gráficos Altair */
-  .vega-embed {
-    background: color-mix(in srgb, var(--panel) 90%, transparent) !important;
+  .pg-chart-card {
     border: 1px solid var(--stroke);
-    border-radius: 16px;
+    border-radius: 18px;
+    padding: 10px 12px;
+    background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent));
     box-shadow: var(--shadow);
+    margin-bottom: 14px;
+  }
+  .pg-chart-card .vega-embed {
+    background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.08);
     padding: 8px;
   }
+
 
   .info-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 0.8rem; margin-top: 0.25rem; }
   @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; gap: 0.25rem; } }
