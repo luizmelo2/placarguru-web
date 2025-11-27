@@ -19,17 +19,29 @@ HIGHLIGHT_PROB_THRESHOLD = 0.60
 HIGHLIGHT_ODD_THRESHOLD = 1.20
 
 
-def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None):
-    """Renderiza uma tabela em HTML com o visual glassy do protótipo."""
+def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
+    """Renderiza uma tabela em HTML com o visual glassy do protótipo.
+
+    show_index: força a exibição do índice. Quando None, ativa para índices nomeados
+    ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
+    """
 
     if df is None or df.empty:
         st.info("Sem dados para exibir.")
         return
 
-    table_html = df.to_html(
+    df_to_render = df.copy()
+    # Detecta automaticamente quando o índice contém informação relevante
+    if show_index is None:
+        show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
+
+    if show_index and not df_to_render.index.name:
+        df_to_render.index.name = ""
+
+    table_html = df_to_render.to_html(
         classes="pg-table",
         border=0,
-        index=False,
+        index=show_index,
         escape=False,
     )
 

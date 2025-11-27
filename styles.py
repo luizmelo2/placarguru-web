@@ -370,6 +370,7 @@ def chart_tokens(dark_mode: bool):
             "stroke": "#1f2937",
             "text": "#e2e8f0",
             "grid": "#1f2a3c",
+            "grid_soft": "#13233a",
             "palette": [
                 "#60a5fa",
                 "#22d3ee",
@@ -387,6 +388,7 @@ def chart_tokens(dark_mode: bool):
         "stroke": "#e2e8f0",
         "text": "#0f172a",
         "grid": "#e2e8f0",
+        "grid_soft": "#f1f5f9",
         "palette": [
             "#2563eb",
             "#22d3ee",
@@ -408,19 +410,59 @@ def apply_altair_theme(dark_mode: bool = False):
     theme = {
         "config": {
             "background": tokens["background"],
-            "view": {"stroke": "transparent", "cornerRadius": 14, "fill": tokens["panel"]},
+            "view": {
+                "stroke": "transparent",
+                "cornerRadius": 14,
+                "fill": tokens["panel"],
+                "strokeWidth": 0
+            },
             "axis": {
                 "domainColor": tokens["stroke"],
-                "gridColor": tokens["grid"],
+                "gridColor": tokens["grid_soft"],
                 "labelColor": tokens["text"],
                 "titleColor": tokens["text"],
+                "gridOpacity": 0.8,
+                "tickColor": tokens["stroke"],
+                "labelPadding": 8,
             },
-            "legend": {"labelColor": tokens["text"], "titleColor": tokens["text"]},
-            "title": {"color": tokens["text"], "fontSize": 16, "fontWeight": 700},
+            "legend": {
+                "labelColor": tokens["text"],
+                "titleColor": tokens["text"],
+                "orient": "top",
+                "labelFontWeight": 600,
+                "padding": 10,
+                "cornerRadius": 10,
+                "fillColor": tokens["panel"],
+                "strokeColor": tokens["stroke"],
+            },
+            "title": {
+                "color": tokens["text"],
+                "fontSize": 16,
+                "fontWeight": 800,
+                "font": "Inter"
+            },
             "range": {
                 "category": tokens["palette"],
                 "ordinal": tokens["palette"],
                 "ramp": tokens["palette"],
+            },
+            "bar": {
+                "cornerRadiusTopLeft": 10,
+                "cornerRadiusTopRight": 10,
+                "cornerRadiusBottomLeft": 4,
+                "cornerRadiusBottomRight": 4,
+                "opacity": 0.92,
+                "stroke": tokens["stroke"],
+                "strokeWidth": 0.6,
+            },
+            "line": {"strokeWidth": 3, "point": True},
+            "area": {"opacity": 0.25},
+            "text": {"color": tokens["text"], "fontWeight": 700},
+            "point": {
+                "filled": True,
+                "fill": tokens["accent"],
+                "stroke": tokens["stroke"],
+                "size": 72
             },
         }
     }
