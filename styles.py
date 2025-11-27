@@ -353,6 +353,14 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-details-list { margin: 0; padding-left: 16px; color: var(--text); display: grid; gap: 4px; }
   .pg-details-two-cols { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
+  /* Accordions para os gráficos diários (similar ao card de jogo) */
+  .pg-chart-accordion { margin-top: 8px; border: 1px solid color-mix(in srgb, var(--stroke) 72%, transparent); }
+  .pg-chart-accordion summary { gap: 10px; }
+  .pg-chart-accordion summary > div:first-child { display: grid; gap: 4px; }
+  .pg-chart-accordion summary .pg-stats-tags { gap: 6px; }
+  .pg-chart-accordion .pg-details-body { padding-top: 6px; }
+  .pg-chart-accordion .pg-chart-grid { margin-top: 4px; }
+
     /* Data cards (tabelas) com visual do protótipo Tailwind */
   .pg-table-card {
     border: 1px solid var(--stroke);
