@@ -176,17 +176,32 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
-    # --- 3. Renderização da UI ---
+    # --- 3. Renderização da UI (card sempre visível, inspirado no protótipo) ---
     target = st.sidebar if not modo_mobile else st
-    container = target.expander("🔎 Filtros", expanded=not modo_mobile)
+    with target.container():
+        st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="pg-filter-header">
+              <div>
+                <p class="pg-eyebrow">Filtros principais</p>
+                <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
+              </div>
+              <span class="pg-chip ghost">Sempre visível • Mobile-first</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    models_sel = _render_filtros_modelos(container, model_opts, default_models, modo_mobile)
-    teams_sel, q_team = _render_filtros_equipes(
-        container, team_opts, modo_mobile, tournaments_sel_external
-    )
-    bet_sel, goal_sel = _render_filtros_sugestoes(container, bet_opts, goal_opts)
-    selected_date_range = _render_filtros_periodo(container, min_date, max_date)
-    sel_h, sel_d, sel_a = _render_filtros_odds(container, df)
+        models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
+        teams_sel, q_team = _render_filtros_equipes(
+            st, team_opts, modo_mobile, tournaments_sel_external
+        )
+        bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
+        selected_date_range = _render_filtros_periodo(st, min_date, max_date)
+        sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # --- 4. Sincronização e Retorno ---
     try:

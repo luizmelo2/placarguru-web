@@ -159,6 +159,34 @@ def inject_custom_css(dark_mode: bool = False):
     .pg-topbar__actions { width: 100%; }
   }
 
+  /* Filtros principais */
+  .pg-filter-shell {
+    background: color-mix(in srgb, var(--panel) 95%, transparent);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 14px 16px 4px 16px;
+    margin: 6px 0 14px 0;
+    backdrop-filter: blur(14px);
+  }
+  .pg-filter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .pg-filter-shell .streamlit-expanderHeader,
+  .pg-filter-shell label,
+  .pg-filter-shell p { color: var(--text) !important; }
+  .pg-filter-shell .stMultiSelect, .pg-filter-shell .stTextInput, .pg-filter-shell .stDateInput {
+    margin-bottom: 8px;
+  }
+  .pg-filter-shell [data-baseweb="slider"] {
+    margin-top: 6px;
+  }
+
   .pg-hero {
     border: 1px solid var(--stroke);
     border-radius: 18px;
