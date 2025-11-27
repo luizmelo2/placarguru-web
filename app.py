@@ -567,80 +567,111 @@ try:
                         st.markdown("</div>", unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    # --- Gráficos de linha de acurácia por dia (todos aninhados dentro da sessão, sem iframe para preservar o estilo) ---
+                                        # --- Gráficos de linha de acurácia por dia (aninhados no cartão de desempenho) ---
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
-                    st.markdown(
-                        """
-                        <div class='pg-stats-panel'>
-                          <div class="pg-stats-header">
-                            <div>
-                              <p class="pg-eyebrow">Desempenho Diário por Campeonato e Métrica</p>
-                              <h4 style="margin:0;">Evolução de acerto por torneio e modelo</h4>
-                              <p class="pg-stats-desc">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Linhas</span>
-                              <span class="pg-chip ghost">Interativo</span>
-                            </div>
-                          </div>
-                          <div class='pg-chart-grid nested'>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
                     if not accuracy_data.empty:
                         tournaments = sorted(accuracy_data['Campeonato'].unique())
+                        panel_parts = [
+                            """
+                            <div class='pg-stats-panel'>
+                              <div class=\"pg-stats-header\">
+                                <div>
+                                  <p class=\"pg-eyebrow\">Desempenho Diário por Campeonato e Métrica</p>
+                                  <h4 style=\"margin:0;\">Evolução de acerto por torneio e modelo</h4>
+                                  <p class=\"pg-stats-desc\">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
+                                </div>
+                                <div class=\"pg-stats-tags\">
+                                  <span class=\"pg-chip ghost\">Linhas</span>
+                                  <span class=\"pg-chip ghost\">Interativo</span>
+                                </div>
+                              </div>
+                              <div class='pg-chart-grid nested'>
+                            """
+                        ]
+
+                        render_queue = []
+                        chart_count = 0
+                        base_height = 420
 
                         for tourn in tournaments:
                             tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
                             models = sorted(tourn_data['Modelo'].unique())
 
-                            st.markdown(
+                            cluster_html = [
                                 f"""
-                                  <div class="pg-chart-cluster">
-                                    <div class="pg-chart-cluster__head">
-                                      <div>
-                                        <p class="pg-eyebrow">Campeonato</p>
-                                        <h4 style="margin:0;">{tourn}</h4>
-                                      </div>
-                                      <div class="pg-stats-tags">
-                                        <span class="pg-chip ghost">{len(models)} modelo(s)</span>
-                                        <span class="pg-chip ghost">Métricas múltiplas</span>
-                                      </div>
+                                <div class=\"pg-chart-cluster\">
+                                  <div class=\"pg-chart-cluster__head\">
+                                    <div>
+                                      <p class=\"pg-eyebrow\">Campeonato</p>
+                                      <h4 style=\\\"margin:0;\\\">{tourn}</h4>
                                     </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                                    <div class=\"pg-stats-tags\">
+                                      <span class=\"pg-chip ghost\">{len(models)} modelo(s)</span>
+                                      <span class=\"pg-chip ghost\">Métricas múltiplas</span>
+                                    </div>
+                                  </div>
+                                """
+                            ]
 
                             for model in models:
-                                model_data = tourn_data[tourn_data['Modelo'] == model]
-                                line_chart = alt.Chart(model_data).mark_line(point=True).encode(
-                                    x=alt.X('Data:T', title='Dia'),
-                                    y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                    color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])) ,
-                                    tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
-                                ).properties(
-                                    height=240 if modo_mobile else 280,
-                                    background=chart_theme.get("plot_bg", "transparent"),
-                                )
+                                model_data = tourn_data[tourn_data['Modelo'] == model].copy()
+                                model_data['Data'] = pd.to_datetime(model_data['Data']).dt.strftime('%Y-%m-%d')
+                                spec = (
+                                    alt.Chart(model_data)
+                                    .mark_line(point=True)
+                                    .encode(
+                                        x=alt.X('Data:T', title='Dia'),
+                                        y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
+                                        color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"])),
+                                        tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                                    )
+                                    .properties(
+                                        height=240 if modo_mobile else 280,
+                                        background=chart_theme.get("plot_bg", "transparent"),
+                                    )
+                                ).to_dict()
 
-                                st.markdown(
+                                chart_id = f"pg-chart-{chart_count}"
+                                chart_count += 1
+                                render_queue.append({"target": chart_id, "spec": spec})
+
+                                cluster_html.append(
                                     f"""
                                       <div class='pg-chart-card nested'>
                                         <div class='pg-chart-card__title'>Modelo: {model}</div>
-                                    """,
-                                    unsafe_allow_html=True,
+                                        <div id='{chart_id}' class='pg-vega-slot'></div>
+                                      </div>
+                                    """
                                 )
-                                st.altair_chart(line_chart, use_container_width=True)
-                                st.markdown("</div>", unsafe_allow_html=True)
 
-                            st.markdown("</div>", unsafe_allow_html=True)
+                            cluster_html.append("</div>")
+                            panel_parts.append("\n".join(cluster_html))
 
-                        st.markdown("</div></div>", unsafe_allow_html=True)
+                        panel_parts.append("</div></div>")
+
+                        script = f"""
+                          <script src=\\"https://cdn.jsdelivr.net/npm/vega@5\\"></script>
+                          <script src=\\"https://cdn.jsdelivr.net/npm/vega-lite@5\\"></script>
+                          <script src=\\"https://cdn.jsdelivr.net/npm/vega-embed@6\\"></script>
+                          <script>
+                            const renderQueue = {json.dumps(render_queue)};
+                            renderQueue.forEach(({target, spec}) => {{
+                              const host = document.getElementById(target);
+                              if (!host) return;
+                              vegaEmbed(host, spec, {{actions: false, renderer: 'svg'}}).then((res) => {{
+                                const card = host.closest('.pg-chart-card');
+                                if (card) card.classList.add('hydrated');
+                              }}).catch((err) => console.error('vega embed error', err));
+                            }});
+                          </script>
+                        """
+
+                        panel_html = "\n".join(panel_parts) + script
+                        estimated_height = base_height + chart_count * (300 if modo_mobile else 360)
+                        components.html(panel_html, height=estimated_height, scrolling=True)
                     else:
-                        st.markdown("</div></div>", unsafe_allow_html=True)
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
-                    # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
+# --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
                     st.subheader("Melhor Modelo por Campeonato e Mercado")
                     best_model_data = get_best_model_by_market(df_fin.copy())
