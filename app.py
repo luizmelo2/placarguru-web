@@ -623,49 +623,20 @@ try:
                         )
 
                         st.markdown(panel_style, unsafe_allow_html=True)
-                        st.markdown(
-                            """
-                            <div class='pg-stats-panel'>
-                              <div class="pg-stats-header">
-                                <div>
-                                  <p class="pg-eyebrow">Desempenho Diário por Campeonato e Métrica</p>
-                                  <h4 style="margin:0;">Evolução de acerto por torneio e modelo</h4>
-                                  <p class="pg-stats-desc">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
-                                </div>
-                                <div class="pg-stats-tags">
-                                  <span class="pg-chip ghost">Linhas</span>
-                                  <span class="pg-chip ghost">Interativo</span>
-                                </div>
-                              </div>
-                              <div class='pg-chart-grid nested'>
-                            """,
-                            unsafe_allow_html=True,
-                        )
 
-                        for tourn in tournaments:
+                        # Monta um único painel HTML com os gráficos em acordeões, renderizados via vega-embed
+                        panel_blocks = []
+                        embed_scripts = []
+
+                        for idx, tourn in enumerate(tournaments):
                             tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
                             models = sorted(tourn_data['Modelo'].unique())
 
-                            st.markdown(
-                                f"""
-                                <details class="pg-details pg-chart-accordion" open>
-                                  <summary>
-                                    <div>
-                                      <div class="pg-details-title">{tourn}</div>
-                                      <div class="pg-details-hint">Campeonato • {len(models)} modelo(s) • métricas múltiplas</div>
-                                    </div>
-                                    <div class="pg-stats-tags">
-                                      <span class="pg-chip ghost">{len(models)} modelo(s)</span>
-                                      <span class="pg-chip ghost">Diário</span>
-                                    </div>
-                                  </summary>
-                                  <div class="pg-details-body">
-                                    <div class="pg-chart-grid">
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                            chart_cards = []
+                            spec_list = []
+                            id_list = []
 
-                            for model in models:
+                            for m_idx, model in enumerate(models):
                                 model_data = tourn_data[tourn_data['Modelo'] == model].copy()
                                 model_data['Data'] = pd.to_datetime(model_data['Data']).dt.strftime('%Y-%m-%d')
                                 chart = (
@@ -684,26 +655,87 @@ try:
                                     )
                                 )
 
-                                st.markdown(
+                                slot_id = f"pg-chart-{idx}-{m_idx}"
+                                id_list.append(slot_id)
+                                spec_list.append(chart.to_dict())
+                                chart_cards.append(
                                     f"""
-                                      <div class='pg-chart-card nested'>
-                                        <div class='pg-chart-card__title'>Modelo: {model}</div>
-                                    """,
-                                    unsafe_allow_html=True,
-                                )
-                                st.altair_chart(chart, use_container_width=True)
-                                st.markdown("</div>", unsafe_allow_html=True)
-
-                            st.markdown(
-                                """
+                                    <div class='pg-chart-card nested'>
+                                      <div class='pg-chart-card__title'>Modelo: {model}</div>
+                                      <div id='{slot_id}' class='pg-chart-slot'></div>
                                     </div>
+                                    """
+                                )
+
+                            chart_cards_html = "".join(chart_cards)
+                            panel_blocks.append(
+                                f"""
+                                <details class="pg-details pg-chart-accordion" open>
+                                  <summary>
+                                    <div>
+                                      <div class="pg-details-title">{tourn}</div>
+                                      <div class="pg-details-hint">Campeonato • {len(models)} modelo(s) • métricas múltiplas</div>
+                                    </div>
+                                    <div class="pg-stats-tags">
+                                      <span class="pg-chip ghost">{len(models)} modelo(s)</span>
+                                      <span class="pg-chip ghost">Diário</span>
+                                    </div>
+                                  </summary>
+                                  <div class="pg-details-body">
+                                    <div class="pg-chart-grid">{chart_cards_html}</div>
                                   </div>
                                 </details>
-                                """,
-                                unsafe_allow_html=True,
+                                """
                             )
 
-                        st.markdown("</div></div>", unsafe_allow_html=True)
+                            embed_scripts.append(
+                                {
+                                    "ids": id_list,
+                                    "specs": spec_list,
+                                }
+                            )
+
+                        panel_html = """
+                        <div class='pg-stats-panel pg-desempenho-panel'>
+                          <div class="pg-stats-header">
+                            <div>
+                              <p class="pg-eyebrow">Desempenho Diário por Campeonato e Métrica</p>
+                              <h4 style="margin:0;">Evolução de acerto por torneio e modelo</h4>
+                              <p class="pg-stats-desc">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
+                            </div>
+                            <div class="pg-stats-tags">
+                              <span class="pg-chip ghost">Linhas</span>
+                              <span class="pg-chip ghost">Interativo</span>
+                            </div>
+                          </div>
+                          <div class='pg-chart-grid nested'>
+                            ${blocks}
+                          </div>
+                        </div>
+                        <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
+                        <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.16.3"></script>
+                        <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.24.0"></script>
+                        <script>
+                          const pgRenderQueues = ${json.dumps(embed_scripts)};
+                          pgRenderQueues.forEach(({ids, specs}) => {
+                            ids.forEach((slotId, i) => {
+                              const target = document.getElementById(slotId);
+                              if (target) {
+                                vegaEmbed(target, specs[i], {
+                                  actions: false,
+                                  renderer: 'svg'
+                                });
+                              }
+                            });
+                          });
+                        </script>
+                        """
+
+                        # Altura calculada: cabeçalho + acordeões (cada modelo ~320px)
+                        est_height = 260 + sum([140 + len(entry["ids"]) * (320 if modo_mobile else 360) for entry in embed_scripts])
+                        est_height = min(est_height, 1400) if modo_mobile else min(est_height, 1800)
+
+                        components.html(panel_html.replace("${blocks}", "".join(panel_blocks)), height=est_height, scrolling=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
