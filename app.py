@@ -28,7 +28,7 @@ from styles import inject_custom_css, apply_altair_theme, chart_tokens
 st.set_page_config(
     layout="wide",
     page_title="Placar Guru",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed",     hideTopBar = true
 )
 
 # Estado inicial: Light por padrão
