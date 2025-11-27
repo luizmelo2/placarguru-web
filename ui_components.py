@@ -177,8 +177,8 @@ def filtros_ui(
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
     # --- 3. Renderização da UI (card sempre visível, inspirado no protótipo) ---
-    target = st.sidebar if not modo_mobile else st
-    with target.container():
+    # Mantém no fluxo principal para evitar esconder no sidebar colapsado
+    with st.container():
         st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
         st.markdown(
             """

@@ -211,7 +211,7 @@ try:
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
         q_team = flt["q_team"]
 
-        use_list_view = True if modo_mobile else st.sidebar.checkbox("Usar visualização em lista (mobile)", value=False)
+        use_list_view = True if modo_mobile else st.checkbox("Usar visualização em lista (mobile)", value=False)
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
