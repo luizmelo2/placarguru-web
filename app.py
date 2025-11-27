@@ -62,12 +62,6 @@ st.markdown(
           <div class="pg-appname">Futebol + Data Science Placar Guru</div>
         </div>
       </div>
-      <div class="pg-topbar__nav">
-        <!--<span class="pg-tab active">Dashboard</span>
-        <span class="pg-tab">Jogos</span>
-        <span class="pg-tab">Modelos</span>
-        <span class="pg-tab">Configurações</span>-->
-      </div>
       <div class="pg-topbar__actions">
         <span class="pg-chip">Insights preditivos em tempo real</span>
       </div>
@@ -84,7 +78,6 @@ with col_m2:
     st.markdown(
         """
         <div class="pg-subhead">
-          <span class="pg-chip ghost">Layout mobile-first ativo</span>
           <span class="pg-chip ghost">Altere para desktop para ver a grade</span>
         </div>
         """,
