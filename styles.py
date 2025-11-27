@@ -475,6 +475,13 @@ def inject_custom_css(dark_mode: bool = False):
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.08);
     padding: 8px;
   }
+  .pg-chart-card.nested { margin-top: 6px; }
+  .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
+  .pg-chart-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 8px; }
+  .pg-chart-cluster { border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent); border-radius: 16px; padding: 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
+  .pg-chart-cluster__head { display:flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .pg-chart-cluster__head h4 { margin: 2px 0 0; }
+  @media (min-width: 1000px) { .pg-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 
 
   .info-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 0.8rem; margin-top: 0.25rem; }
