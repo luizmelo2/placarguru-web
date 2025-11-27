@@ -956,6 +956,15 @@ try:
                               </div>
                             </div>
                             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.13.6/css/jquery.dataTables.min.css" />
+                            <style>
+                              /* Reaplica o visual glassy após o CSS do DataTables */
+                              .pg-best-panel table.dataTable { background: color-mix(in srgb, var(--panel) 96%, transparent); border-radius: 12px; overflow:hidden; }
+                              .pg-best-panel table.dataTable thead th { background: color-mix(in srgb, var(--panel) 86%, transparent) !important; color: var(--text-strong) !important; font-weight: 700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; }
+                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding: 10px 12px !important; color: var(--text) !important; }
+                              .pg-best-panel table.dataTable tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 90%, transparent) !important; }
+                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)) !important; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
+                              .pg-best-panel .dataTables_wrapper .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent); }
+                            </style>
                             <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
                             <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
                             <script>
