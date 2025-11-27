@@ -262,6 +262,7 @@ try:
 
             df_ag  = df_filtered[status_norm_all != "finished"]
             df_fin = df_filtered[status_norm_all == "finished"]
+            df_fin_full = df_fin.copy()
             status_view = st.radio(
                 "Dashboard por status",
                 options=["🗓️ Agendados", "✅ Finalizados"],
@@ -351,7 +352,12 @@ try:
                 _today = date.today()
                 _start = _today - timedelta(days=3)
                 _end   = _today
-                df_fin = df_fin[df_fin["date"].dt.date.between(_start, _end) | df_fin["date"].isna()]
+                df_fin_recent = df_fin[df_fin["date"].dt.date.between(_start, _end) | df_fin["date"].isna()]
+                # Se o recorte automático de 3 dias zerar a lista, volta para o conjunto completo
+                if not df_fin_recent.empty:
+                    df_fin = df_fin_recent
+                else:
+                    df_fin = df_fin_full
 
             if "date" in df_fin.columns:
                 df_fin = df_fin.sort_values("date", ascending=False, na_position="last")
