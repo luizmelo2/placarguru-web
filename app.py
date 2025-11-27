@@ -860,19 +860,53 @@ try:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
 # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
-                    st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
-                    st.subheader("Melhor Modelo por Campeonato e Mercado")
+                    st.markdown(
+                        """
+                        <div class='pg-stats-panel'>
+                          <div class="pg-stats-header">
+                            <div>
+                              <p class="pg-eyebrow">Modelos vencedores</p>
+                              <h4 style="margin:0;">Sessão de Melhor Modelo</h4>
+                              <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado com tabelas ordenáveis no visual glassy.</p>
+                            </div>
+                            <div class="pg-stats-tags">
+                              <span class="pg-chip ghost">Interativo</span>
+                              <span class="pg-chip ghost">Ordenável</span>
+                            </div>
+                          </div>
+                          <div class="pg-table-stack">
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
+                        st.markdown(
+                            """
+                            <div class="pg-table-block">
+                              <p class="pg-eyebrow">Visão detalhada</p>
+                              <h5 style="margin:0;">Melhor Modelo por Campeonato e Mercado</h5>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
                         render_glassy_table(best_model_data, caption="Melhor modelo por campeonato e mercado")
 
-                        st.subheader("Resumo do Melhor Modelo por Mercado")
+                        st.markdown(
+                            """
+                            <div class="pg-table-block">
+                              <p class="pg-eyebrow">Resumo</p>
+                              <h5 style="margin:0;">Resumo do Melhor Modelo por Mercado</h5>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
                         render_glassy_table(summary_pivot_table, caption="Resumo por mercado")
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    st.markdown("</div></div>", unsafe_allow_html=True)
 
         # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
         st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
