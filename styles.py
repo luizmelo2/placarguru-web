@@ -475,6 +475,23 @@ def inject_custom_css(dark_mode: bool = False):
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.08);
     padding: 8px;
   }
+  .pg-chart-slot {
+    width: 100%;
+    height: 100%;
+    min-height: 220px;
+    border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 28px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  .pg-chart-slot .vega-embed {
+    background: color-mix(in srgb, var(--panel) 95%, transparent) !important;
+    border: none;
+    box-shadow: none;
+    height: 100%;
+  }
+  .pg-chart-slot .vega-actions { display: none; }
   .pg-chart-card.nested { margin-top: 6px; }
   .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
   .pg-chart-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 8px; }
