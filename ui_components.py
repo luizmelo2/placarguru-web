@@ -11,12 +11,37 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
+GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
 
 
 HIGHLIGHT_PROB_THRESHOLD = 0.60
 HIGHLIGHT_ODD_THRESHOLD = 1.20
+
+
+def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None):
+    """Renderiza uma tabela em HTML com o visual glassy do protótipo."""
+
+    if df is None or df.empty:
+        st.info("Sem dados para exibir.")
+        return
+
+    table_html = df.to_html(
+        classes="pg-table",
+        border=0,
+        index=False,
+        escape=False,
+    )
+
+    st.markdown(
+        f"""
+        <div class="pg-table-card">
+          {table_html}
+          {f'<div class="pg-table-caption">{caption}</div>' if caption else ''}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def is_guru_highlight(row: pd.Series) -> bool:
