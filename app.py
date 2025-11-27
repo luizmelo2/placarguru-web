@@ -653,6 +653,7 @@ try:
                                     )
                                     .properties(
                                         height=240 if modo_mobile else 280,
+                                        width=780 if modo_mobile else 1180,
                                         background=chart_theme.get("plot_bg", "transparent"),
                                     )
                                 )
@@ -854,7 +855,10 @@ try:
                         est_height = 260 + sum([140 + len(entry["ids"]) * (320 if modo_mobile else 360) for entry in embed_scripts])
                         est_height = min(est_height, 1400) if modo_mobile else min(est_height, 1800)
 
-                        components.html(panel_html, height=est_height, scrolling=True)
+                        # Largura expansiva para ocupar a área útil (iframe padrão do Streamlit é 700px)
+                        panel_width = 1100 if modo_mobile else 1500
+
+                        components.html(panel_html, height=est_height, scrolling=True, width=panel_width)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
