@@ -188,6 +188,31 @@ def inject_custom_css(dark_mode: bool = False):
     margin-top: 6px;
   }
 
+  /* Destaque para ocultar lista de jogos */
+  .pg-hide-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel) 88%, transparent));
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 12px 14px;
+    margin: 6px 0 14px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .pg-hide-copy { display: flex; flex-direction: column; gap: 6px; }
+  .pg-hide-title { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+  .pg-hide-desc { color: var(--muted); margin: 0; }
+  .pg-hide-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pg-hide-card [data-testid="stToggle"] { justify-content: flex-end; }
+  .pg-hide-card [data-testid="stWidgetLabel"] p { color: var(--text) !important; font-weight: 700; }
+  @media (max-width: 900px) {
+    .pg-hide-card { flex-direction: column; align-items: flex-start; }
+    .pg-hide-card [data-testid="stToggle"] { width: 100%; }
+  }
+
   /* Sessão de estatísticas premium */
   .pg-stats-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
   .pg-stats-section {
