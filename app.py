@@ -894,6 +894,7 @@ try:
                             "shadow": "0 20px 60px rgba(0,0,0,0.35)" if st.session_state.get("pg_dark_mode", False) else "0 20px 60px rgba(0,0,0,0.12)",
                         }
 
+                        
                         best_panel_tpl = Template(
                             """
                             <style>
@@ -912,23 +913,26 @@ try:
                                 --white: #ffffff;
                                 --text-strong: ${text};
                               }
-                              body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+                              body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system,sans-serif; }
                               .pg-eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; font-size: 11px; color: var(--muted); margin: 0 0 4px 0; }
                               .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
                               .pg-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text); font-weight:700; font-size:12px; }
                               .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 75%, transparent); color: var(--muted); }
                               .pg-stats-panel { border:1px solid var(--stroke); border-radius:16px; padding:16px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
-                              .pg-best-panel { padding: 18px; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: 0 12px 60px color-mix(in srgb, var(--shadow) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent) inset; }
+                              .pg-best-panel { padding: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 86%, transparent)); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: 0 12px 60px color-mix(in srgb, var(--shadow) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent) inset; }
                               .pg-best-panel .pg-stats-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
                               .pg-best-panel .pg-table-stack { display:flex; flex-direction:column; gap:16px; }
-                              .pg-best-panel .pg-table-block { padding:12px; background: color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); border-radius:14px; box-shadow: 0 6px 36px color-mix(in srgb, var(--shadow) 14%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) inset; }
-                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; }
-                              .pg-best-panel table.dataTable thead th { background: color-mix(in srgb, var(--panel) 86%, transparent); color: var(--text-strong); font-weight:700; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent); }
-                              .pg-best-panel table.dataTable tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 90%, transparent); }
-                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
-                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px; color: var(--text); }
+                              .pg-best-panel .pg-table-block { padding:12px; background: color-mix(in srgb, var(--panel) 94%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius:14px; box-shadow: 0 6px 36px color-mix(in srgb, var(--shadow) 14%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) inset; }
+                              .pg-best-panel .pg-table-block h5 { color: var(--text); }
+                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; background: color-mix(in srgb, var(--panel) 97%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
+                              .pg-best-panel table.dataTable thead th { background: color-mix(in srgb, var(--panel) 86%, transparent) !important; color: var(--text-strong) !important; font-weight:700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; cursor:pointer; }
+                              .pg-best-panel table.dataTable tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--panel) 96%, transparent); }
+                              .pg-best-panel table.dataTable tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 92%, transparent); }
+                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)) !important; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
+                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px !important; color: var(--text) !important; }
+                              .pg-best-panel .dataTables_wrapper { background: color-mix(in srgb, var(--panel) 94%, transparent); padding: 4px; border-radius: 14px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent); }
                               .pg-best-panel .dataTables_wrapper .dataTables_filter, .pg-best-panel .dataTables_wrapper .dataTables_info, .pg-best-panel .dataTables_wrapper .dataTables_paginate { display:none; }
-                              .pg-best-panel .dataTables_wrapper .dataTables_scroll { border-radius: 12px; overflow:hidden; }
+                              .pg-best-panel .dataTables_wrapper .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent); }
                             </style>
                             <div class='pg-stats-panel pg-best-panel'>
                               <div class="pg-stats-header">
@@ -956,36 +960,36 @@ try:
                               </div>
                             </div>
                             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.13.6/css/jquery.dataTables.min.css" />
-                            <style>
-                              /* Reaplica o visual glassy após o CSS do DataTables */
-                              .pg-best-panel table.dataTable { background: color-mix(in srgb, var(--panel) 96%, transparent); border-radius: 12px; overflow:hidden; }
-                              .pg-best-panel table.dataTable thead th { background: color-mix(in srgb, var(--panel) 86%, transparent) !important; color: var(--text-strong) !important; font-weight: 700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; }
-                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding: 10px 12px !important; color: var(--text) !important; }
-                              .pg-best-panel table.dataTable tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 90%, transparent) !important; }
-                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)) !important; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
-                              .pg-best-panel .dataTables_wrapper .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent); }
-                            </style>
                             <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
                             <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
                             <script>
                               const pgInitDt = (tblId) => {
                                 const el = document.getElementById(tblId);
                                 if (!el) return;
-                                $(el).DataTable({
+                                const $tbl = $(el);
+                                if ($.fn.dataTable.isDataTable($tbl)) {
+                                  $tbl.DataTable().destroy();
+                                }
+                                $tbl.DataTable({
                                   paging:false,
                                   searching:false,
                                   info:false,
                                   ordering:true,
+                                  order: [],
                                   scrollX:true,
-                                  autoWidth:true
+                                  autoWidth:false,
+                                  stripeClasses: [],
+                                  dom: 't'
                                 });
+                                $tbl.on('click', 'th', () => $tbl.addClass('pg-dt-active'));
                               };
-                              pgInitDt('${tbl1_id}');
-                              pgInitDt('${tbl2_id}');
+                              document.addEventListener('DOMContentLoaded', () => {
+                                pgInitDt('${tbl1_id}');
+                                pgInitDt('${tbl2_id}');
+                              });
                             </script>
                             """
                         )
-
                         panel_html = best_panel_tpl.safe_substitute(
                             bg=palette["bg"],
                             panel=palette["panel"],
