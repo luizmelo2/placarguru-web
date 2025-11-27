@@ -938,6 +938,9 @@ try:
                               .pg-best-panel .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%,transparent); }
                               .pg-best-panel .dataTables_wrapper .dataTables_filter, .pg-best-panel .dataTables_wrapper .dataTables_info, .pg-best-panel .dataTables_wrapper .dataTables_paginate { display:none; }
                               .pg-best-panel .pg-dt-active thead th { color: var(--accent) !important; }
+                              .pg-best-panel table.dataTable.pg-glass-table { width:100% !important; }
+                              table.dataTable.display > tbody > tr:nth-child(odd) > * { background: transparent !important; }
+                              table.dataTable.display > tbody > tr:nth-child(even) > * { background: transparent !important; }
                             </style>
                             <div class='pg-stats-panel pg-best-panel'>
                               <div class="pg-stats-header">
@@ -965,13 +968,14 @@ try:
                               </div>
                             </div>
                             <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-                            <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
+                            <script src="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.13.6/js/jquery.dataTables.min.js"></script>
                             <script>
                               const pgInitDt = (tblId) => {
                                 const el = document.getElementById(tblId);
-                                if (!el) return;
-                                const $tbl = $(el);
-                                if ($.fn.dataTable.isDataTable($tbl)) {
+                                if (!el || !window.jQuery) return;
+                                const $tbl = window.jQuery(el);
+                                if ($tbl.length === 0 || !window.jQuery.fn?.dataTable) return;
+                                if (window.jQuery.fn.dataTable.isDataTable($tbl)) {
                                   $tbl.DataTable().destroy();
                                 }
                                 $tbl.DataTable({
@@ -987,10 +991,12 @@ try:
                                 });
                                 $tbl.on('click', 'th', () => $tbl.addClass('pg-dt-active'));
                               };
-                              document.addEventListener('DOMContentLoaded', () => {
+                              (function ensureReady(){
+                                const ready = window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable;
+                                if (!ready) { setTimeout(ensureReady, 80); return; }
                                 pgInitDt('${tbl1_id}');
                                 pgInitDt('${tbl2_id}');
-                              });
+                              })();
                             </script>
                             """
                         )
