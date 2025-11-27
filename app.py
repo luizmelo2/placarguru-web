@@ -22,13 +22,28 @@ from utils import (
 )
 from styles import inject_custom_css, apply_altair_theme, chart_tokens
 
+
+
+
+# Exemplo de código para remover o cabeçalho usando CSS
+hide_header_style = """
+<style>
+.st-emotion-cache-1jicfl2 {
+    display: none !important;
+}
+</style>
+"""
+st.markdown(hide_header_style, unsafe_allow_html=True)
+
+
+
 # ============================
 # Configuração da página
 # ============================
 st.set_page_config(
     layout="wide",
     page_title="Placar Guru",
-    initial_sidebar_state="collapsed",     hideTopBar = true
+    initial_sidebar_state="collapsed",
 )
 
 # Estado inicial: Light por padrão
