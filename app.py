@@ -650,7 +650,7 @@ try:
                                     )
                                     .properties(
                                         height=240 if modo_mobile else 280,
-                                        width=780 if modo_mobile else 1180,
+                                        width=780 if modo_mobile else 880,
                                         background=chart_theme.get("plot_bg", "transparent"),
                                     )
                                 )
