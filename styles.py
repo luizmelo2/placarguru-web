@@ -177,6 +177,7 @@ def inject_custom_css(dark_mode: bool = False):
     flex-wrap: wrap;
     margin-bottom: 10px;
   }
+  .pg-filter-toggle-label { color: var(--muted); font-size: 12px; margin-bottom: 2px; text-align: right; }
   .pg-filter-shell .streamlit-expanderHeader,
   .pg-filter-shell label,
   .pg-filter-shell p { color: var(--text) !important; }
@@ -185,6 +186,40 @@ def inject_custom_css(dark_mode: bool = False):
   }
   .pg-filter-shell [data-baseweb="slider"] {
     margin-top: 6px;
+  }
+
+  /* Sessão de estatísticas premium */
+  .pg-stats-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+  .pg-stats-section {
+    border: 1px solid var(--stroke);
+    border-radius: 18px;
+    padding: 16px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--panel) 88%, transparent));
+    box-shadow: var(--shadow);
+  }
+  .pg-stats-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
+  .pg-stats-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pg-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
+  .pg-stat-card {
+    border: 1px solid color-mix(in srgb, var(--stroke) 82%, transparent);
+    border-radius: 14px;
+    padding: 12px;
+    background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 40%),
+                linear-gradient(160deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel) 88%, transparent));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 30px rgba(0,0,0,0.08);
+    transition: transform 160ms ease, box-shadow 180ms ease, border-color 160ms ease;
+  }
+  .pg-stat-card:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 16px 36px rgba(37,99,235,0.22); }
+  .pg-stat-label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; margin: 0 0 4px 0; }
+  .pg-stat-value { font-weight: 800; font-size: 1.55rem; margin: 0; color: var(--text); }
+  .pg-stat-foot { margin: 4px 0 0 0; color: var(--muted); font-size: 13px; }
+  .pg-stats-panel {
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    padding: 14px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent));
+    box-shadow: var(--shadow);
   }
 
   .pg-hero {
@@ -375,7 +410,20 @@ def inject_custom_css(dark_mode: bool = False):
     background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent));
     box-shadow: var(--shadow);
     margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 160ms ease, box-shadow 180ms ease;
   }
+  .pg-chart-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 32%);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+  .pg-chart-card:hover { box-shadow: 0 16px 38px rgba(37,99,235,0.22); transform: translateY(-2px); transition: all 160ms ease; }
+  .pg-chart-card > * { position: relative; z-index: 1; }
   .pg-chart-card .vega-embed {
     background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
     border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);

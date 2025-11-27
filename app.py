@@ -208,7 +208,7 @@ try:
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
         q_team = flt["q_team"]
 
-        use_list_view = True if modo_mobile else st.sidebar.checkbox("Usar visualização em lista (mobile)", value=False)
+        use_list_view = True if modo_mobile else st.checkbox("Usar visualização em lista (mobile)", value=False)
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -425,6 +425,67 @@ try:
 
                     metrics_df = calculate_kpis(df_fin, multi_model)
 
+                    def _metric_value(name: str) -> float:
+                        row = metrics_df[metrics_df["Métrica"] == name]
+                        if row.empty:
+                            return 0.0
+                        try:
+                            return float(row["Acerto (%)"].iloc[0])
+                        except Exception:
+                            return 0.0
+
+                    avg_accuracy = round(metrics_df["Acerto (%)"].mean(), 1) if not metrics_df.empty else 0.0
+                    resultado_acc = _metric_value("Resultado")
+                    aposta_acc = _metric_value("Sugestão de Aposta")
+                    gols_acc = _metric_value("Sugestão de Gols")
+                    total_finished = len(df_fin)
+                    total_tourn_fin = df_fin["tournament_id"].nunique() if "tournament_id" in df_fin.columns else 0
+                    markets_covered = df_fin["bet_suggestion"].nunique() if "bet_suggestion" in df_fin.columns else 0
+                    guru_destaques = int(df_fin.apply(is_guru_highlight, axis=1).sum()) if not df_fin.empty else 0
+
+                    st.markdown("<div class='pg-stats-stack'>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"""
+                        <div class="pg-stats-section">
+                          <div class="pg-stats-header">
+                            <div>
+                              <p class="pg-eyebrow">Sessão de estatísticas</p>
+                              <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
+                              <p class="pg-stats-desc">KPIs premium, gráficos e melhores modelos alinhados ao protótipo.</p>
+                            </div>
+                            <div class="pg-stats-tags">
+                              <span class="pg-chip ghost">Status: Finalizados</span>
+                              <span class="pg-chip ghost">Tema {"Dark" if dark_mode else "Light"}</span>
+                            </div>
+                          </div>
+                          <div class="pg-stat-grid">
+                            <div class="pg-stat-card">
+                              <p class="pg-stat-label">Acurácia média</p>
+                              <div class="pg-stat-value">{avg_accuracy:.1f}%</div>
+                              <p class="pg-stat-foot">Base {total_finished} partidas avaliadas</p>
+                            </div>
+                            <div class="pg-stat-card">
+                              <p class="pg-stat-label">Resultado previsto</p>
+                              <div class="pg-stat-value">{resultado_acc:.1f}%</div>
+                              <p class="pg-stat-foot">{guru_destaques} destaques neon Guru</p>
+                            </div>
+                            <div class="pg-stat-card">
+                              <p class="pg-stat-label">Sugestão de aposta</p>
+                              <div class="pg-stat-value">{aposta_acc:.1f}%</div>
+                              <p class="pg-stat-foot">{markets_covered} mercados cobertos</p>
+                            </div>
+                            <div class="pg-stat-card">
+                              <p class="pg-stat-label">Gols / BTTS</p>
+                              <div class="pg-stat-value">{gols_acc:.1f}%</div>
+                              <p class="pg-stat-foot">{total_tourn_fin} campeonatos avaliados</p>
+                            </div>
+                          </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
                     if multi_model:
                         st.subheader("Percentual de acerto por modelo (apenas finalizados)")
                         render_glassy_table(metrics_df, caption="Acurácia por modelo")
@@ -489,8 +550,10 @@ try:
                         st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
                         st.altair_chart(chart + text, use_container_width=True)
                         st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                     # --- Gráficos de linha de acurácia por dia (um para cada campeonato e modelo) ---
+                    st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
                     st.subheader("Desempenho Diário por Campeonato e Métrica")
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
 
@@ -520,8 +583,10 @@ try:
                                 st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                     # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
+                    st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
                     st.subheader("Melhor Modelo por Campeonato e Mercado")
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
@@ -532,6 +597,8 @@ try:
                         render_glassy_table(summary_pivot_table, caption="Resumo por mercado")
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
         st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
