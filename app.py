@@ -1,5 +1,30 @@
 """Módulo principal da aplicação Placar Guru."""
 import streamlit as st
+
+
+# Exemplo de código para remover o cabeçalho usando CSS
+
+hide_header_style = """
+<style>
+.st-emotion-cache-1jicfl2 {
+    display: none !important;
+}
+</style>
+"""
+
+reduce_header_height_style = """
+<style>
+.block-container {
+    padding-top: 1rem;
+}
+</style>
+"""
+
+st.markdown(hide_header_style, unsafe_allow_html=True)
+
+st.markdown(reduce_header_height_style, unsafe_allow_html=True)
+
+
 import streamlit.components.v1 as components
 import json
 import uuid
@@ -24,27 +49,6 @@ from styles import inject_custom_css, apply_altair_theme, chart_tokens
 
 
 
-# Exemplo de código para remover o cabeçalho usando CSS
-
-hide_header_style = """
-<style>
-.st-emotion-cache-1jicfl2 {
-    display: none !important;
-}
-</style>
-"""
-
-reduce_header_height_style = """
-<style>
-.block-container {
-    padding-top: 1rem;
-}
-</style>
-"""
-
-st.markdown(hide_header_style, unsafe_allow_html=True)
-
-st.markdown(reduce_header_height_style, unsafe_allow_html=True)
 
 
 # ============================
