@@ -158,7 +158,8 @@ def filtros_ui(
     tournaments_sel_external: Optional[List] = None
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    st.session_state.setdefault("pg_filters_open", True)
+    # Mantém o controle dos filtros no menu lateral esquerdo, oculto por padrão
+    st.session_state.setdefault("pg_filters_open", False)
     st.session_state.setdefault("pg_filters_cache", {})
     # --- 1. Extração de Opções ---
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
@@ -178,32 +179,28 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
-    # --- 3. Renderização da UI (card com opção de ocultar) ---
-    # Mantém no fluxo principal, mas permite recolher para ganhar espaço
-    with st.container():
+    # --- 3. Renderização da UI (menu lateral esquerdo) ---
+    with st.sidebar:
         st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
-        hcol1, hcol2 = st.columns([3.4, 1.2])
-        with hcol1:
-            st.markdown(
-                """
-                <div class="pg-filter-header">
-                  <div>
-                    <p class="pg-eyebrow">Filtros principais</p>
-                    <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with hcol2:
-            st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar</div>", unsafe_allow_html=True)
-            st.toggle(
-                "Exibir filtros",
-                key="pg_filters_open",
-                value=st.session_state.get("pg_filters_open", True),
-            )
+        st.markdown(
+            """
+            <div class="pg-filter-header">
+              <div>
+                <p class="pg-eyebrow">Filtros principais</p>
+                <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar filtros</div>", unsafe_allow_html=True)
+        st.toggle(
+            "Exibir filtros",
+            key="pg_filters_open",
+            value=st.session_state.get("pg_filters_open", False),
+        )
 
-        if st.session_state.get("pg_filters_open", True):
+        if st.session_state.get("pg_filters_open", False):
             models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
             teams_sel, q_team = _render_filtros_equipes(
                 st, team_opts, modo_mobile, tournaments_sel_external
@@ -234,7 +231,7 @@ def filtros_ui(
             sel_h = cache.get("sel_h", None)
             sel_d = cache.get("sel_d", None)
             sel_a = cache.get("sel_a", None)
-            st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Ative o toggle para ajustar.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Use o toggle acima para ajustar.</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
