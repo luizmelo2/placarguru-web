@@ -163,54 +163,8 @@ try:
     if df.empty:
         st.error("O arquivo `PrevisaoJogos.xlsx` está vazio ou não pôde ser lido.")
     else:
-        # ----------------- FILTRO GLOBAL NO TOPO: CAMPEONATOS (opção C2 com box) -----------------
-        if "tournament_id" in df.columns and df["tournament_id"].notna().any():
-            tourn_opts_all = sorted(df["tournament_id"].dropna().unique().tolist())
-        else:
-            tourn_opts_all = []
-
-        st.session_state.setdefault("sel_tournaments", list(tourn_opts_all))
-
-        # mantém apenas os válidos se a lista mudar
-        valid_sel = [t for t in st.session_state.sel_tournaments if t in tourn_opts_all]
-        if valid_sel != st.session_state.sel_tournaments:
-            st.session_state.sel_tournaments = valid_sel
-
-        # se ficou vazio e há opções, volta para "todos"
-        if not st.session_state.sel_tournaments and tourn_opts_all:
-            st.session_state.sel_tournaments = list(tourn_opts_all)
-
-        with st.container():
-            st.markdown('<div class="tourn-box">', unsafe_allow_html=True)
-            hcol1, hcol2 = st.columns([5,3])
-            with hcol1:
-                st.markdown('<div class="tourn-title">🏆 Campeonatos</div>', unsafe_allow_html=True)
-            with hcol2:
-                csel_all, cclear = st.columns(2)
-                with csel_all:
-                    if st.button("Selecionar Todos", use_container_width=True):
-                        st.session_state.sel_tournaments = list(tourn_opts_all)
-                        st.rerun()
-                with cclear:
-                    if st.button("Limpar", use_container_width=True):
-                        st.session_state.sel_tournaments = []
-                        st.rerun()
-
-            # sem "default" — valor vem do session_state (key)
-            st.multiselect(
-                label="",
-                options=tourn_opts_all,
-                key="sel_tournaments",
-                format_func=tournament_label,
-                placeholder="Selecione um ou mais campeonatos…",
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        top_tournaments_sel = list(st.session_state.sel_tournaments)
-        # -----------------------------------------------------------------------------------------
-
-        # Filtros adicionais (sem torneios; eles vêm do topo)
-        flt = filtros_ui(df, modo_mobile, tournaments_sel_external=top_tournaments_sel)
+        # Filtros principais no sidebar (incluindo campeonatos)
+        flt = filtros_ui(df, modo_mobile)
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
