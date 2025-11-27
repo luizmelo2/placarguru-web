@@ -89,11 +89,30 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-topbar > * { position: relative; z-index: 1; }
   .pg-topbar__brand { display: flex; align-items: center; gap: 12px; min-width: 220px; }
   .pg-logo {
-    width: 44px; height: 44px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #38bdf8, #22d3ee, #bfff3b);
-    box-shadow: 0 14px 36px rgba(34, 211, 238, 0.35);
+    width: 48px; height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 52%, #22d3ee), color-mix(in srgb, var(--neon) 68%, var(--primary-2)));
+    box-shadow: 0 16px 40px rgba(34, 211, 238, 0.4);
+    border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
   }
+  .pg-logo::after {
+    content: "";
+    position: absolute;
+    inset: -30% 30% auto auto;
+    width: 70%; height: 70%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), transparent 55%);
+    transform: rotate(-18deg);
+    opacity: 0.65;
+  }
+  .pg-logo svg { width: 34px; height: 34px; position: relative; z-index: 1; }
+  .pg-logo .pg-logo-shield { fill: rgba(12, 20, 38, 0.16); stroke: rgba(255, 255, 255, 0.65); stroke-width: 1.2; }
+  .pg-logo .pg-logo-ball { fill: #f8fafc; stroke: rgba(15, 23, 42, 0.35); stroke-width: 1.1; }
+  .pg-logo .pg-logo-chart { fill: rgba(12, 20, 38, 0.22); stroke: #0b1224; stroke-opacity: 0.22; }
+  .pg-logo .pg-logo-glow { fill: rgba(191, 255, 59, 0.92); filter: drop-shadow(0 4px 10px rgba(191, 255, 59, 0.35)); }
   .pg-eyebrow { margin: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .pg-appname { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
   .pg-topbar__nav { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }

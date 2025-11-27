@@ -40,7 +40,18 @@ st.markdown(
     """
     <div class="pg-topbar">
       <div class="pg-topbar__brand">
-        <div class="pg-logo"></div>
+        <div class="pg-logo" aria-hidden="true" role="presentation">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
+            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
+            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
+            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
+            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
+            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
+            <path class="pg-logo-ball" d="M28 20c2.6 1.2 5.2 1.2 7.8 0l2.7 3.2-2.2 4.8h-4.8L29.2 23z" fill="none" />
+            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
+          </svg>
+        </div>
         <div>
           <p class="pg-eyebrow">Futebol + Data Science</p>
           <div class="pg-appname">Placar Guru - Futebol + Data Science</div>
