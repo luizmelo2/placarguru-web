@@ -658,7 +658,7 @@ try:
                         <script src=\"https://cdn.jsdelivr.net/npm/vega-embed@6\"></script>
                         <script>
                           const charts = {json.dumps(chart_entries)};
-                          charts.forEach(({id, spec}) => {{
+                          charts.forEach(({{id, spec}}) => {{
                             const parsedSpec = typeof spec === 'string' ? JSON.parse(spec) : spec;
                             vegaEmbed('#' + id, parsedSpec, {{actions: false}});
                           }});
