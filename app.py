@@ -506,9 +506,26 @@ try:
                         """,
                         unsafe_allow_html=True,
                     )
-                    if multi_model:
-                        render_glassy_table(metrics_df, caption="Acurácia por modelo")
 
+                    # Sempre exibir a tabela de precisão por métrica
+                    if not metrics_df.empty:
+                        metric_order = [
+                            "Resultado",
+                            "Sugestão de Aposta",
+                            "Sugestão Combo",
+                            "Sugestão de Gols",
+                            "Ambos Marcam",
+                        ]
+                        metrics_df_display = metrics_df.copy()
+                        metrics_df_display["Métrica"] = pd.Categorical(
+                            metrics_df_display["Métrica"],
+                            categories=metric_order,
+                            ordered=True,
+                        )
+                        metrics_df_display = metrics_df_display.sort_values("Métrica")
+                        render_glassy_table(metrics_df_display, caption="Precisão por métrica")
+
+                    if multi_model:
                         # Gráfico de barras agrupadas por modelo
                         if not metrics_df.empty:
                             chart = (
