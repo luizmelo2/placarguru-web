@@ -1,4 +1,5 @@
 """Módulo para componentes de UI reutilizáveis."""
+import textwrap
 import streamlit as st
 import pandas as pd
 from typing import Optional, List
@@ -10,8 +11,67 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS
+GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
+
+
+HIGHLIGHT_PROB_THRESHOLD = 0.60
+HIGHLIGHT_ODD_THRESHOLD = 1.20
+
+
+def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
+    """Renderiza uma tabela interativa com visual glassy e ordenação por cabeçalho.
+
+    show_index: força a exibição do índice. Quando None, ativa para índices nomeados
+    ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
+    """
+
+    if df is None or df.empty:
+        st.info("Sem dados para exibir.")
+        return
+
+    df_to_render = df.copy()
+    if show_index is None:
+        show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
+
+    if show_index and not df_to_render.index.name:
+        df_to_render.index.name = ""
+
+    with st.container():
+        st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
+        st.dataframe(
+            df_to_render,
+            use_container_width=True,
+            hide_index=not show_index,
+        )
+        if caption:
+            st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def is_guru_highlight(row: pd.Series) -> bool:
+    """Aplica a regra de destaque (prob > 60% e odd > 1.20) usando a sugestão de aposta."""
+    market_code = row.get("bet_suggestion")
+    if pd.isna(market_code):
+        return False
+
+    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+    if not cols:
+        return False
+
+    prob = row.get(cols[0])
+    odd = row.get(cols[1])
+
+    try:
+        prob_val = float(prob)
+        odd_val = float(odd)
+    except Exception:
+        return False
+
+    if pd.isna(prob_val) or pd.isna(odd_val):
+        return False
+
+    return prob_val >= HIGHLIGHT_PROB_THRESHOLD and odd_val > HIGHLIGHT_ODD_THRESHOLD
 
 def _render_filtros_modelos(container, model_opts: list, default_models: list, modo_mobile: bool):
     """Renderiza o filtro de seleção de modelos."""
@@ -98,6 +158,8 @@ def filtros_ui(
     tournaments_sel_external: Optional[List] = None
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
+    st.session_state.setdefault("pg_filters_open", True)
+    st.session_state.setdefault("pg_filters_cache", {})
     # --- 1. Extração de Opções ---
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
     team_opts = sorted(pd.concat([df["home"], df["away"]]).dropna().astype(str).unique()) if _exists(df, "home", "away") else []
@@ -116,17 +178,65 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
-    # --- 3. Renderização da UI ---
-    target = st.sidebar if not modo_mobile else st
-    container = target.expander("🔎 Filtros", expanded=not modo_mobile)
+    # --- 3. Renderização da UI (card com opção de ocultar) ---
+    # Mantém no fluxo principal, mas permite recolher para ganhar espaço
+    with st.container():
+        st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
+        hcol1, hcol2 = st.columns([3.4, 1.2])
+        with hcol1:
+            st.markdown(
+                """
+                <div class="pg-filter-header">
+                  <div>
+                    <p class="pg-eyebrow">Filtros principais</p>
+                    <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with hcol2:
+            st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar</div>", unsafe_allow_html=True)
+            st.toggle(
+                "Exibir filtros",
+                key="pg_filters_open",
+                value=st.session_state.get("pg_filters_open", True),
+            )
 
-    models_sel = _render_filtros_modelos(container, model_opts, default_models, modo_mobile)
-    teams_sel, q_team = _render_filtros_equipes(
-        container, team_opts, modo_mobile, tournaments_sel_external
-    )
-    bet_sel, goal_sel = _render_filtros_sugestoes(container, bet_opts, goal_opts)
-    selected_date_range = _render_filtros_periodo(container, min_date, max_date)
-    sel_h, sel_d, sel_a = _render_filtros_odds(container, df)
+        if st.session_state.get("pg_filters_open", True):
+            models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
+            teams_sel, q_team = _render_filtros_equipes(
+                st, team_opts, modo_mobile, tournaments_sel_external
+            )
+            bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
+            selected_date_range = _render_filtros_periodo(st, min_date, max_date)
+            sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
+
+            st.session_state.pg_filters_cache = {
+                "models_sel": models_sel,
+                "teams_sel": teams_sel,
+                "q_team": q_team,
+                "bet_sel": bet_sel,
+                "goal_sel": goal_sel,
+                "selected_date_range": selected_date_range,
+                "sel_h": sel_h,
+                "sel_d": sel_d,
+                "sel_a": sel_a,
+            }
+        else:
+            cache = st.session_state.get("pg_filters_cache", {})
+            models_sel = cache.get("models_sel", default_models)
+            teams_sel = cache.get("teams_sel", [])
+            q_team = cache.get("q_team", "")
+            bet_sel = cache.get("bet_sel", [])
+            goal_sel = cache.get("goal_sel", [])
+            selected_date_range = cache.get("selected_date_range", ())
+            sel_h = cache.get("sel_h", None)
+            sel_d = cache.get("sel_d", None)
+            sel_a = cache.get("sel_a", None)
+            st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Ative o toggle para ajustar.</div>", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # --- 4. Sincronização e Retorno ---
     try:
@@ -149,6 +259,15 @@ def filtros_ui(
 def _prepare_display_data(row: pd.Series) -> dict:
     """Prepara todos os dados necessários para a exibição de uma linha."""
     dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in row.index and pd.notna(row["date"])) else "N/A"
+
+    market_code = row.get("bet_suggestion")
+    prob_val = odd_val = None
+    if pd.notna(market_code):
+        cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+        if cols:
+            prob_val = row.get(cols[0])
+            odd_val = row.get(cols[1])
+    highlight = is_guru_highlight(row)
 
     # Avaliações de acerto
     hit_res = eval_result_pred_row(row)
@@ -183,55 +302,98 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "btts_pred_txt": btts_pred_txt,
         "cap_line": f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}",
         "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
-        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—"
+        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—",
+        "highlight": highlight,
+        "suggested_prob": prob_val,
+        "suggested_odd": odd_val,
+        "match_title": f"{row.get('home','?')} vs {row.get('away','?')}",
+        "kickoff": dt_txt,
     }
 
-def _render_over_under_section(row: pd.Series, df: pd.DataFrame):
-    """Renderiza a seção de 'Over/Under' dentro do expander."""
-    st.markdown("---")
-    st.markdown("**Over/Under (Prob. — Odd)**")
 
-    under_lines = [
-        f"- **Under {v}:** {_po(row, f'prob_under_{v.replace('.', '_')}', f'odds_match_goals_{v}_under')}"
-        for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_under_{v.replace('.', '_')}")
-    ]
-    if under_lines:
-        st.markdown("\n".join(under_lines), unsafe_allow_html=True)
+def _compact_html(html: str) -> str:
+    """Remove indentação e quebras de linha para evitar renderização como texto Markdown.
 
-    over_lines = [
-        f"- **Over {v}:** {_po(row, f'prob_over_{v.replace('.', '_')}', f'odds_match_goals_{v}_over')}"
-        for v in GOAL_MARKET_THRESHOLDS if _exists(df, f"prob_over_{v.replace('.', '_')}")
-    ]
-    if over_lines:
-        st.markdown("\n".join(over_lines), unsafe_allow_html=True)
+    Streamlit pode exibir tags literalmente se a string HTML começar com espaços/linhas
+    vazias, pois o Markdown interpreta como bloco de código. Este helper normaliza
+    o HTML em uma única linha, preservando a legibilidade no app.
+    """
+    return " ".join(
+        line.strip()
+        for line in textwrap.dedent(html).splitlines()
+        if line.strip()
+    )
 
-def _render_expander_details(row: pd.Series, data: dict, df: pd.DataFrame):
-    """Renderiza o conteúdo dentro do st.expander para a visualização em lista."""
-    with st.expander("Detalhes, Probabilidades & Odds"):
-        # Seção 1: Sugestões e Probabilidades 1x2
-        st.markdown(
-            f"""
-            - **Sugestão:** {green_html(data["aposta_txt"])} {data["badge_bet"]}
-            - **Sugestão de Gols:** {green_html(data["gols_txt"])} {data["badge_goal"]}
-            - **Odds 1x2:** {green_html(fmt_odd(row.get('odds_H')))} / \
-                {green_html(fmt_odd(row.get('odds_D')))} / \
-                {green_html(fmt_odd(row.get('odds_A')))}
-            - **Prob. (H/D/A):** {green_html(fmt_prob(row.get('prob_H')))} / \
-                {green_html(fmt_prob(row.get('prob_D')))} / \
-                {green_html(fmt_prob(row.get('prob_A')))}
-            """,
-            unsafe_allow_html=True
+def _build_over_under_lists(row: pd.Series, df: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """Gera listas com os mercados under/over disponíveis para renderização em HTML."""
+
+    under_lines, over_lines = [], []
+
+    for v in GOAL_MARKET_THRESHOLDS:
+        prob_key_under = f"prob_under_{str(v).replace('.', '_')}"
+        odd_key_under = f"odds_match_goals_{v}_under"
+        if _exists(df, prob_key_under):
+            under_lines.append(f"<li><strong>Under {v}:</strong> {_po(row, prob_key_under, odd_key_under)}</li>")
+
+        prob_key_over = f"prob_over_{str(v).replace('.', '_')}"
+        odd_key_over = f"odds_match_goals_{v}_over"
+        if _exists(df, prob_key_over):
+            over_lines.append(f"<li><strong>Over {v}:</strong> {_po(row, prob_key_over, odd_key_over)}</li>")
+
+    return under_lines, over_lines
+
+
+def _build_details_html(row: pd.Series, data: dict, df: pd.DataFrame) -> str:
+    """Monta o HTML do bloco de "Detalhes" dentro do card, evitando expanders externos."""
+
+    under_lines, over_lines = _build_over_under_lists(row, df)
+    under_html = "".join(under_lines)
+    over_html = "".join(over_lines)
+
+    btts_html = ""
+    if _exists(df, "prob_btts_yes", "prob_btts_no"):
+        btts_html = """
+        <div class="pg-details-block">
+          <div class="pg-details-subtitle">BTTS (Prob. — Odd)</div>
+          <ul class="pg-details-list">
+            <li><strong>Ambos marcam — Sim:</strong> {btts_yes}</li>
+            <li><strong>Ambos marcam — Não:</strong> {btts_no}</li>
+          </ul>
+        </div>
+        """.format(
+            btts_yes=_po(row, "prob_btts_yes", "odds_btts_yes"),
+            btts_no=_po(row, "prob_btts_no", "odds_btts_no"),
         )
 
-        # Seção 2: Over/Under
-        _render_over_under_section(row, df)
+    details_html = f"""
+    <details class="pg-details">
+      <summary>
+        <span class="pg-details-title">Detalhes, Probabilidades & Odds</span>
+        <span class="pg-details-hint">Toque para abrir os mercados 1x2, O/U e BTTS</span>
+      </summary>
+      <div class="pg-details-body">
+        <div class="pg-details-block">
+          <div class="pg-details-subtitle">Sugestões e 1x2</div>
+          <ul class="pg-details-list">
+            <li><strong>Sugestão:</strong> {green_html(data['aposta_txt'])} {data['badge_bet']}</li>
+            <li><strong>Sugestão de Gols:</strong> {green_html(data['gols_txt'])} {data['badge_goal']}</li>
+            <li><strong>Odds 1x2:</strong> {green_html(fmt_odd(row.get('odds_H')))} / {green_html(fmt_odd(row.get('odds_D')))} / {green_html(fmt_odd(row.get('odds_A')))}</li>
+            <li><strong>Prob. (H/D/A):</strong> {green_html(fmt_prob(row.get('prob_H')))} / {green_html(fmt_prob(row.get('prob_D')))} / {green_html(fmt_prob(row.get('prob_A')))}</li>
+          </ul>
+        </div>
+        <div class="pg-details-block">
+          <div class="pg-details-subtitle">Over/Under (Prob. — Odd)</div>
+          <div class="pg-details-two-cols">
+            <ul class="pg-details-list">{under_html}</ul>
+            <ul class="pg-details-list">{over_html}</ul>
+          </div>
+        </div>
+        {btts_html}
+      </div>
+    </details>
+    """
 
-        # Seção 3: BTTS
-        if _exists(df, "prob_btts_yes", "prob_btts_no"):
-            st.markdown("---")
-            st.markdown("**BTTS (Prob. — Odd)**")
-            st.markdown(f"- **Ambos marcam — Sim:** {_po(row, 'prob_btts_yes', 'odds_btts_yes')}", unsafe_allow_html=True)
-            st.markdown(f"- **Ambos marcam — Não:** {_po(row, 'prob_btts_no', 'odds_btts_no')}", unsafe_allow_html=True)
+    return _compact_html(details_html)
 
 def display_list_view(df: pd.DataFrame):
     """Renderiza uma lista de jogos em formato de cards para visualização mobile."""
@@ -239,33 +401,93 @@ def display_list_view(df: pd.DataFrame):
         data = _prepare_display_data(row)
 
         with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                st.markdown(f"**{data['title']}**")
-                st.caption(data['cap_line'])
-                st.markdown(
-                    f'''
-                    <div class="info-grid">
-                        <div><span class="text-label">{data["badge_res"]} 🎯 Resultado:</span> {green_html(data["result_txt"])}</div>
-                        <div><span class="text-label">{data["badge_bet"]} 💡 Sugestão Aposta:</span> {green_html(data["aposta_txt"])}</div>
-                        <div><span class="text-label">{data["badge_goal"]} ⚽ Sugestão Gols:</span> {green_html(data["gols_txt"])}</div>
-                        <div><span class="text-label">{data["badge_btts_pred"]} 🥅 Ambos Marcam:</span> {green_html(data["btts_pred_txt"])}</div>
-                        <div><span class="text-label">{data["badge_score"]} 📊 Placar Previsto:</span> {green_html(data["score_txt"])}</div>
-                    </div>
-                    ''',
-                    unsafe_allow_html=True
+            badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
+            highlight_label = (
+                "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>"
+                if data["highlight"]
+                else ""
+            )
+            final_score_badge = (
+                f"<span class=\"badge badge-finished\">Placar Final {data['final_score']}</span>"
+                if data["is_finished"]
+                else ""
+            )
+            prob_odd_badge = ""
+            if data["suggested_prob"] is not None:
+                prob_odd_badge = (
+                    f"<span class=\"badge\" style=\"background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);\">"
+                    f"Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • "
+                    f"Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}"
+                    "</span>"
                 )
 
-            with c2:
-                badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
-                st.markdown(f'<span class="badge {badge_class}">{data["status_txt"]}</span>', unsafe_allow_html=True)
-                if data["is_finished"]:
-                    st.markdown(f"**Placar Final:** {data['final_score']}")
+            hit_badges = []
+            for label, key in [
+                ("Resultado", "badge_res"),
+                ("Placar", "badge_score"),
+                ("Sugestão", "badge_bet"),
+                ("Gols", "badge_goal"),
+                ("BTTS", "badge_btts_pred"),
+            ]:
+                icon = data.get(key)
+                if icon:
+                    cls = "badge-ok" if icon == "✅" else "badge-bad"
+                    hit_badges.append(f"<span class='badge {cls}'>{icon} {label}</span>")
+            hit_html = " ".join(hit_badges)
 
-            _render_expander_details(row, data, df)
+            details_html = _build_details_html(row, data, df)
 
-            st.markdown('</div>', unsafe_allow_html=True)
+            card_html = _compact_html(
+                f"""
+                <div class="pg-card {'neon' if data['highlight'] else ''}">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <div>
+                      <div class="pg-meta">{data['cap_line']}</div>
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
+                        <span class="badge">{data['kickoff']}</span>
+                        {highlight_label}
+                      </div>
+                    </div>
+                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                  </div>
+
+                  <div class="pg-grid" style="margin-top:10px;">
+                    <div class="pg-pill">
+                      <div class="label">🎯 Resultado</div>
+                      <div class="value">{green_html(data['result_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">💡 Sugestão</div>
+                      <div class="value">{green_html(data['aposta_txt'])}</div>
+                      <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">⚽ Gols</div>
+                      <div class="value">{green_html(data['gols_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">🥅 Ambos marcam</div>
+                      <div class="value">{green_html(data['btts_pred_txt'])}</div>
+                    </div>
+                    <div class="pg-pill">
+                      <div class="label">📊 Placar Previsto</div>
+                      <div class="value">{green_html(data['score_txt'])}</div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                    {final_score_badge}
+                    {prob_odd_badge}
+                    {hit_html}
+                  </div>
+
+                  {details_html}
+                </div>
+                """
+            )
+
+            st.markdown(card_html, unsafe_allow_html=True)
             st.write("")
 
 def filtros_analise_ui(df: pd.DataFrame) -> dict:

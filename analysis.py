@@ -172,6 +172,11 @@ def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
         'taxa_acerto': 'Taxa de Acerto (%)'
     })
 
+    # Garante que a coluna Data esteja em formato datetime (Timestamp) para
+    # serialização JSON via Altair/Vega. Isso evita o erro
+    # "Object of type date is not JSON serializable" ao embutir os gráficos.
+    df_final['Data'] = pd.to_datetime(df_final['Data'])
+
     return df_final[['Data', 'Campeonato', 'Modelo', 'Métrica', 'Taxa de Acerto (%)']]
 
 def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
@@ -231,26 +236,52 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
     return df_final.sort_values(by=['Campeonato', 'Mercado de Aposta']).reset_index(drop=True)
 
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
+    """Agrupa o resumo por **campeonato e modelo**, mantendo o recorte de mercado.
+
+    A tabela final destaca para cada combinação (Campeonato, Modelo) a
+    cobertura dos mercados, taxa média de acerto e volume avaliado para
+    facilitar a leitura segmentada por status.
     """
-    Cria uma tabela resumo (pivot) mostrando o melhor modelo e sua taxa de acerto.
-    """
+
     if best_model_df.empty:
         return pd.DataFrame()
 
-    # Cria uma nova coluna combinando o modelo e a taxa de acerto
     df_copy = best_model_df.copy()
-    df_copy['display_value'] = df_copy.apply(
-        lambda row: f"{row['Melhor Modelo']} ({row['Taxa de Acerto (%)']:.1f}%)", axis=1
+
+    # Consolida as métricas por Campeonato + Modelo, preservando a lista de mercados
+    grouped = df_copy.groupby(["Campeonato", "Melhor Modelo"])
+
+    summary = grouped.agg(
+        {
+            "Mercado de Aposta": lambda s: ", ".join(sorted(set(map(str, s)))),
+            "Taxa de Acerto (%)": "mean",
+            "Total de Jogos Avaliados": "sum",
+        }
+    ).reset_index()
+
+    summary = summary.rename(
+        columns={
+            "Melhor Modelo": "Modelo",
+            "Mercado de Aposta": "Mercados de Aposta",
+            "Taxa de Acerto (%)": "Taxa média (%)",
+            "Total de Jogos Avaliados": "Jogos avaliados",
+        }
     )
 
-    pivot_df = df_copy.pivot_table(
-        index='Campeonato',
-        columns='Mercado de Aposta',
-        values='display_value',
-        aggfunc='first'
-    ).fillna('-')
+    summary["Taxa média (%)"] = summary["Taxa média (%)"].round(2)
 
-    return pivot_df
+    # Ordena para leitura consistente por campeonato e performance média
+    summary = summary.sort_values(
+        by=["Campeonato", "Taxa média (%)"], ascending=[True, False]
+    )
+
+    return summary[[
+        "Campeonato",
+        "Modelo",
+        "Mercados de Aposta",
+        "Taxa média (%)",
+        "Jogos avaliados",
+    ]]
 
 def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optional[List[str]] = None) -> pd.Series:
     """Encontra a melhor aposta para uma linha de dados, considerando os mercados especificados."""
