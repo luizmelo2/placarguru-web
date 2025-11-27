@@ -600,7 +600,6 @@ try:
                               .pg-chip { border-radius: 999px; padding: 6px 10px; font-weight: 700; border: 1px solid var(--stroke); color: var(--text); background: color-mix(in srgb, var(--panel) 90%, transparent); }
                               .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); }
                               .pg-chart-grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
-                              @media (min-width: 1000px) { .pg-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
                               .pg-chart-cluster { border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent); border-radius: 16px; padding: 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
                               .pg-chart-cluster__head { display:flex; justify-content: space-between; align-items: center; gap:12px; margin-bottom: 8px; }
                               .pg-chart-card { border: 1px solid var(--stroke); border-radius: 18px; padding: 10px 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent)); box-shadow: var(--shadow); position: relative; overflow: hidden; }
@@ -758,7 +757,6 @@ try:
                           }
                           .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--muted); }
                           .pg-chart-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 8px; }
-                          @media (min-width: 1000px) { .pg-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
                           .pg-chart-card {
                             position: relative;
                             border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
