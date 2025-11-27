@@ -236,6 +236,50 @@ def inject_custom_css(dark_mode: bool = False):
     box-shadow: var(--shadow);
     margin-bottom: 12px;
   }
+  .pg-table-card--interactive [data-testid="stDataFrame"] {
+    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 96%, transparent));
+    border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .pg-table-card--interactive [data-testid="stDataFrame"] > div {
+    border-radius: 14px;
+  }
+  .pg-table-card--interactive table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.95rem;
+  }
+  .pg-table-card--interactive thead tr {
+    background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 82%, transparent), color-mix(in srgb, var(--panel) 95%, transparent));
+  }
+  .pg-table-card--interactive thead th {
+    padding: 12px 14px;
+    font-weight: 800;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
+    background: transparent;
+  }
+  .pg-table-card--interactive tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--panel) 96%, transparent); }
+  .pg-table-card--interactive tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 92%, transparent); }
+  .pg-table-card--interactive tbody tr:hover {
+    background: color-mix(in srgb, var(--primary) 12%, var(--panel));
+    box-shadow: 0 10px 32px rgba(37,99,235,0.14);
+  }
+  .pg-table-card--interactive td {
+    padding: 12px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--stroke) 72%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--stroke) 60%, transparent);
+    color: var(--text);
+  }
+  .pg-table-card--interactive td:first-child { font-weight: 700; color: var(--text); }
+  .pg-table-card--interactive td:last-child { border-right: none; }
+  .pg-table-card--interactive tbody tr:last-child td { border-bottom: none; }
   .pg-table {
     width: 100%;
     border-collapse: separate;

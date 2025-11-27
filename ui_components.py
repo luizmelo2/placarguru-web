@@ -20,7 +20,7 @@ HIGHLIGHT_ODD_THRESHOLD = 1.20
 
 
 def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
-    """Renderiza uma tabela em HTML com o visual glassy do protótipo.
+    """Renderiza uma tabela interativa com visual glassy e ordenação por cabeçalho.
 
     show_index: força a exibição do índice. Quando None, ativa para índices nomeados
     ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
@@ -31,29 +31,22 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
         return
 
     df_to_render = df.copy()
-    # Detecta automaticamente quando o índice contém informação relevante
     if show_index is None:
         show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
 
     if show_index and not df_to_render.index.name:
         df_to_render.index.name = ""
 
-    table_html = df_to_render.to_html(
-        classes="pg-table",
-        border=0,
-        index=show_index,
-        escape=False,
-    )
-
-    st.markdown(
-        f"""
-        <div class="pg-table-card">
-          {table_html}
-          {f'<div class="pg-table-caption">{caption}</div>' if caption else ''}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container():
+        st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
+        st.dataframe(
+            df_to_render,
+            use_container_width=True,
+            hide_index=not show_index,
+        )
+        if caption:
+            st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def is_guru_highlight(row: pd.Series) -> bool:
