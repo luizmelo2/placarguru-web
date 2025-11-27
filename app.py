@@ -2,6 +2,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import json
+import uuid
 import pandas as pd
 import altair as alt
 from datetime import timedelta, date, datetime
@@ -860,53 +861,100 @@ try:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
 # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
-                    st.markdown(
-                        """
-                        <div class='pg-stats-panel'>
-                          <div class="pg-stats-header">
-                            <div>
-                              <p class="pg-eyebrow">Modelos vencedores</p>
-                              <h4 style="margin:0;">Sessão de Melhor Modelo</h4>
-                              <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado com tabelas ordenáveis no visual glassy.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Interativo</span>
-                              <span class="pg-chip ghost">Ordenável</span>
-                            </div>
-                          </div>
-                          <div class="pg-table-stack">
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
-                        st.markdown(
-                            """
-                            <div class="pg-table-block">
-                              <p class="pg-eyebrow">Visão detalhada</p>
-                              <h5 style="margin:0;">Melhor Modelo por Campeonato e Mercado</h5>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        render_glassy_table(best_model_data, caption="Melhor modelo por campeonato e mercado")
-
-                        st.markdown(
-                            """
-                            <div class="pg-table-block">
-                              <p class="pg-eyebrow">Resumo</p>
-                              <h5 style="margin:0;">Resumo do Melhor Modelo por Mercado</h5>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
-                        render_glassy_table(summary_pivot_table, caption="Resumo por mercado")
+
+                        tbl1_id = f"tbl-best-model-{uuid.uuid4().hex[:8]}"
+                        tbl2_id = f"tbl-best-summary-{uuid.uuid4().hex[:8]}"
+
+                        table1_html = best_model_data.to_html(
+                            index=False,
+                            classes="display compact pg-glass-table",
+                            border=0,
+                            table_id=tbl1_id,
+                        )
+                        table2_html = summary_pivot_table.to_html(
+                            index=False,
+                            classes="display compact pg-glass-table",
+                            border=0,
+                            table_id=tbl2_id,
+                        )
+
+                        best_panel_tpl = Template(
+                            """
+                            <style>
+                              .pg-best-panel { padding: 18px; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: 0 12px 60px color-mix(in srgb, var(--shadow) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent) inset; }
+                              .pg-best-panel .pg-stats-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
+                              .pg-best-panel .pg-table-stack { display:flex; flex-direction:column; gap:16px; }
+                              .pg-best-panel .pg-table-block { padding:12px; background: color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); border-radius:14px; box-shadow: 0 6px 36px color-mix(in srgb, var(--shadow) 14%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) inset; }
+                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; }
+                              .pg-best-panel table.dataTable thead th { background: color-mix(in srgb, var(--panel) 86%, transparent); color: var(--text-strong); font-weight:700; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent); }
+                              .pg-best-panel table.dataTable tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 90%, transparent); }
+                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
+                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px; color: var(--text); }
+                              .pg-best-panel .dataTables_wrapper .dataTables_filter, .pg-best-panel .dataTables_wrapper .dataTables_info, .pg-best-panel .dataTables_wrapper .dataTables_paginate { display:none; }
+                              .pg-best-panel .dataTables_wrapper .dataTables_scroll { border-radius: 12px; overflow:hidden; }
+                            </style>
+                            <div class='pg-stats-panel pg-best-panel'>
+                              <div class="pg-stats-header">
+                                <div>
+                                  <p class="pg-eyebrow">Modelos vencedores</p>
+                                  <h4 style="margin:0;">Sessão de Melhor Modelo</h4>
+                                  <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado com tabelas ordenáveis no visual glassy.</p>
+                                </div>
+                                <div class="pg-stats-tags">
+                                  <span class="pg-chip ghost">Interativo</span>
+                                  <span class="pg-chip ghost">Ordenável</span>
+                                </div>
+                              </div>
+                              <div class="pg-table-stack">
+                                <div class="pg-table-block">
+                                  <p class="pg-eyebrow">Visão detalhada</p>
+                                  <h5 style="margin:0;">Melhor Modelo por Campeonato e Mercado</h5>
+                                  ${table1}
+                                </div>
+                                <div class="pg-table-block">
+                                  <p class="pg-eyebrow">Resumo</p>
+                                  <h5 style="margin:0;">Resumo do Melhor Modelo por Mercado</h5>
+                                  ${table2}
+                                </div>
+                              </div>
+                            </div>
+                            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.13.6/css/jquery.dataTables.min.css" />
+                            <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+                            <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
+                            <script>
+                              const pgInitDt = (tblId) => {
+                                const el = document.getElementById(tblId);
+                                if (!el) return;
+                                $(el).DataTable({
+                                  paging:false,
+                                  searching:false,
+                                  info:false,
+                                  ordering:true,
+                                  scrollX:true,
+                                  autoWidth:true
+                                });
+                              };
+                              pgInitDt('${tbl1_id}');
+                              pgInitDt('${tbl2_id}');
+                            </script>
+                            """
+                        )
+
+                        panel_html = best_panel_tpl.safe_substitute(
+                            table1=table1_html,
+                            table2=table2_html,
+                        )
+
+                        est_height = 420 + (len(best_model_data) + len(summary_pivot_table)) * 24
+                        est_height = max(520, min(est_height, 1400))
+                        est_width = 1200 if modo_mobile else 1500
+
+                        components.html(panel_html, height=est_height, width=est_width, scrolling=True)
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
-
-                    st.markdown("</div></div>", unsafe_allow_html=True)
 
         # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
         st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
