@@ -3,6 +3,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import json
 import uuid
+import base64
 import pandas as pd
 import altair as alt
 from datetime import timedelta, date, datetime
@@ -898,6 +899,13 @@ try:
                             table_id=tbl2_id,
                         )
 
+                        table1_csv_b64 = base64.b64encode(
+                            best_model_data.to_csv(index=False).encode("utf-8")
+                        ).decode("utf-8")
+                        table2_csv_b64 = base64.b64encode(
+                            summary_pivot_table.to_csv(index=False).encode("utf-8")
+                        ).decode("utf-8")
+
                         palette = {
                             "bg": "#0b1224" if st.session_state.get("pg_dark_mode", False) else "#f8fafc",
                             "panel": "#0f172a" if st.session_state.get("pg_dark_mode", False) else "#ffffff",
@@ -915,6 +923,7 @@ try:
                         best_panel_tpl = Template(
                             """
                             <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+                            <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css" />
                             <style>
                               :root {
                                 --bg: ${bg};
@@ -950,7 +959,7 @@ try:
                               .pg-best-panel tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 92%, transparent); }
                               .pg-best-panel tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)); box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
                               /* DataTables overrides */
-                              .pg-best-panel .dataTables_wrapper { background: color-mix(in srgb, var(--panel) 94%, transparent); padding: 6px; border-radius: 14px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent); }
+                              .pg-best-panel .dataTables_wrapper { background: color-mix(in srgb, var(--panel) 94%, transparent); padding: 10px 10px 14px; border-radius: 14px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent); }
                               .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; background: color-mix(in srgb, var(--panel) 97%, transparent) !important; border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent) !important; border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
                               .pg-best-panel table.dataTable thead th { background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 78%, transparent)) !important; color: var(--text-strong) !important; font-weight:700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; cursor:pointer; }
                               .pg-best-panel table.dataTable tbody tr.pg-row-odd { background: color-mix(in srgb, var(--panel) 96%, transparent) !important; }
@@ -959,6 +968,11 @@ try:
                               .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px !important; color: var(--text) !important; border:none !important; }
                               .pg-best-panel .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%,transparent); }
                               .pg-best-panel .dataTables_wrapper .dataTables_filter, .pg-best-panel .dataTables_wrapper .dataTables_info, .pg-best-panel .dataTables_wrapper .dataTables_paginate { display:none; }
+                              .pg-best-panel .dt-buttons { display:flex; flex-wrap:wrap; gap:8px; margin: 4px 0 10px; }
+                              .pg-best-panel .dt-button { background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text); border:1px solid color-mix(in srgb, var(--stroke) 78%, transparent); border-radius: 10px; padding: 6px 10px; font-weight:700; box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow) 16%, transparent); transition: transform 150ms ease, box-shadow 150ms ease; }
+                              .pg-best-panel .dt-button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow) 22%, transparent); color: var(--accent); }
+                              .pg-best-panel .pg-dt-fallback { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+                              .pg-best-panel .pg-dt-fallback a { text-decoration:none; color: var(--accent); font-weight:700; padding:6px 10px; border-radius:10px; background: color-mix(in srgb, var(--panel) 86%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 78%, transparent); }
                               .pg-best-panel .pg-dt-active thead th { color: var(--accent) !important; }
                               .pg-best-panel table.dataTable.pg-glass-table { width:100% !important; }
                               table.dataTable.display > tbody > tr:nth-child(odd) > * { background: transparent !important; }
@@ -981,16 +995,25 @@ try:
                                   <p class="pg-eyebrow">Visão detalhada</p>
                                   <h5 style="margin:0;">Melhor Modelo por Campeonato e Mercado</h5>
                                   ${table1}
+                                  <div class="pg-dt-fallback">
+                                    <a href="data:text/csv;base64,${t1csv}" download="melhor-modelo-campeonato.csv">⬇ Exportar CSV</a>
+                                  </div>
                                 </div>
                                 <div class="pg-table-block">
                                   <p class="pg-eyebrow">Resumo</p>
                                   <h5 style="margin:0;">Resumo do Melhor Modelo por Mercado</h5>
                                   ${table2}
+                                  <div class="pg-dt-fallback">
+                                    <a href="data:text/csv;base64,${t2csv}" download="resumo-melhor-modelo-mercado.csv">⬇ Exportar CSV</a>
+                                  </div>
                                 </div>
                               </div>
                             </div>
                             <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
                             <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+                            <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+                            <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+                            <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
                             <script>
                               const pgFallbackSort = (tblId) => {
                                 const el = document.getElementById(tblId);
@@ -1027,12 +1050,17 @@ try:
                                   scrollX:true,
                                   autoWidth:false,
                                   stripeClasses: ['pg-row-odd','pg-row-even'],
-                                  dom: 't'
+                                  dom: '<"pg-dt-top"B>t',
+                                  buttons: [
+                                    { extend:'copyHtml5', text:'📋 Copiar', className:'pg-dt-btn'},
+                                    { extend:'csvHtml5', text:'⬇ CSV', className:'pg-dt-btn'},
+                                    { extend:'excelHtml5', text:'⬇ Excel', className:'pg-dt-btn'}
+                                  ]
                                 });
                                 $tbl.on('click', 'th', () => $tbl.addClass('pg-dt-active'));
                               };
                               (function ensureReady(){
-                                const ready = window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable;
+                                const ready = window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable && window.jQuery.fn.dataTable.Buttons;
                                 if (!ready) { setTimeout(ensureReady, 120); return; }
                                 pgInitDt('${tbl1_id}');
                                 pgInitDt('${tbl2_id}');
@@ -1053,6 +1081,8 @@ try:
                             shadow=palette["shadow"],
                             table1=table1_html,
                             table2=table2_html,
+                            t1csv=table1_csv_b64,
+                            t2csv=table2_csv_b64,
                         )
 
                         est_height = 420 + (len(best_model_data) + len(summary_pivot_table)) * 24
