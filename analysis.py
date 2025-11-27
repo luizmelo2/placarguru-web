@@ -172,6 +172,11 @@ def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
         'taxa_acerto': 'Taxa de Acerto (%)'
     })
 
+    # Garante que a coluna Data esteja em formato datetime (Timestamp) para
+    # serialização JSON via Altair/Vega. Isso evita o erro
+    # "Object of type date is not JSON serializable" ao embutir os gráficos.
+    df_final['Data'] = pd.to_datetime(df_final['Data'])
+
     return df_final[['Data', 'Campeonato', 'Modelo', 'Métrica', 'Taxa de Acerto (%)']]
 
 def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
