@@ -32,9 +32,18 @@ hide_header_style = """
     display: none !important;
 }
 </style>
+
+reduce_header_height_style = """
+<style>
+.block-container {
+    padding-top: 1rem;
+}
+</style>
 """
 st.markdown(hide_header_style, unsafe_allow_html=True)
 
+
+st.markdown(reduce_header_height_style, unsafe_allow_html=True)
 
 
 # ============================
