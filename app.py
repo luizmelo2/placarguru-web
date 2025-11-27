@@ -400,7 +400,33 @@ try:
                 if df_fin.empty:
                     st.info("Sem jogos finalizados neste recorte.")
                 else:
-                    if not st.checkbox("Ocultar lista de jogos", value=False):
+                    st.markdown("<div class='pg-hide-card'>", unsafe_allow_html=True)
+                    hide_info, hide_toggle = st.columns([4, 1.3])
+                    with hide_info:
+                        st.markdown(
+                            f"""
+                            <div class="pg-hide-copy">
+                              <p class="pg-eyebrow">Lista de jogos finalizados</p>
+                              <div class="pg-hide-title">Exibir ou ocultar rapidamente</div>
+                              <p class="pg-hide-desc">Use quando quiser focar apenas nas métricas e gráficos de desempenho.</p>
+                              <div class="pg-hide-chips">
+                                <span class="pg-chip ghost">{len(df_fin)} jogos</span>
+                                <span class="pg-chip ghost">{'Visão lista' if use_list_view else 'Visão tabela'}</span>
+                              </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    with hide_toggle:
+                        hide_games = st.toggle(
+                            "Ocultar lista de jogos",
+                            key="pg_hide_fin_list",
+                            value=st.session_state.get("pg_hide_fin_list", False),
+                            help="Oculte a listagem para ver somente KPIs, gráficos e tabelas avançadas.",
+                        )
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    if not hide_games:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
