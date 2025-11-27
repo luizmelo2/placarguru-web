@@ -43,17 +43,14 @@ st.markdown(
         <div class="pg-logo"></div>
         <div>
           <p class="pg-eyebrow">Futebol + Data Science</p>
-          <div class="pg-appname">Futebol + Data Science Placar Guru</div>
+          <div class="pg-appname">Placar Guru - Futebol + Data Science</div>
         </div>
       </div>
       <div class="pg-topbar__nav">
-        <span class="pg-tab active">Dashboard</span>
-        <span class="pg-tab">Jogos</span>
-        <span class="pg-tab">Modelos</span>
-        <span class="pg-tab">Configurações</span>
+        <!--<span class="pg-tab active">Dashboard</span>-->
       </div>
       <div class="pg-topbar__actions">
-        <span class="pg-chip">Insights preditivos em tempo real</span>
+        <!--<span class="pg-chip">Insights preditivos em tempo real</span>-->
       </div>
     </div>
     """,
