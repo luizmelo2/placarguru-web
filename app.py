@@ -485,9 +485,24 @@ try:
                         unsafe_allow_html=True,
                     )
 
-                    st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
+                    st.markdown(
+                        """
+                        <div class='pg-stats-panel'>
+                          <div class="pg-stats-header">
+                            <div>
+                              <p class="pg-eyebrow">Gráfico de acertos</p>
+                              <h4 style="margin:0;">Precisão por métrica</h4>
+                              <p class="pg-stats-desc">Compare modelos, mercados e a taxa de acerto consolidada.</p>
+                            </div>
+                            <div class="pg-stats-tags">
+                              <span class="pg-chip ghost">Interativo</span>
+                              <span class="pg-chip ghost">Ordene por coluna</span>
+                            </div>
+                          </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                     if multi_model:
-                        st.subheader("Percentual de acerto por modelo (apenas finalizados)")
                         render_glassy_table(metrics_df, caption="Acurácia por modelo")
 
                         # Gráfico de barras agrupadas por modelo
@@ -519,8 +534,6 @@ try:
                             st.altair_chart(chart + text, use_container_width=True)
                             st.markdown("</div>", unsafe_allow_html=True)
                     else:
-                        st.subheader("Percentual de acerto (apenas finalizados)")
-
                         # Definir as métricas que queremos exibir e a ordem
                         metric_order = ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam"]
 
@@ -553,12 +566,26 @@ try:
                     st.markdown("</div>", unsafe_allow_html=True)
 
                     # --- Gráficos de linha de acurácia por dia (um para cada campeonato e modelo) ---
-                    st.markdown("<div class='pg-stats-panel'>", unsafe_allow_html=True)
-                    st.subheader("Desempenho Diário por Campeonato e Métrica")
+                    st.markdown(
+                        """
+                        <div class='pg-stats-panel'>
+                          <div class="pg-stats-header">
+                            <div>
+                              <p class="pg-eyebrow">Desempenho Diário por Campeonato e Métrica</p>
+                              <h4 style="margin:0;">Evolução de acerto por torneio e modelo</h4>
+                              <p class="pg-stats-desc">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
+                            </div>
+                            <div class="pg-stats-tags">
+                              <span class="pg-chip ghost">Linhas</span>
+                              <span class="pg-chip ghost">Interativo</span>
+                            </div>
+                          </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
 
                     if not accuracy_data.empty:
-                        # Pega a lista de campeonatos e modelos únicos presentes nos dados
                         tournaments = sorted(accuracy_data['Campeonato'].unique())
 
                         for tourn in tournaments:
