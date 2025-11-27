@@ -698,7 +698,119 @@ try:
                                 }
                             )
 
-                        panel_html = """
+                        palette = {
+                            "bg": "#0b1224" if dark_mode else "#f8fafc",
+                            "panel": "#0f172a" if dark_mode else "#ffffff",
+                            "glass": "rgba(255,255,255,0.04)" if dark_mode else "rgba(255,255,255,0.65)",
+                            "stroke": "#1f2937" if dark_mode else "#e2e8f0",
+                            "text": "#e2e8f0" if dark_mode else "#0f172a",
+                            "muted": "#94a3b8" if dark_mode else "#475569",
+                            "primary": "#60a5fa" if dark_mode else "#2563eb",
+                            "primary2": "#22d3ee",
+                            "neon": "#bfff3b",
+                            "shadow": "0 20px 60px rgba(0,0,0,0.35)" if dark_mode else "0 20px 60px rgba(0,0,0,0.12)",
+                        }
+
+                        panel_css_tpl = Template(
+                            """
+                        <style>
+                          :root {
+                            --bg: ${bg};
+                            --panel: ${panel};
+                            --glass: ${glass};
+                            --stroke: ${stroke};
+                            --text: ${text};
+                            --muted: ${muted};
+                            --primary: ${primary};
+                            --primary-2: ${primary2};
+                            --neon: ${neon};
+                            --shadow: ${shadow};
+                          }
+                          body {
+                            margin: 0;
+                            background: transparent;
+                            color: var(--text);
+                            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                          }
+                          .pg-stats-panel {
+                            border: 1px solid var(--stroke);
+                            border-radius: 16px;
+                            padding: 14px;
+                            background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent));
+                            box-shadow: var(--shadow);
+                          }
+                          .pg-stats-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+                          .pg-eyebrow { margin: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+                          .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
+                          .pg-stats-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+                          .pg-chip {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                            padding: 6px 10px;
+                            border-radius: 999px;
+                            border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
+                            background: color-mix(in srgb, var(--panel) 94%, transparent);
+                            color: var(--text);
+                            font-weight: 700;
+                            font-size: 12px;
+                            letter-spacing: -0.01em;
+                          }
+                          .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--muted); }
+                          .pg-chart-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 8px; }
+                          @media (min-width: 1000px) { .pg-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+                          .pg-chart-card {
+                            position: relative;
+                            border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
+                            border-radius: 16px;
+                            padding: 12px;
+                            background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent));
+                            box-shadow: var(--shadow);
+                            overflow: hidden;
+                          }
+                          .pg-chart-card::before {
+                            content: '';
+                            position: absolute;
+                            inset: -30% 40% auto auto;
+                            width: 60%; height: 60%;
+                            background: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 62%);
+                            opacity: 0.3;
+                          }
+                          .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
+                          .pg-chart-slot .vega-embed { background: color-mix(in srgb, var(--panel) 96%, transparent); border-radius: 12px; padding: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
+                          .pg-chart-slot .vega-actions { display: none; }
+                          .pg-details {
+                            margin-top: 12px;
+                            border: 1px solid var(--stroke);
+                            border-radius: 14px;
+                            background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 98%, transparent));
+                            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+                            overflow: hidden;
+                          }
+                          .pg-details summary {
+                            list-style: none;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 10px;
+                            padding: 10px 12px;
+                            color: var(--text);
+                            font-weight: 700;
+                          }
+                          .pg-details summary::-webkit-details-marker { display: none; }
+                          .pg-details summary:focus { outline: 2px solid color-mix(in srgb, var(--primary) 50%, transparent); outline-offset: 2px; }
+                          .pg-details-body { padding: 0 12px 12px 12px; }
+                          .pg-chart-accordion { margin-top: 8px; border: 1px solid color-mix(in srgb, var(--stroke) 72%, transparent); }
+                          .pg-chart-accordion summary > div:first-child { display: grid; gap: 4px; }
+                        </style>
+                        """
+                        )
+                        panel_css = panel_css_tpl.safe_substitute(palette)
+
+                        panel_html_tpl = Template(
+                            """
+                        ${css}
                         <div class='pg-stats-panel pg-desempenho-panel'>
                           <div class="pg-stats-header">
                             <div>
@@ -719,7 +831,7 @@ try:
                         <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.16.3"></script>
                         <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.24.0"></script>
                         <script>
-                          const pgRenderQueues = ${json.dumps(embed_scripts)};
+                          const pgRenderQueues = ${queues};
                           pgRenderQueues.forEach(({ids, specs}) => {
                             ids.forEach((slotId, i) => {
                               const target = document.getElementById(slotId);
@@ -733,12 +845,18 @@ try:
                           });
                         </script>
                         """
+                        )
+                        panel_html = panel_html_tpl.safe_substitute(
+                            css=panel_css,
+                            blocks="".join(panel_blocks),
+                            queues=json.dumps(embed_scripts),
+                        )
 
                         # Altura calculada: cabeçalho + acordeões (cada modelo ~320px)
                         est_height = 260 + sum([140 + len(entry["ids"]) * (320 if modo_mobile else 360) for entry in embed_scripts])
                         est_height = min(est_height, 1400) if modo_mobile else min(est_height, 1800)
 
-                        components.html(panel_html.replace("${blocks}", "".join(panel_blocks)), height=est_height, scrolling=True)
+                        components.html(panel_html, height=est_height, scrolling=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
