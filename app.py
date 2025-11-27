@@ -59,14 +59,17 @@ st.markdown(
         </div>
         <div>
           <p class="pg-eyebrow">Futebol + Data Science</p>
-          <div class="pg-appname">Placar Guru - Futebol + Data Science</div>
+          <div class="pg-appname">Futebol + Data Science Placar Guru</div>
         </div>
       </div>
       <div class="pg-topbar__nav">
-        <!--<span class="pg-tab active">Dashboard</span>-->
+        <span class="pg-tab active">Dashboard</span>
+        <span class="pg-tab">Jogos</span>
+        <span class="pg-tab">Modelos</span>
+        <span class="pg-tab">Configurações</span>
       </div>
       <div class="pg-topbar__actions">
-        <!--<span class="pg-chip">Insights preditivos em tempo real</span>-->
+        <span class="pg-chip">Insights preditivos em tempo real</span>
       </div>
     </div>
     """,
@@ -695,7 +698,7 @@ try:
                                     )
                                     .properties(
                                         height=240 if modo_mobile else 280,
-                                        width=780 if modo_mobile else 880,
+                                        width=780 if modo_mobile else 1180,
                                         background=chart_theme.get("plot_bg", "transparent"),
                                     )
                                 )

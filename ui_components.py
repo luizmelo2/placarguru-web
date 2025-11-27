@@ -366,7 +366,7 @@ def _build_details_html(row: pd.Series, data: dict, df: pd.DataFrame) -> str:
         )
 
     details_html = f"""
-    <details class="pg-details" open>
+    <details class="pg-details">
       <summary>
         <span class="pg-details-title">Detalhes, Probabilidades & Odds</span>
         <span class="pg-details-hint">Toque para abrir os mercados 1x2, O/U e BTTS</span>
