@@ -2,18 +2,6 @@
 import streamlit as st
 
 
-# Ocultar barra superior (header) SOMENTE em telas grandes (desktop)
-hide_streamlit_style = """ 
-<style>
-    /* Em telas acima de 768px (desktop), esconde o header */
-    @media (min-width: 768px) {
-        header {visibility: hidden;}
-    }
-</style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-
 
 import streamlit.components.v1 as components
 import json
@@ -50,6 +38,31 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+
+# Mantém o header funcional (necessário para o menu no mobile),
+# mas deixa ele discreto pra não brigar com a sua topbar customizada.
+fix_mobile_sidebar_css = """
+<style>
+/* Garante que o header do Streamlit apareça e fique funcional */
+header[data-testid="stHeader"] {
+    visibility: visible !important;
+    display: block !important;
+}
+
+/* Deixa o header "limpo": sem fundo, sem sombra */
+header[data-testid="stHeader"] > div {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Garante que os botões do header (onde fica o menu no mobile) estejam visíveis */
+button[kind="header"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+</style>
+"""
+st.markdown(fix_mobile_sidebar_css, unsafe_allow_html=True)
 # Estado inicial: Light por padrão
 st.session_state.setdefault("pg_dark_mode", False)
 dark_mode = bool(st.session_state["pg_dark_mode"])
