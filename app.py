@@ -36,6 +36,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Mantém o header funcional (necessário para o menu no mobile),
+# mas deixa ele discreto pra não brigar com a sua topbar customizada.
+fix_mobile_sidebar_css = """
+<style>
+/* Garante que o header do Streamlit apareça e fique funcional */
+header[data-testid="stHeader"] {
+    visibility: visible !important;
+    display: block !important;
+}
+
+/* Deixa o header "limpo": sem fundo, sem sombra */
+header[data-testid="stHeader"] > div {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Garante que os botões do header (onde fica o menu no mobile) estejam visíveis */
+button[kind="header"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+</style>
+"""
+st.markdown(fix_mobile_sidebar_css, unsafe_allow_html=True)
 
 # Mantém o header funcional (necessário para o menu no mobile),
 # mas deixa ele discreto pra não brigar com a sua topbar customizada.
