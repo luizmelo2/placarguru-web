@@ -113,8 +113,7 @@ st.markdown(
           ☰ Filtros
         </button>
 
-        <!-- Chip original, você pode manter ou remover -->
-        <span class="pg-chip">Insights preditivos em tempo real</span>
+        
       </div>
     </div>
     """,
