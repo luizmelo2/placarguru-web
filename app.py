@@ -1,7 +1,14 @@
 """Módulo principal da aplicação Placar Guru."""
 import streamlit as st
 
+# Ocultar barra superior (header)
 
+hide_streamlit_style = """ 
+<style>
+header {visibility: hidden;} 
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 import streamlit.components.v1 as components
 import json
@@ -62,7 +69,8 @@ button[kind="header"] {
 }
 </style>
 """
-st.markdown(fix_mobile_sidebar_css, unsafe_allow_html=True)
+#st.markdown(fix_mobile_sidebar_css, unsafe_allow_html=True)
+
 # Estado inicial: Light por padrão
 st.session_state.setdefault("pg_dark_mode", False)
 dark_mode = bool(st.session_state["pg_dark_mode"])
