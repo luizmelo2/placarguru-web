@@ -30,61 +30,45 @@ from styles import inject_custom_css, apply_altair_theme, chart_tokens
 # ============================
 # Configuração da página
 # ============================
+
+
 st.set_page_config(
     layout="wide",
     page_title="Placar Guru",
-    initial_sidebar_state="collapsed",
+    # Deixa expanded só para testar; depois você pode voltar para "collapsed"
+    initial_sidebar_state="expanded",
 )
 
-# Mantém o header funcional (necessário para o menu no mobile),
-# mas deixa ele discreto pra não brigar com a sua topbar customizada.
-fix_mobile_sidebar_css = """
+# CSS para garantir que o header e o botão do menu (hambúrguer) apareçam
+fix_header_and_sidebar_css = """
 <style>
-/* Garante que o header do Streamlit apareça e fique funcional */
+/* Garante que o header do Streamlit esteja sempre visível */
 header[data-testid="stHeader"] {
     visibility: visible !important;
-    display: block !important;
-}
-
-/* Deixa o header "limpo": sem fundo, sem sombra */
-header[data-testid="stHeader"] > div {
-    background-color: transparent !important;
+    display: flex !important;
+    align-items: center;
+    background: transparent !important;
     box-shadow: none !important;
+    z-index: 1000 !important;
 }
 
-/* Garante que os botões do header (onde fica o menu no mobile) estejam visíveis */
-button[kind="header"] {
-    opacity: 1 !important;
+/* Garante que o ícone do menu (toggle do sidebar) apareça */
+header [data-testid="baseButton-headerNoPadding"],
+header [data-testid="stSidebarNavToggle"] {
+    display: inline-flex !important;
     visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+/* Se em algum lugar antigo tiver escondido o sidebar, força mostrar */
+section[data-testid="stSidebar"] {
+    display: block !important;
 }
 </style>
 """
-st.markdown(fix_mobile_sidebar_css, unsafe_allow_html=True)
+st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
 
-# Mantém o header funcional (necessário para o menu no mobile),
-# mas deixa ele discreto pra não brigar com a sua topbar customizada.
-fix_mobile_sidebar_css = """
-<style>
-/* Garante que o header do Streamlit apareça e fique funcional */
-header[data-testid="stHeader"] {
-    visibility: visible !important;
-    display: block !important;
-}
-
-/* Deixa o header "limpo": sem fundo, sem sombra */
-header[data-testid="stHeader"] > div {
-    background-color: transparent !important;
-    box-shadow: none !important;
-}
-
-/* Garante que os botões do header (onde fica o menu no mobile) estejam visíveis */
-button[kind="header"] {
-    opacity: 1 !important;
-    visibility: visible !important;
-}
-</style>
-"""
-#st.markdown(fix_mobile_sidebar_css, unsafe_allow_html=True)
 
 # Estado inicial: Light por padrão
 st.session_state.setdefault("pg_dark_mode", False)
