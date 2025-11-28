@@ -14,24 +14,6 @@ header {visibility: hidden;}
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 
-hide_header_style = """
-<style>
-.st-emotion-cache-1jicfl2 {
-    display: none !important;
-}
-</style>
-"""
-
-reduce_header_height_style = """
-<style>
-.block-container {
-    padding-top: 1rem;
-}
-</style>
-"""
-
-st.markdown(hide_header_style, unsafe_allow_html=True)
-
 
 import streamlit.components.v1 as components
 import json
