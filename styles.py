@@ -52,7 +52,6 @@ def inject_custom_css(dark_mode: bool = False):
   }
   @media (max-width: 768px) {
     html, body, .stApp { font-size: 17px; }
-    section[data-testid="stSidebar"] { display:none !important; }
   }
 
   .block-container { padding-top: 0.5rem !important; max-width: 1200px; }
