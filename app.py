@@ -2,8 +2,6 @@
 import streamlit as st
 
 
-# Exemplo de código para remover o cabeçalho usando CSS
-
 # Ocultar barra superior (header)
 
 hide_streamlit_style = """ 
