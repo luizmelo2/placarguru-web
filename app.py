@@ -1,15 +1,6 @@
 """Módulo principal da aplicação Placar Guru."""
 import streamlit as st
 
-# Ocultar barra superior (header)
-
-hide_streamlit_style = """ 
-<style>
-header {visibility: hidden;} 
-</style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
 import streamlit.components.v1 as components
 import json
 import uuid
