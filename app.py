@@ -2,11 +2,13 @@
 import streamlit as st
 
 
-# Ocultar barra superior (header)
-
+# Ocultar barra superior (header) SOMENTE em telas grandes (desktop)
 hide_streamlit_style = """ 
 <style>
-header {visibility: hidden;} 
+    /* Em telas acima de 768px (desktop), esconde o header */
+    @media (min-width: 768px) {
+        header {visibility: hidden;}
+    }
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
