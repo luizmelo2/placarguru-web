@@ -101,13 +101,27 @@ st.markdown(
           <div class="pg-appname">Futebol + Data Science Placar Guru</div>
         </div>
       </div>
+
       <div class="pg-topbar__actions">
+        <!-- BOTÃO NOVO: abre/fecha o sidebar -->
+        <button
+          class="pg-chip"
+          type="button"
+          onclick="window.parent.postMessage({ type: 'streamlit:toggleSidebar' }, '*')"
+          title="Abrir filtros"
+        >
+          ☰ Filtros
+        </button>
+
+        <!-- Chip original, você pode manter ou remover -->
         <span class="pg-chip">Insights preditivos em tempo real</span>
       </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+
 
 # Toggle manual de modo mobile (controle explícito para layout responsivo)
 col_m1, col_m2 = st.columns([1.2, 4])
