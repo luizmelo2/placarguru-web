@@ -80,7 +80,7 @@ def inject_custom_css(dark_mode: bool = False):
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
   @media (max-width: 768px) {
-    html, body, .stApp { font-size: 17px; }
+    html, body, .stApp { font-size: clamp(15px, 2.8vw, 17px); }
   }
 
   .block-container { padding-top: 0.5rem !important; max-width: 1200px; }
@@ -188,6 +188,9 @@ def inject_custom_css(dark_mode: bool = False):
 
   .pg-table-card [data-testid="stDataFrame"] *:focus-visible { box-shadow: var(--focus-ring) !important; outline: none !important; }
   .pg-table-card table th:first-child, .pg-table-card table td:first-child { position: sticky; left: 0; z-index: 3; background: color-mix(in srgb, var(--panel) 96%, transparent); }
+  @media (max-width: 1024px) {
+    .pg-table-card table th:first-child, .pg-table-card table td:first-child { position: static; }
+  }
 
   /* Filtros principais */
   .pg-filter-shell {

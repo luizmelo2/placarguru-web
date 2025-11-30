@@ -21,6 +21,78 @@ HIGHLIGHT_PROB_THRESHOLD = 0.60
 HIGHLIGHT_ODD_THRESHOLD = 1.20
 
 
+def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None) -> str:
+    """Renderiza um chip reutilizável com tom e rótulo acessível."""
+
+    cls = "pg-chip"
+    if tone == "ghost":
+        cls += " ghost"
+    aria = f" aria-label=\"{aria_label}\"" if aria_label else ""
+    return f"<span class=\"{cls}\"{aria}>{text}</span>"
+
+
+def render_app_header(
+    curr_label: str,
+    total_games: int,
+    highlight_count: int,
+    acc_result: float,
+    auto_view_label: str,
+    last_update_label: str,
+    active_filters: int,
+    filter_line: str,
+    export_state_label: str,
+) -> str:
+    """Componente de header compacto com status unificado."""
+
+    live_text = " | ".join(
+        [
+            auto_view_label,
+            f"Última atualização {last_update_label}",
+            f"{active_filters} filtros ativos",
+            filter_line,
+            export_state_label,
+        ]
+    )
+
+    return f"""
+    <div class="pg-header" role="banner">
+      <div class="pg-header__brand" aria-label="Placar Guru">
+        <div class="pg-logo" aria-label="Escudo do Placar Guru" role="img">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
+            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
+            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
+            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
+            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
+            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
+            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
+          </svg>
+        </div>
+        <div>
+          <p class="pg-eyebrow">Placar Guru</p>
+          <div class="pg-appname">Futebol + Data Science</div>
+          <div class="pg-breadcrumbs" aria-label="Seção atual">
+            <span>Home</span><span aria-hidden="true">/</span><span>{curr_label}</span>
+          </div>
+          <div class="pg-header__summary">
+            {render_chip(f'Jogos: {total_games}', 'ghost', 'Total de jogos no recorte')} 
+            {render_chip(f'Sugestões Guru: {highlight_count}', 'ghost', 'Quantidade de destaques Guru')} 
+            {render_chip(f'Acurácia: {acc_result:.1f}%', 'ghost', 'Acurácia de resultados finalizados')}
+          </div>
+        </div>
+      </div>
+      <div class="pg-header__status" aria-hidden="true">
+        {render_chip(auto_view_label, 'ghost')} 
+        {render_chip(f'Atualizado {last_update_label}', 'ghost')} 
+        {render_chip(f'Filtros ativos: {active_filters}', 'ghost')} 
+        {render_chip(filter_line or 'Sem filtros adicionais', 'ghost')} 
+        {render_chip(export_state_label, 'ghost')}
+      </div>
+      <div class="pg-sr" aria-live="polite">{live_text}</div>
+    </div>
+    """
+
+
 def render_glassy_table(
     df: pd.DataFrame,
     caption: Optional[str] = None,
@@ -68,6 +140,10 @@ def render_glassy_table(
     density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
     with st.container():
         st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
+        legend = "⭐ Sugestão Guru: Prob ≥ 60% e Odd > 1.20."
+        if caption:
+            legend = f"{caption} · {legend}"
+        st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
         st.data_editor(
             df_to_render,
             use_container_width=True,
@@ -75,10 +151,6 @@ def render_glassy_table(
             disabled=True,
             column_config=column_config,
         )
-        legend = "⭐ Sugestão Guru: Prob ≥ 60% e Odd > 1.20."
-        if caption:
-            legend = f"{caption} · {legend}"
-        st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 

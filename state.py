@@ -147,13 +147,12 @@ def save_persisted_filters(state: dict) -> None:
 TABLE_COLUMN_PRESETS = {
     "desktop": [
         "date", "home", "away", "tournament_id", "model",
-        "guru_highlight", "status", "result_predicted", "score_predicted",
-        "bet_suggestion", "goal_bet_suggestion", "btts_suggestion",
-        "odds_H", "odds_D", "odds_A", "result_home", "result_away",
+        "guru_highlight", "status", "bet_suggestion", "goal_bet_suggestion",
+        "btts_suggestion", "result_predicted", "score_predicted", "result_home", "result_away",
     ],
     "mobile": [
         "date", "home", "away", "tournament_id", "model", "guru_highlight",
-        "status", "bet_suggestion", "goal_bet_suggestion", "result_predicted",
+        "status", "bet_suggestion", "result_predicted",
     ],
     "compact": [
         "date", "home", "away", "model", "guru_highlight",

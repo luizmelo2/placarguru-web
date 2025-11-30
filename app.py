@@ -80,7 +80,7 @@ if force_header_patch:
     st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
 
 
-# Estado inicial: Light por padrão com toggle visível
+# Estado inicial: Light por padrão com anúncio único
 st.session_state.setdefault("pg_dark_mode", False)
 st.session_state.setdefault("pg_theme_announce", "")
 
@@ -90,23 +90,8 @@ def _on_theme_toggle():
     st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
 
 
-theme_col, _ = st.columns([1.1, 3])
-with theme_col:
-    st.toggle(
-        f"Alternar tema — {'escuro' if st.session_state['pg_dark_mode'] else 'claro'}", 
-        value=bool(st.session_state["pg_dark_mode"]),
-        key="pg_dark_mode_toggle",
-        help="Altere o tema para avaliar contraste em dark/light.",
-        label_visibility="visible",
-        on_change=_on_theme_toggle,
-    )
-    dark_mode = bool(st.session_state["pg_dark_mode"])
-    if st.session_state.get("pg_theme_announce"):
-        st.markdown(
-            f"<span class='pg-sr' aria-live='polite'>{st.session_state['pg_theme_announce']}</span>",
-            unsafe_allow_html=True,
-        )
-        st.session_state["pg_theme_announce"] = ""
+dark_mode = bool(st.session_state.get("pg_dark_mode", False))
+st.session_state.setdefault("pg_dark_mode_toggle", dark_mode)
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -120,7 +105,14 @@ st.session_state["pg_mobile_auto"] = modo_mobile
 auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
-from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
+from ui_components import (
+    filtros_ui,
+    display_list_view,
+    is_guru_highlight,
+    render_glassy_table,
+    render_app_header,
+    render_chip,
+)
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 
 # ============================
@@ -240,6 +232,7 @@ try:
 
         use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
 
+        shared_state = get_filter_state()
         if modo_mobile:
             quick_summary = []
             if tournaments_sel:
@@ -247,19 +240,22 @@ try:
             if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
                 quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
             quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+
             st.markdown(
                 """
                 <div class="pg-mobile-toolbar">
-                  <div class="pg-mobile-toolbar__title">Atalhos rápidos</div>
-                  <p class="pg-mobile-toolbar__hint">Selecione torneio e período sem abrir o menu lateral.</p>
+                  <div class="pg-mobile-toolbar__row">
+                    <div>
+                      <div class="pg-mobile-toolbar__title">Filtros rápidos</div>
+                      <p class="pg-mobile-toolbar__hint">Torneio, período e busca em uma única barra.</p>
+                    </div>
+                    <div class="pg-chip ghost" aria-hidden="true">Ativos: {quick_summary}</div>
+                  </div>
                 </div>
-                """,
+                """.format(quick_summary=quick_summary_txt),
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                f"<div class='pg-chip ghost' role='status'>Ativos: {quick_summary_txt}</div>",
-                unsafe_allow_html=True,
-            )
+
             c1, c2 = st.columns(2)
             quick_tourn = c1.selectbox(
                 "Torneio (atalho)",
@@ -276,27 +272,14 @@ try:
             q_team = st.text_input(
                 "Busca rápida por equipe",
                 key="pg_q_team_shared",
-                value=st.session_state.get("pg_q_team_shared", q_team or ""),
+                value=shared_state.search_query or "",
                 placeholder="Digite nome do time...",
                 label_visibility="collapsed",
             )
-            st.session_state["pg_q_team_shared"] = q_team
-            st.session_state.setdefault("pg_filters_cache", {})
-            st.session_state["pg_filters_cache"]["search_query"] = q_team
-
-            with st.container():
-                chip_col1, chip_col2, chip_col3 = st.columns([1, 1, 1])
-                chip_col1.markdown(f"<div class='pg-chip ghost'>Modelos: {len(models_sel) or 'Todos'}</div>", unsafe_allow_html=True)
-                chip_col2.markdown(
-                    f"<div class='pg-chip ghost'>Odds filtradas: {'Sim' if any([flt for flt in (sel_h, sel_d, sel_a) if flt]) else 'Não'}</div>",
-                    unsafe_allow_html=True,
-                )
-                if chip_col3.button("Abrir filtros completos", use_container_width=True, key="btn_open_filters_mobile"):
-                    st.session_state.pg_filters_open = True
 
             if quick_tourn != "Todos":
                 tournaments_sel = [quick_tourn]
-                st.session_state["pg_filters_cache"]["tournaments_sel"] = tournaments_sel
+                shared_state.tournaments_sel = tournaments_sel
             if quick_range != "Todos" and min_date and max_date:
                 today = date.today()
                 if quick_range == "Hoje":
@@ -305,15 +288,9 @@ try:
                     selected_date_range = (today, today + timedelta(days=3))
                 elif quick_range == "Últimos 3 dias":
                     selected_date_range = (today - timedelta(days=3), today)
-                st.session_state.pg_filters_cache["selected_date_range"] = selected_date_range
-                set_filter_state(get_filter_state())
-
-            shared_state = get_filter_state()
-            shared_state.search_query = q_team
-            if quick_tourn != "Todos":
-                shared_state.tournaments_sel = tournaments_sel
-            if quick_range != "Todos" and selected_date_range:
                 shared_state.selected_date_range = selected_date_range
+
+            shared_state.search_query = q_team
             set_filter_state(shared_state)
 
         # Máscara combinada (sem status)
@@ -412,91 +389,39 @@ try:
 
             export_disabled = curr_df.empty
             export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
-            topbar_placeholder.markdown(
-                f"""
-                <div class="pg-header" role="banner">
-                  <div class="pg-header__brand" aria-label="Placar Guru">
-                    <div class="pg-logo" aria-label="Escudo do Placar Guru" role="img">
-                      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                        <title>Placar Guru</title>
-                        <desc>Escudo minimalista do Placar Guru com barras de desempenho.</desc>
-                        <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
-                        <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
-                        <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
-                        <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
-                        <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
-                        <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
-                        <path class="pg-logo-ball" d="M28 20c2.6 1.2 5.2 1.2 7.8 0l2.7 3.2-2.2 4.8h-4.8L29.2 23z" fill="none" />
-                        <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p class="pg-eyebrow">Placar Guru</p>
-                      <div class="pg-appname">Futebol + Data Science</div>
-                      <div class="pg-breadcrumbs" aria-label="Seção atual">
-                        <span>Home</span><span aria-hidden="true">/</span><span>{curr_label}</span>
-                      </div>
-                      <div class="pg-header__summary" role="status">
-                        <span class="pg-chip ghost">Jogos no recorte: {total_games}</span>
-                        <span class="pg-chip ghost">Sugestões Guru: {highlight_count}</span>
-                        <span class="pg-chip ghost">Acurácia recente: {acc_result:.1f}%</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="pg-header__status" role="status">
-                    <span class="pg-chip ghost" role="status" aria-label="Viewport detectado {auto_view_label}">{auto_view_label}</span>
-                    <span class="pg-chip ghost" role="status" aria-label="Última atualização em {last_update_dt.strftime('%d/%m %H:%M')}">Última atualização {last_update_dt.strftime('%d/%m %H:%M')}</span>
-                    <span class="pg-chip ghost" role="status" aria-label="{active_filters} filtros ativos">Filtros ativos: {active_filters}</span>
-                    <span class="pg-chip ghost" role="status" aria-label="Resumo de filtros {filter_line}">{filter_line}</span>
-                  </div>
-                  <div class="pg-header__actions">
-                    <span class="pg-chip" role="status" aria-label="Tema {'dark' if dark_mode else 'light'} ativo">Tema {'dark' if dark_mode else 'light'}</span>
-                    <span class="pg-chip {'ghost' if export_disabled else ''}" role="status" aria-label="{export_state_label}">{export_state_label}</span>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            header_html = render_app_header(
+                curr_label=curr_label,
+                total_games=total_games,
+                highlight_count=highlight_count,
+                acc_result=acc_result,
+                auto_view_label=auto_view_label,
+                last_update_label=last_update_dt.strftime('%d/%m %H:%M'),
+                active_filters=active_filters,
+                filter_line=filter_line,
+                export_state_label=export_state_label,
             )
-
-            st.markdown(
-                f"""
-                <div class="pg-hero pg-hero--compact" aria-live="polite">
-                  <div class="pg-hero__head">
-                    <div>
-                      <div class="pg-meta">Dashboard — {curr_label}</div>
-                      <h2 style="margin:4px 0;">Visão rápida com foco no que importa</h2>
-                      <div class="text-muted" style="font-size:13px;">{filter_line}</div>
-                    </div>
-                    <div class="pg-hero__cta">
-                      <div class="pg-chip ghost">{export_state_label}</div>
-                    </div>
-                  </div>
-                  <div class="pg-kpi-grid">
-                    <div class="pg-kpi">
-                      <div class="label">Total no filtro</div>
-                      <div class="value">{total_games}</div>
-                      <div class="delta">{today_count} hoje</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Sugestão Guru</div>
-                      <div class="value">{highlight_count}</div>
-                      <div class="delta">Prob ≥ 60% & Odd > 1.20</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Torneios</div>
-                      <div class="value">{tourn_count}</div>
-                      <div class="delta">Filtro ativo</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Acurácia (finalizados)</div>
-                      <div class="value">{acc_result:.1f}%</div>
-                      <div class="delta">Sugestões {acc_bet:.1f}%</div>
-                    </div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            with topbar_placeholder.container():
+                brand_col, action_col = st.columns([4, 1.4])
+                brand_col.markdown(header_html, unsafe_allow_html=True)
+                with action_col:
+                    st.toggle(
+                        f"Alternar tema — {'escuro' if dark_mode else 'claro'}",
+                        value=bool(st.session_state.get("pg_dark_mode_toggle", dark_mode)),
+                        key="pg_dark_mode_toggle",
+                        help="Altere o tema para avaliar contraste em dark/light.",
+                        label_visibility="visible",
+                        on_change=_on_theme_toggle,
+                    )
+                    if st.session_state.get("pg_theme_announce"):
+                        st.markdown(
+                            f"<span class='pg-sr' aria-live='polite'>{st.session_state['pg_theme_announce']}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        st.session_state["pg_theme_announce"] = ""
+                    st.markdown(
+                        f"<div aria-hidden='true'>{render_chip(export_state_label, 'ghost')}</div>",
+                        unsafe_allow_html=True,
+                    )
 
             export_data = generate_pdf_report(curr_df) if not export_disabled else None
             st.download_button(
@@ -655,10 +580,6 @@ try:
                               <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
                               <p class="pg-stats-desc">KPIs premium, gráficos e melhores modelos alinhados ao protótipo.</p>
                             </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Status: Finalizados</span>
-                              <span class="pg-chip ghost">Tema {"Dark" if dark_mode else "Light"}</span>
-                            </div>
                           </div>
                           <div class="pg-stat-grid">
                             <div class="pg-stat-card">
@@ -695,10 +616,6 @@ try:
                               <p class="pg-eyebrow">Gráfico de acertos</p>
                               <h4 style="margin:0;">Precisão por métrica</h4>
                               <p class="pg-stats-desc">Compare modelos, mercados e a taxa de acerto consolidada.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Interativo</span>
-                              <span class="pg-chip ghost">Ordene por coluna</span>
                             </div>
                           </div>
                         """,
