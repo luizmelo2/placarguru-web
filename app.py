@@ -97,28 +97,16 @@ st.markdown(
           </svg>
         </div>
         <div>
-          <p class="pg-eyebrow">Futebol + Data Science</p>
-          <div class="pg-appname">Futebol + Data Science Placar Guru</div>
+          <p class="pg-eyebrow">Placar Guru</p>
+          <div class="pg-appname">Futebol + Data Science</div>
         </div>
       </div>
 
-      <div class="pg-topbar__actions">
-        <!-- BOTÃO NOVO: abre/fecha o sidebar -->
-        <button
-          class="pg-chip"
-          type="button"
-          onclick="window.parent.postMessage({ type: 'streamlit:toggleSidebar' }, '*')"
-          title="Abrir filtros"
-        >
-          ☰ Filtros
-        </button>
-
-        
-      </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
 
 
 
