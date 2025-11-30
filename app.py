@@ -28,6 +28,8 @@ from state import (
     set_filter_state,
     get_filter_state,
     TABLE_COLUMN_PRESETS,
+    DEFAULT_TABLE_DENSITY,
+    reset_filters,
 )
 
 
@@ -195,6 +197,118 @@ try:
         q_team = flt.get("search_query", "")
         tournament_opts = flt.get("tournament_opts", [])
         min_date, max_date = flt.get("min_date"), flt.get("max_date")
+
+        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
+        if modo_mobile:
+            st.session_state["pg_list_view_pref"] = True
+        else:
+            st.session_state["pg_list_view_pref"] = st.checkbox(
+                "Usar visualização em lista (mobile)",
+                value=bool(st.session_state.get("pg_list_view_pref", False)),
+                help="Mantém a listagem em cards mesmo no desktop quando preferir.",
+            )
+
+        st.session_state.setdefault("pg_table_density", DEFAULT_TABLE_DENSITY)
+        density_toggle = st.toggle(
+            "Compactar linhas da tabela",
+            key="pg_density_toggle",
+            value=st.session_state.get("pg_table_density") == "compact",
+            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
+        )
+        table_density = "compact" if density_toggle else "comfortable"
+        st.session_state["pg_table_density"] = table_density
+
+        use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
+
+        shared_state = get_filter_state()
+        defaults = flt.get("defaults", {})
+        if modo_mobile:
+            quick_summary = []
+            if tournaments_sel:
+                quick_summary.append(tournament_label(tournaments_sel[0]))
+            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
+            quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+
+            with st.expander("Filtros rápidos (mobile)", expanded=True):
+                st.markdown(
+                    f"<p class='pg-mobile-toolbar__hint'>Concentre torneios, período e busca em um único bloco. Ativos: {quick_summary_txt}</p>",
+                    unsafe_allow_html=True,
+                )
+
+                c1, c2 = st.columns(2)
+                base_opts = ["Todos"] + tournament_opts
+                quick_idx = 0
+                if tournaments_sel and tournaments_sel[0] in tournament_opts:
+                    quick_idx = base_opts.index(tournaments_sel[0])
+                quick_tourn = c1.selectbox(
+                    "Torneio (atalho)",
+                    options=base_opts,
+                    index=quick_idx,
+                    label_visibility="collapsed",
+                )
+                range_opts = ["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"]
+                quick_range_idx = 0
+                if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                    today = date.today()
+                    if selected_date_range == (today, today):
+                        quick_range_idx = 1
+                    elif selected_date_range == (today, today + timedelta(days=3)):
+                        quick_range_idx = 2
+                    elif selected_date_range == (today - timedelta(days=3), today):
+                        quick_range_idx = 3
+                quick_range = c2.selectbox(
+                    "Período (atalho)",
+                    options=range_opts,
+                    index=quick_range_idx,
+                    label_visibility="collapsed",
+                )
+                q_team_input = st.text_input(
+                    "Busca rápida por equipe",
+                    key="pg_q_team_shared",
+                    value=shared_state.search_query or "",
+                    placeholder="Digite nome do time...",
+                    label_visibility="collapsed",
+                )
+
+                if quick_tourn != "Todos":
+                    tournaments_sel = [quick_tourn]
+                    shared_state.tournaments_sel = tournaments_sel
+                if quick_range != "Todos" and min_date and max_date:
+                    today = date.today()
+                    if quick_range == "Hoje":
+                        selected_date_range = (today, today)
+                    elif quick_range == "Próx. 3 dias":
+                        selected_date_range = (today, today + timedelta(days=3))
+                    elif quick_range == "Últimos 3 dias":
+                        selected_date_range = (today - timedelta(days=3), today)
+                    shared_state.selected_date_range = selected_date_range
+
+                shared_state.search_query = q_team_input
+
+                clear_col, chips_col = st.columns([1, 2])
+                with clear_col:
+                    if st.button("Limpar recorte", use_container_width=True):
+                        cleared = reset_filters(defaults)
+                        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
+                        tournaments_sel = cleared.tournaments_sel or []
+                        models_sel = cleared.models_sel or []
+                        teams_sel = cleared.teams_sel or []
+                        bet_sel = cleared.bet_sel or []
+                        goal_sel = cleared.goal_sel or []
+                        selected_date_range = cleared.selected_date_range
+                        sel_h, sel_d, sel_a = cleared.sel_h, cleared.sel_d, cleared.sel_a
+                        q_team_input = cleared.search_query
+                        shared_state = cleared
+                with chips_col:
+                    st.markdown(
+                        f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {shared_state.active_count}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+            q_team = q_team_input
+            set_filter_state(shared_state)
+
         active_filters = 0
         if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
             active_filters += 1
@@ -209,89 +323,6 @@ try:
             active_filters += 1
         if selected_date_range:
             active_filters += 1
-
-        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
-        if modo_mobile:
-            st.session_state["pg_list_view_pref"] = True
-        else:
-            st.session_state["pg_list_view_pref"] = st.checkbox(
-                "Usar visualização em lista (mobile)",
-                value=bool(st.session_state.get("pg_list_view_pref", False)),
-                help="Mantém a listagem em cards mesmo no desktop quando preferir.",
-            )
-
-        st.session_state.setdefault("pg_table_density", "comfortable")
-        density_toggle = st.toggle(
-            "Compactar linhas da tabela",
-            key="pg_density_toggle",
-            value=st.session_state.get("pg_table_density") == "compact",
-            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
-        )
-        table_density = "compact" if density_toggle else "comfortable"
-        st.session_state["pg_table_density"] = table_density
-
-        use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
-
-        shared_state = get_filter_state()
-        if modo_mobile:
-            quick_summary = []
-            if tournaments_sel:
-                quick_summary.append(tournament_label(tournaments_sel[0]))
-            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
-                quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
-            quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
-
-            st.markdown(
-                """
-                <div class="pg-mobile-toolbar">
-                  <div class="pg-mobile-toolbar__row">
-                    <div>
-                      <div class="pg-mobile-toolbar__title">Filtros rápidos</div>
-                      <p class="pg-mobile-toolbar__hint">Torneio, período e busca em uma única barra.</p>
-                    </div>
-                    <div class="pg-chip ghost" aria-hidden="true">Ativos: {quick_summary}</div>
-                  </div>
-                </div>
-                """.format(quick_summary=quick_summary_txt),
-                unsafe_allow_html=True,
-            )
-
-            c1, c2 = st.columns(2)
-            quick_tourn = c1.selectbox(
-                "Torneio (atalho)",
-                options=["Todos"] + tournament_opts,
-                index=0,
-                label_visibility="collapsed",
-            )
-            quick_range = c2.selectbox(
-                "Período (atalho)",
-                options=["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"],
-                index=0,
-                label_visibility="collapsed",
-            )
-            q_team = st.text_input(
-                "Busca rápida por equipe",
-                key="pg_q_team_shared",
-                value=shared_state.search_query or "",
-                placeholder="Digite nome do time...",
-                label_visibility="collapsed",
-            )
-
-            if quick_tourn != "Todos":
-                tournaments_sel = [quick_tourn]
-                shared_state.tournaments_sel = tournaments_sel
-            if quick_range != "Todos" and min_date and max_date:
-                today = date.today()
-                if quick_range == "Hoje":
-                    selected_date_range = (today, today)
-                elif quick_range == "Próx. 3 dias":
-                    selected_date_range = (today, today + timedelta(days=3))
-                elif quick_range == "Últimos 3 dias":
-                    selected_date_range = (today - timedelta(days=3), today)
-                shared_state.selected_date_range = selected_date_range
-
-            shared_state.search_query = q_team
-            set_filter_state(shared_state)
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -399,6 +430,7 @@ try:
                 active_filters=active_filters,
                 filter_line=filter_line,
                 export_state_label=export_state_label,
+                today_count=today_count,
             )
             with topbar_placeholder.container():
                 brand_col, action_col = st.columns([4, 1.4])

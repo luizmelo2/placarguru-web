@@ -6,12 +6,15 @@ from dataclasses import dataclass, asdict
 from datetime import date
 from typing import List, Optional, Tuple
 
+import pandas as pd
+
 import streamlit as st
 import streamlit.components.v1 as components
 
 
 # Breakpoint único compartilhado entre Python e CSS (mobile < 1024px)
 MOBILE_BREAKPOINT = 1024
+DEFAULT_TABLE_DENSITY = "comfortable"
 
 
 @dataclass
@@ -82,6 +85,72 @@ def reset_filters(defaults: Optional[dict] = None) -> FilterState:
     return fresh_state
 
 
+def _odds_default(df: pd.DataFrame, col: str, fallback: tuple[float, float] = (0.0, 1.0)) -> tuple[float, float]:
+    """Retorna o range padrão para a coluna de odds quando o filtro está oculto."""
+
+    if col in df.columns:
+        series = df[col].dropna()
+        if not series.empty:
+            return (float(series.min()), float(series.max()))
+    return fallback
+
+
+def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, dict]:
+    """Centraliza a montagem dos defaults e opções disponíveis para os filtros."""
+
+    model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
+    tourn_opts = sorted(df["tournament_id"].dropna().unique()) if "tournament_id" in df.columns else []
+    team_opts = (
+        sorted(pd.concat([df["home"], df["away"]]).dropna().astype(str).unique())
+        if {"home", "away"}.issubset(df.columns)
+        else []
+    )
+    bet_opts = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
+    goal_opts = (
+        sorted(df["goal_bet_suggestion"].dropna().unique())
+        if "goal_bet_suggestion" in df.columns
+        else []
+    )
+
+    default_models = []
+    if model_opts:
+        url_models = [v.strip().lower() for v in st.session_state.get("model_init_raw", [])]
+        wanted = [m for m in model_opts if str(m).strip().lower() in url_models]
+        if not wanted:
+            wanted = [m for m in model_opts if str(m).strip().lower() == "combo"]
+        default_models = wanted or model_opts
+
+    min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
+    max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
+    persisted = load_persisted_filters()
+
+    defaults = {
+        "tournaments_sel": list(tourn_opts),
+        "models_sel": default_models,
+        "teams_sel": [] if modo_mobile else team_opts,
+        "bet_sel": [],
+        "goal_sel": [],
+        "selected_date_range": (min_date, max_date) if min_date and max_date else (),
+        "sel_h": _odds_default(df, "odds_H"),
+        "sel_d": _odds_default(df, "odds_D"),
+        "sel_a": _odds_default(df, "odds_A"),
+        "search_query": persisted.get("search_query", st.session_state.get("pg_q_team_shared", "")),
+    }
+
+    defaults.update({k: v for k, v in persisted.items() if v})
+
+    options = {
+        "model_opts": model_opts,
+        "tourn_opts": tourn_opts,
+        "team_opts": team_opts,
+        "bet_opts": bet_opts,
+        "goal_opts": goal_opts,
+        "min_date": min_date,
+        "max_date": max_date,
+    }
+    return defaults, options
+
+
 def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
     """Sincroniza a largura do viewport com debounce e listener de rotação."""
 
@@ -148,15 +217,15 @@ TABLE_COLUMN_PRESETS = {
     "desktop": [
         "date", "home", "away", "tournament_id", "model",
         "guru_highlight", "status", "bet_suggestion", "goal_bet_suggestion",
-        "btts_suggestion", "result_predicted", "score_predicted", "result_home", "result_away",
+        "btts_suggestion", "result_predicted", "score_predicted", "final_score",
     ],
     "mobile": [
         "date", "home", "away", "tournament_id", "model", "guru_highlight",
-        "status", "bet_suggestion", "result_predicted",
+        "status", "bet_suggestion", "result_predicted", "final_score",
     ],
     "compact": [
-        "date", "home", "away", "model", "guru_highlight",
-        "status", "bet_suggestion", "result_predicted",
+        "date", "home", "away", "guru_highlight",
+        "status", "bet_suggestion", "result_predicted", "final_score",
     ],
 }
 

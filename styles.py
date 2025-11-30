@@ -133,7 +133,7 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-logo .pg-logo-chart { fill: rgba(12, 20, 38, 0.22); stroke: #0b1224; stroke-opacity: 0.22; }
   .pg-logo .pg-logo-glow { fill: rgba(163, 230, 53, 0.88); filter: drop-shadow(0 4px 10px rgba(163, 230, 53, 0.28)); }
   .pg-eyebrow { margin: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-  .pg-appname { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
+  .pg-appname { font-size: clamp(1.05rem, 2.6vw, 1.28rem); font-weight: 800; letter-spacing: -0.01em; }
   .pg-header__status { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
   .pg-header__actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
   .pg-tab {
@@ -170,13 +170,15 @@ def inject_custom_css(dark_mode: bool = False):
     border: 1px solid var(--stroke);
     background: color-mix(in srgb, var(--panel) 88%, transparent);
     font-weight: 700;
-    font-size: 12px;
+    font-size: clamp(12px, 1.8vw, 13px);
     color: var(--text);
     transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
   }
   .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 82%, var(--glass-strong)); color: color-mix(in srgb, var(--text) 92%, var(--muted)); border-color: color-mix(in srgb, var(--stroke) 82%, var(--primary)); }
   .pg-chip:hover { border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 10px 30px rgba(37,99,235,0.14); }
   .pg-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .pg-header__meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .pg-header__secondary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .pg-subhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
   .pg-hero-breadcrumb { color: var(--muted); font-size: 13px; }
   .pg-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -473,6 +475,11 @@ def inject_custom_css(dark_mode: bool = False):
     background: color-mix(in srgb, var(--primary) 12%, var(--panel));
     box-shadow: 0 10px 32px rgba(37,99,235,0.14);
   }
+  @media (max-width: 1024px) {
+    .pg-table-card--interactive tbody tr:nth-child(odd),
+    .pg-table-card--interactive tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 94%, transparent); }
+    .pg-table-card--interactive tbody tr:hover { box-shadow: none; }
+  }
   .pg-table-card--interactive td {
     padding: 12px 14px;
     border-bottom: 1px solid color-mix(in srgb, var(--stroke) 72%, transparent);
@@ -483,9 +490,7 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-table-card--interactive td:last-child { border-right: none; }
   .pg-table-card--interactive tbody tr:last-child td { border-bottom: none; }
   .pg-density-compact .pg-table-card--interactive table td,
-  .pg-density-compact .pg-table-card--interactive table th { padding-top: 8px !important; padding-bottom: 8px !important; }
-  .pg-density-comfortable .pg-table-card--interactive table td,
-  .pg-density-comfortable .pg-table-card--interactive table th { padding-top: 12px !important; padding-bottom: 12px !important; }
+  .pg-density-compact .pg-table-card--interactive table th { font-size: 12px !important; }
   .pg-table {
     width: 100%;
     border-collapse: separate;
