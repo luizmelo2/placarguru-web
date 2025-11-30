@@ -10,7 +10,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
-MOBILE_BREAKPOINT = 980
+# Breakpoint único compartilhado entre Python e CSS (mobile < 1024px)
+MOBILE_BREAKPOINT = 1024
 
 
 @dataclass
@@ -65,6 +66,11 @@ def set_filter_state(state: FilterState) -> None:
 
     st.session_state["pg_filters_cache"] = state.to_dict()
     st.session_state["pg_q_team_shared"] = state.search_query
+    save_persisted_filters({
+        "tournaments_sel": state.tournaments_sel,
+        "models_sel": state.models_sel,
+        "search_query": state.search_query,
+    })
 
 
 def reset_filters(defaults: Optional[dict] = None) -> FilterState:
@@ -82,6 +88,13 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
     width = components.html(
         f"""
         <script>
+          const cleanupViewportListener = () => {{
+            if (window.pgViewportHandler) {{
+              window.removeEventListener('resize', window.pgViewportHandler);
+              window.removeEventListener('orientationchange', window.pgViewportHandler);
+            }}
+          }};
+          cleanupViewportListener();
           const sendWidth = () => {{
             const width = window.innerWidth || document.documentElement.clientWidth;
             if (window.Streamlit && window.Streamlit.setComponentValue) {{
@@ -93,6 +106,7 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
             clearTimeout(window.pgViewportTimer);
             window.pgViewportTimer = setTimeout(sendWidth, {int(debounce_ms)});
           }};
+          window.pgViewportHandler = handler;
           window.addEventListener('resize', handler, {{ passive: true }});
           window.addEventListener('orientationchange', handler, {{ passive: true }});
         </script>
@@ -108,4 +122,42 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
 
     st.session_state["pg_viewport_width"] = viewport_width or default
     return st.session_state["pg_viewport_width"]
+
+
+@st.cache_data(show_spinner=False)
+def _persisted_filters_store(state: Optional[dict] = None) -> dict:
+    """Armazena seleções principais de forma leve entre sessões."""
+
+    return state or {}
+
+
+def load_persisted_filters() -> dict:
+    """Recupera seleções persistidas de torneio/mercado e busca rápida."""
+
+    return _persisted_filters_store(None)
+
+
+def save_persisted_filters(state: dict) -> None:
+    """Salva seleções principais em cache leve com opção de reset externo."""
+
+    _persisted_filters_store.clear()
+    _persisted_filters_store(state)
+
+
+TABLE_COLUMN_PRESETS = {
+    "desktop": [
+        "date", "home", "away", "tournament_id", "model",
+        "guru_highlight", "status", "result_predicted", "score_predicted",
+        "bet_suggestion", "goal_bet_suggestion", "btts_suggestion",
+        "odds_H", "odds_D", "odds_A", "result_home", "result_away",
+    ],
+    "mobile": [
+        "date", "home", "away", "tournament_id", "model", "guru_highlight",
+        "status", "bet_suggestion", "goal_bet_suggestion", "result_predicted",
+    ],
+    "compact": [
+        "date", "home", "away", "model", "guru_highlight",
+        "status", "bet_suggestion", "result_predicted",
+    ],
+}
 

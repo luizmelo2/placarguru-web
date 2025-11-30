@@ -22,7 +22,13 @@ from utils import (
     status_label, FINISHED_TOKENS,
 )
 from styles import inject_custom_css, apply_altair_theme, chart_tokens
-from state import detect_viewport_width, MOBILE_BREAKPOINT, set_filter_state, get_filter_state
+from state import (
+    detect_viewport_width,
+    MOBILE_BREAKPOINT,
+    set_filter_state,
+    get_filter_state,
+    TABLE_COLUMN_PRESETS,
+)
 
 
 
@@ -87,7 +93,7 @@ def _on_theme_toggle():
 theme_col, _ = st.columns([1.1, 3])
 with theme_col:
     st.toggle(
-        "Alternar modo escuro (acessível)",
+        f"Alternar tema — {'escuro' if st.session_state['pg_dark_mode'] else 'claro'}", 
         value=bool(st.session_state["pg_dark_mode"]),
         key="pg_dark_mode_toggle",
         help="Altere o tema para avaliar contraste em dark/light.",
@@ -100,6 +106,7 @@ with theme_col:
             f"<span class='pg-sr' aria-live='polite'>{st.session_state['pg_theme_announce']}</span>",
             unsafe_allow_html=True,
         )
+        st.session_state["pg_theme_announce"] = ""
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -116,18 +123,6 @@ from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 
-TABLE_COLUMNS = {
-    "desktop": [
-        "date", "home", "away", "tournament_id", "model",
-        "guru_highlight", "status", "result_predicted", "score_predicted",
-        "bet_suggestion", "goal_bet_suggestion", "btts_suggestion",
-        "odds_H", "odds_D", "odds_A", "result_home", "result_away",
-    ],
-    "mobile": [
-        "date", "home", "away", "tournament_id", "model", "guru_highlight",
-        "status", "bet_suggestion", "goal_bet_suggestion", "result_predicted",
-    ],
-}
 # ============================
 # Exibição amigável
 # ============================
@@ -313,6 +308,14 @@ try:
                 st.session_state.pg_filters_cache["selected_date_range"] = selected_date_range
                 set_filter_state(get_filter_state())
 
+            shared_state = get_filter_state()
+            shared_state.search_query = q_team
+            if quick_tourn != "Todos":
+                shared_state.tournaments_sel = tournaments_sel
+            if quick_range != "Todos" and selected_date_range:
+                shared_state.selected_date_range = selected_date_range
+            set_filter_state(shared_state)
+
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
 
@@ -433,6 +436,11 @@ try:
                       <div class="pg-breadcrumbs" aria-label="Seção atual">
                         <span>Home</span><span aria-hidden="true">/</span><span>{curr_label}</span>
                       </div>
+                      <div class="pg-header__summary" role="status">
+                        <span class="pg-chip ghost">Jogos no recorte: {total_games}</span>
+                        <span class="pg-chip ghost">Sugestões Guru: {highlight_count}</span>
+                        <span class="pg-chip ghost">Acurácia recente: {acc_result:.1f}%</span>
+                      </div>
                     </div>
                   </div>
                   <div class="pg-header__status" role="status">
@@ -540,7 +548,8 @@ try:
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
-                        cols_to_show = TABLE_COLUMNS["mobile" if modo_mobile else "desktop"]
+                        preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
+                        cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
                         existing_cols = [
                             c for c in cols_to_show
                             if c in df_ag.columns and (df_ag[c].notna().any() if c.startswith("odds") else True)
@@ -590,7 +599,8 @@ try:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
-                            cols_to_show = TABLE_COLUMNS["mobile" if modo_mobile else "desktop"]
+                            preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
+                            cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
                             existing_cols = [
                                 c for c in cols_to_show
                                 if c in df_fin.columns and (df_fin[c].notna().any() if c.startswith("odds") else True)

@@ -14,6 +14,7 @@ def inject_custom_css(dark_mode: bool = False):
   [data-pg-theme="light"],
   .stApp[data-pg-theme="light"],
   .pg-theme-light {
+    --mobile-breakpoint: 1024px;
     --bg: #f8fafc;
     --panel: #ffffff;
     --glass: rgba(255,255,255,0.65);
@@ -43,6 +44,7 @@ def inject_custom_css(dark_mode: bool = False):
   [data-pg-theme="dark"],
   .stApp[data-pg-theme="dark"],
   .pg-theme-dark {
+    --mobile-breakpoint: 1024px;
     --bg: #0b1224;
     --panel: #0f172a;
     --glass: rgba(255,255,255,0.04);
@@ -158,6 +160,7 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-topbar__actions { display: flex; justify-content: flex-end; }
   .pg-breadcrumbs { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
   .pg-breadcrumbs span:last-child { color: var(--text); font-weight: 700; }
+  .pg-header__summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .pg-chip {
     display: inline-flex;
     align-items: center;
@@ -171,17 +174,20 @@ def inject_custom_css(dark_mode: bool = False):
     color: var(--text);
     transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
   }
-  .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 88%, var(--glass-strong)); color: color-mix(in srgb, var(--text) 86%, var(--muted)); border-color: color-mix(in srgb, var(--stroke) 80%, var(--primary)); }
+  .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 82%, var(--glass-strong)); color: color-mix(in srgb, var(--text) 92%, var(--muted)); border-color: color-mix(in srgb, var(--stroke) 82%, var(--primary)); }
   .pg-chip:hover { border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 10px 30px rgba(37,99,235,0.14); }
   .pg-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .pg-subhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
   .pg-hero-breadcrumb { color: var(--muted); font-size: 13px; }
   .pg-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  @media (max-width: 980px) {
+  @media (max-width: 1024px) {
     .pg-header { grid-template-columns: 1fr; padding: 12px 14px; }
     .pg-header__status { justify-content: flex-start; }
     .pg-header__actions { width: 100%; justify-content: flex-start; }
   }
+
+  .pg-table-card [data-testid="stDataFrame"] *:focus-visible { box-shadow: var(--focus-ring) !important; outline: none !important; }
+  .pg-table-card table th:first-child, .pg-table-card table td:first-child { position: sticky; left: 0; z-index: 3; background: color-mix(in srgb, var(--panel) 96%, transparent); }
 
   /* Filtros principais */
   .pg-filter-shell {

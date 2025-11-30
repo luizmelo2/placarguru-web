@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Optional, List
 from datetime import date, timedelta
 
-from state import get_filter_state, set_filter_state, reset_filters
+from state import get_filter_state, set_filter_state, reset_filters, load_persisted_filters
 
 from utils import (
     FRIENDLY_COLS, market_label, tournament_label, status_label,
@@ -220,6 +220,8 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
+    persisted = load_persisted_filters()
+
     defaults = {
         "tournaments_sel": list(tourn_opts),
         "models_sel": default_models,
@@ -230,8 +232,10 @@ def filtros_ui(
         "sel_h": _odds_default("odds_H"),
         "sel_d": _odds_default("odds_D"),
         "sel_a": _odds_default("odds_A"),
-        "search_query": st.session_state.get("pg_q_team_shared", ""),
+        "search_query": persisted.get("search_query", st.session_state.get("pg_q_team_shared", "")),
     }
+
+    defaults.update({k: v for k, v in persisted.items() if v})
 
     state = get_filter_state(defaults)
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in tourn_opts] or list(tourn_opts)
@@ -252,7 +256,13 @@ def filtros_ui(
             unsafe_allow_html=True,
         )
         if state.active_count:
-            st.button("Limpar filtros", use_container_width=True, key="btn_clear_filters", on_click=lambda: reset_filters(defaults))
+            st.button(
+                f"Limpar filtros ({state.active_count})",
+                use_container_width=True,
+                key="btn_clear_filters",
+                on_click=lambda: reset_filters(defaults),
+                help="Remove todos os filtros aplicados. O número indica quantos filtros estão ativos.",
+            )
         st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar filtros</div>", unsafe_allow_html=True)
         st.toggle(
             "Exibir filtros",
