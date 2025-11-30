@@ -5,6 +5,8 @@ import pandas as pd
 from typing import Optional, List
 from datetime import date, timedelta
 
+from state import get_filter_state, set_filter_state, reset_filters, load_persisted_filters
+
 from utils import (
     FRIENDLY_COLS, market_label, tournament_label, status_label,
     eval_result_pred_row, eval_score_pred_row, eval_bet_row,
@@ -19,8 +21,85 @@ HIGHLIGHT_PROB_THRESHOLD = 0.60
 HIGHLIGHT_ODD_THRESHOLD = 1.20
 
 
-def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
-    """Renderiza uma tabela interativa com visual glassy e ordenação por cabeçalho.
+def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None) -> str:
+    """Renderiza um chip reutilizável com tom e rótulo acessível."""
+
+    cls = "pg-chip"
+    if tone == "ghost":
+        cls += " ghost"
+    aria = f" aria-label=\"{aria_label}\"" if aria_label else ""
+    return f"<span class=\"{cls}\"{aria}>{text}</span>"
+
+
+def render_app_header(
+    curr_label: str,
+    total_games: int,
+    highlight_count: int,
+    acc_result: float,
+    auto_view_label: str,
+    last_update_label: str,
+    active_filters: int,
+    filter_line: str,
+    export_state_label: str,
+) -> str:
+    """Componente de header compacto com status unificado."""
+
+    live_text = " | ".join(
+        [
+            auto_view_label,
+            f"Última atualização {last_update_label}",
+            f"{active_filters} filtros ativos",
+            filter_line,
+            export_state_label,
+        ]
+    )
+
+    return f"""
+    <div class="pg-header" role="banner">
+      <div class="pg-header__brand" aria-label="Placar Guru">
+        <div class="pg-logo" aria-label="Escudo do Placar Guru" role="img">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
+            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
+            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
+            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
+            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
+            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
+            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
+          </svg>
+        </div>
+        <div>
+          <p class="pg-eyebrow">Placar Guru</p>
+          <div class="pg-appname">Futebol + Data Science</div>
+          <div class="pg-breadcrumbs" aria-label="Seção atual">
+            <span>Home</span><span aria-hidden="true">/</span><span>{curr_label}</span>
+          </div>
+          <div class="pg-header__summary">
+            {render_chip(f'Jogos: {total_games}', 'ghost', 'Total de jogos no recorte')} 
+            {render_chip(f'Sugestões Guru: {highlight_count}', 'ghost', 'Quantidade de destaques Guru')} 
+            {render_chip(f'Acurácia: {acc_result:.1f}%', 'ghost', 'Acurácia de resultados finalizados')}
+          </div>
+        </div>
+      </div>
+      <div class="pg-header__status" aria-hidden="true">
+        {render_chip(auto_view_label, 'ghost')} 
+        {render_chip(f'Atualizado {last_update_label}', 'ghost')} 
+        {render_chip(f'Filtros ativos: {active_filters}', 'ghost')} 
+        {render_chip(filter_line or 'Sem filtros adicionais', 'ghost')} 
+        {render_chip(export_state_label, 'ghost')}
+      </div>
+      <div class="pg-sr" aria-live="polite">{live_text}</div>
+    </div>
+    """
+
+
+def render_glassy_table(
+    df: pd.DataFrame,
+    caption: Optional[str] = None,
+    show_index: Optional[bool] = None,
+    density: str = "comfortable",
+):
+    """Renderiza uma tabela interativa com visual glassy e realce de Sugestão Guru.
 
     show_index: força a exibição do índice. Quando None, ativa para índices nomeados
     ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
@@ -31,21 +110,47 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
         return
 
     df_to_render = df.copy()
+    df_to_render["Guru"] = df_to_render.get("guru_highlight", False).apply(
+        lambda v: "🌟 Destaque" if bool(v) else "—"
+    )
+    if "status" in df_to_render.columns:
+        df_to_render["Status (badge)"] = df_to_render["status"].apply(lambda v: f"✅ {v}" if "inaliz" in str(v).lower() else f"🗓️ {v}")
     if show_index is None:
         show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
 
     if show_index and not df_to_render.index.name:
         df_to_render.index.name = ""
 
+    column_config = {
+        "Guru": st.column_config.Column(
+            label="Sugestão Guru",
+            help="Aplica quando prob. ≥ 60% e odd > 1.20.",
+            width="small",
+        ),
+        "status": st.column_config.TextColumn(
+            label="Status",
+            help="Mostra se o jogo está agendado ou finalizado.",
+            width="small",
+        ),
+        "Status (badge)": st.column_config.TextColumn(
+            label="Status", help="Badge com o estágio do jogo.", width="small",
+        ),
+    }
+
+    density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
     with st.container():
-        st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
-        st.dataframe(
+        st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
+        legend = "⭐ Sugestão Guru: Prob ≥ 60% e Odd > 1.20."
+        if caption:
+            legend = f"{caption} · {legend}"
+        st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
+        st.data_editor(
             df_to_render,
             use_container_width=True,
             hide_index=not show_index,
+            disabled=True,
+            column_config=column_config,
         )
-        if caption:
-            st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -78,7 +183,7 @@ def _render_filtros_modelos(container, model_opts: list, default_models: list, m
     col = container.columns(1)[0] if modo_mobile else container.columns(2)[0]
     return col.multiselect(FRIENDLY_COLS["model"], model_opts, default=default_models)
 
-def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel: Optional[List]):
+def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel: Optional[List], search_query: str):
     """Renderiza os filtros de equipes e a busca rápida."""
     c1, c2 = container.columns(2)
     with c1:
@@ -91,7 +196,9 @@ def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tourn
     )
     q_team = container.text_input(
         "🔍 Buscar equipe (Casa/Visitante)",
-        placeholder="Digite parte do nome da equipe..."
+        placeholder="Digite parte do nome da equipe...",
+        key="pg_q_team_shared",
+        value=search_query,
     )
     return teams_sel, q_team
 
@@ -157,9 +264,7 @@ def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    # Mantém o controle dos filtros no menu lateral esquerdo, oculto por padrão
     st.session_state.setdefault("pg_filters_open", False)
-    st.session_state.setdefault("pg_filters_cache", {})
     # --- 1. Extração de Opções ---
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
     tourn_opts = sorted(df["tournament_id"].dropna().unique()) if "tournament_id" in df.columns else []
@@ -187,15 +292,26 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
-    # controle de campeonatos no sidebar
-    st.session_state.setdefault("sel_tournaments", list(tourn_opts))
-    # mantém apenas válidos
-    valid_sel = [t for t in st.session_state.sel_tournaments if t in tourn_opts]
-    if valid_sel != st.session_state.sel_tournaments:
-        st.session_state.sel_tournaments = valid_sel
-    if not st.session_state.sel_tournaments and tourn_opts:
-        st.session_state.sel_tournaments = list(tourn_opts)
-    tournaments_sel = list(st.session_state.sel_tournaments)
+    persisted = load_persisted_filters()
+
+    defaults = {
+        "tournaments_sel": list(tourn_opts),
+        "models_sel": default_models,
+        "teams_sel": [] if modo_mobile else team_opts,
+        "bet_sel": [],
+        "goal_sel": [],
+        "selected_date_range": (min_date, max_date) if min_date and max_date else (),
+        "sel_h": _odds_default("odds_H"),
+        "sel_d": _odds_default("odds_D"),
+        "sel_a": _odds_default("odds_A"),
+        "search_query": persisted.get("search_query", st.session_state.get("pg_q_team_shared", "")),
+    }
+
+    defaults.update({k: v for k, v in persisted.items() if v})
+
+    state = get_filter_state(defaults)
+    tournaments_sel = [t for t in (state.tournaments_sel or []) if t in tourn_opts] or list(tourn_opts)
+    state.tournaments_sel = tournaments_sel
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -211,6 +327,14 @@ def filtros_ui(
             """,
             unsafe_allow_html=True,
         )
+        if state.active_count:
+            st.button(
+                f"Limpar filtros ({state.active_count})",
+                use_container_width=True,
+                key="btn_clear_filters",
+                on_click=lambda: reset_filters(defaults),
+                help="Remove todos os filtros aplicados. O número indica quantos filtros estão ativos.",
+            )
         st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar filtros</div>", unsafe_allow_html=True)
         st.toggle(
             "Exibir filtros",
@@ -223,11 +347,9 @@ def filtros_ui(
             csel_all, cclear = st.columns(2)
             with csel_all:
                 if st.button("Selecionar Todos", use_container_width=True, key="btn_sel_all_tourn"):
-                    st.session_state.sel_tournaments = list(tourn_opts)
                     tournaments_sel = list(tourn_opts)
             with cclear:
                 if st.button("Limpar", use_container_width=True, key="btn_clear_tourn"):
-                    st.session_state.sel_tournaments = []
                     tournaments_sel = []
 
             st.multiselect(
@@ -239,63 +361,32 @@ def filtros_ui(
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
-            models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
-            teams_sel, q_team = _render_filtros_equipes(
-                st, team_opts, modo_mobile, tournaments_sel
+            state.models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
+            state.teams_sel, state.search_query = _render_filtros_equipes(
+                st, team_opts, modo_mobile, tournaments_sel, state.search_query
             )
-            bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
-            selected_date_range = _render_filtros_periodo(st, min_date, max_date)
-            sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
-
-            st.session_state.pg_filters_cache = {
-                "tournaments_sel": tournaments_sel,
-                "models_sel": models_sel,
-                "teams_sel": teams_sel,
-                "q_team": q_team,
-                "bet_sel": bet_sel,
-                "goal_sel": goal_sel,
-                "selected_date_range": selected_date_range,
-                "sel_h": sel_h,
-                "sel_d": sel_d,
-                "sel_a": sel_a,
-            }
+            state.bet_sel, state.goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
+            state.selected_date_range = _render_filtros_periodo(st, min_date, max_date)
+            state.sel_h, state.sel_d, state.sel_a = _render_filtros_odds(st, df)
         else:
-            cache = st.session_state.get("pg_filters_cache", {})
-            tournaments_sel = cache.get("tournaments_sel", tournaments_sel)
-            models_sel = cache.get("models_sel", default_models)
-            teams_sel = cache.get("teams_sel", [])
-            q_team = cache.get("q_team", "")
-            bet_sel = cache.get("bet_sel", [])
-            goal_sel = cache.get("goal_sel", [])
-            selected_date_range = cache.get("selected_date_range", ())
-            sel_h = cache.get("sel_h")
-            sel_d = cache.get("sel_d")
-            sel_a = cache.get("sel_a")
-            if sel_h is None:
-                sel_h = _odds_default("odds_H")
-            if sel_d is None:
-                sel_d = _odds_default("odds_D")
-            if sel_a is None:
-                sel_a = _odds_default("odds_A")
             st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Use o toggle acima para ajustar.</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+    state.tournaments_sel = tournaments_sel
+
     # --- 4. Sincronização e Retorno ---
     try:
-        st.query_params["model"] = models_sel or []
+        st.query_params["model"] = state.models_sel or []
     except Exception:
         pass  # Pode falhar em alguns contextos de execução
 
+    set_filter_state(state)
     return {
-        "tournaments_sel": tournaments_sel,
-        "models_sel": models_sel,
-        "teams_sel": teams_sel,
-        "bet_sel": bet_sel,
-        "goal_sel": goal_sel,
-        "selected_date_range": selected_date_range,
-        "sel_h": sel_h, "sel_d": sel_d, "sel_a": sel_a,
-        "q_team": q_team,
+        **state.to_dict(),
+        "tournament_opts": tourn_opts,
+        "min_date": min_date,
+        "max_date": max_date,
     }
 
 

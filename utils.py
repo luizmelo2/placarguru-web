@@ -20,6 +20,7 @@ FRIENDLY_COLS = {
     "score_predicted": "Placar Previsto",
     "bet_suggestion": "Sugestão de Aposta",
     "goal_bet_suggestion": "Sugestão de Gols",
+    "guru_highlight": "Sugestão Guru",
     "odds_H": "Odd Casa",
     "odds_D": "Odd Empate",
     "odds_A": "Odd Visitante",

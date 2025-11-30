@@ -22,6 +22,13 @@ from utils import (
     status_label, FINISHED_TOKENS,
 )
 from styles import inject_custom_css, apply_altair_theme, chart_tokens
+from state import (
+    detect_viewport_width,
+    MOBILE_BREAKPOINT,
+    set_filter_state,
+    get_filter_state,
+    TABLE_COLUMN_PRESETS,
+)
 
 
 
@@ -35,8 +42,7 @@ from styles import inject_custom_css, apply_altair_theme, chart_tokens
 st.set_page_config(
     layout="wide",
     page_title="Placar Guru",
-    # Deixa expanded só para testar; depois você pode voltar para "collapsed"
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # CSS para garantir que o header e o botão do menu (hambúrguer) apareçam
@@ -67,66 +73,48 @@ section[data-testid="stSidebar"] {
 }
 </style>
 """
-st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
+# Aplica correção do header somente se estiver habilitada em secrets ou query string
+force_header_patch = bool(st.secrets.get("force_header_patch", False))
+force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
+if force_header_patch:
+    st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
 
 
-# Estado inicial: Light por padrão
+# Estado inicial: Light por padrão com anúncio único
 st.session_state.setdefault("pg_dark_mode", False)
-dark_mode = bool(st.session_state["pg_dark_mode"])
+st.session_state.setdefault("pg_theme_announce", "")
+
+
+def _on_theme_toggle():
+    st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_toggle", False))
+    st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
+
+
+dark_mode = bool(st.session_state.get("pg_dark_mode", False))
+st.session_state.setdefault("pg_dark_mode_toggle", dark_mode)
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
 apply_altair_theme(dark_mode)
 chart_theme = chart_tokens(dark_mode)
 
-# Barra superior inspirada no modelo (Futebol + Data Science Placar Guru)
-st.markdown(
-    """
-    <div class="pg-topbar">
-      <div class="pg-topbar__brand">
-        <div class="pg-logo" aria-hidden="true" role="presentation">
-          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
-            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
-            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
-            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
-            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
-            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
-            <path class="pg-logo-ball" d="M28 20c2.6 1.2 5.2 1.2 7.8 0l2.7 3.2-2.2 4.8h-4.8L29.2 23z" fill="none" />
-            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
-          </svg>
-        </div>
-        <div>
-          <p class="pg-eyebrow">Placar Guru</p>
-          <div class="pg-appname">Futebol + Data Science</div>
-        </div>
-      </div>
-
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-
-
-# Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2 = st.columns([1.2, 4])
-with col_m1:
-    modo_mobile = st.toggle("📱 Mobile", value=True)
-with col_m2:
-    st.markdown(
-        """
-        <div class="pg-subhead">
-          <span class="pg-chip ghost">Altere para desktop para ver a grade</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+topbar_placeholder = st.empty()
+viewport_width = detect_viewport_width()
+modo_mobile = viewport_width < MOBILE_BREAKPOINT
+st.session_state["pg_mobile_auto"] = modo_mobile
+auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
-from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
+from ui_components import (
+    filtros_ui,
+    display_list_view,
+    is_guru_highlight,
+    render_glassy_table,
+    render_app_header,
+    render_chip,
+)
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+
 # ============================
 # Exibição amigável
 # ============================
@@ -166,6 +154,9 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     if "btts_suggestion" in out.columns:
         out["btts_prediction"] = out["btts_suggestion"].apply(market_label, default="-")
 
+    if "guru_highlight" in out.columns:
+        out["guru_highlight"] = out["guru_highlight"].apply(lambda v: "⭐" if bool(v) else "")
+
     return out.rename(columns=FRIENDLY_COLS)
 
 
@@ -201,9 +192,106 @@ try:
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
-        q_team = flt["q_team"]
+        q_team = flt.get("search_query", "")
+        tournament_opts = flt.get("tournament_opts", [])
+        min_date, max_date = flt.get("min_date"), flt.get("max_date")
+        active_filters = 0
+        if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
+            active_filters += 1
+        model_unique = df["model"].nunique() if "model" in df.columns else 0
+        if models_sel and (model_unique and len(models_sel) != model_unique):
+            active_filters += 1
+        if teams_sel:
+            active_filters += 1
+        if q_team:
+            active_filters += 1
+        if bet_sel or goal_sel:
+            active_filters += 1
+        if selected_date_range:
+            active_filters += 1
 
-        use_list_view = True if modo_mobile else st.checkbox("Usar visualização em lista (mobile)", value=False)
+        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
+        if modo_mobile:
+            st.session_state["pg_list_view_pref"] = True
+        else:
+            st.session_state["pg_list_view_pref"] = st.checkbox(
+                "Usar visualização em lista (mobile)",
+                value=bool(st.session_state.get("pg_list_view_pref", False)),
+                help="Mantém a listagem em cards mesmo no desktop quando preferir.",
+            )
+
+        st.session_state.setdefault("pg_table_density", "comfortable")
+        density_toggle = st.toggle(
+            "Compactar linhas da tabela",
+            key="pg_density_toggle",
+            value=st.session_state.get("pg_table_density") == "compact",
+            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
+        )
+        table_density = "compact" if density_toggle else "comfortable"
+        st.session_state["pg_table_density"] = table_density
+
+        use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
+
+        shared_state = get_filter_state()
+        if modo_mobile:
+            quick_summary = []
+            if tournaments_sel:
+                quick_summary.append(tournament_label(tournaments_sel[0]))
+            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
+            quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+
+            st.markdown(
+                """
+                <div class="pg-mobile-toolbar">
+                  <div class="pg-mobile-toolbar__row">
+                    <div>
+                      <div class="pg-mobile-toolbar__title">Filtros rápidos</div>
+                      <p class="pg-mobile-toolbar__hint">Torneio, período e busca em uma única barra.</p>
+                    </div>
+                    <div class="pg-chip ghost" aria-hidden="true">Ativos: {quick_summary}</div>
+                  </div>
+                </div>
+                """.format(quick_summary=quick_summary_txt),
+                unsafe_allow_html=True,
+            )
+
+            c1, c2 = st.columns(2)
+            quick_tourn = c1.selectbox(
+                "Torneio (atalho)",
+                options=["Todos"] + tournament_opts,
+                index=0,
+                label_visibility="collapsed",
+            )
+            quick_range = c2.selectbox(
+                "Período (atalho)",
+                options=["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"],
+                index=0,
+                label_visibility="collapsed",
+            )
+            q_team = st.text_input(
+                "Busca rápida por equipe",
+                key="pg_q_team_shared",
+                value=shared_state.search_query or "",
+                placeholder="Digite nome do time...",
+                label_visibility="collapsed",
+            )
+
+            if quick_tourn != "Todos":
+                tournaments_sel = [quick_tourn]
+                shared_state.tournaments_sel = tournaments_sel
+            if quick_range != "Todos" and min_date and max_date:
+                today = date.today()
+                if quick_range == "Hoje":
+                    selected_date_range = (today, today)
+                elif quick_range == "Próx. 3 dias":
+                    selected_date_range = (today, today + timedelta(days=3))
+                elif quick_range == "Últimos 3 dias":
+                    selected_date_range = (today - timedelta(days=3), today)
+                shared_state.selected_date_range = selected_date_range
+
+            shared_state.search_query = q_team
+            set_filter_state(shared_state)
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -245,6 +333,7 @@ try:
             final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
         df_filtered = df[final_mask]
+        df_filtered = df_filtered.assign(guru_highlight=df_filtered.apply(is_guru_highlight, axis=1))
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -287,43 +376,64 @@ try:
                 if not _bet.empty:
                     acc_bet = float(_bet.iloc[0]["Acerto (%)"])
 
-            st.markdown(
-                f"""
-                <div class="pg-hero">
-                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-                    <div>
-                      <div class="pg-meta">Dashboard — {curr_label}</div>
-                      <h2 style="margin:4px 0;">Informações essenciais por status</h2>
-                      <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
-                    </div>
-                    <span class="badge">Tema: {'Dark' if dark_mode else 'Light'}</span>
-                  </div>
-                  <div class="pg-kpi-grid">
-                    <div class="pg-kpi">
-                      <div class="label">Total no filtro</div>
-                      <div class="value">{total_games}</div>
-                      <div class="delta">{today_count} hoje</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Sugestão Guru</div>
-                      <div class="value">{highlight_count}</div>
-                      <div class="delta">Prob > 60% & Odd > 1.20</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Torneios</div>
-                      <div class="value">{tourn_count}</div>
-                      <div class="delta">Filtro ativo</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Acurácia (finalizados)</div>
-                      <div class="value">{acc_result:.1f}%</div>
-                      <div class="delta">Sugestões {acc_bet:.1f}%</div>
-                    </div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            filter_summary = []
+            if tournaments_sel:
+                filter_summary.append(f"{len(tournaments_sel)} torneios")
+            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                filter_summary.append(
+                    f"{selected_date_range[0].strftime('%d/%m')} → {selected_date_range[1].strftime('%d/%m')}"
+                )
+            if q_team:
+                filter_summary.append(f"Busca por '{q_team}'")
+            filter_line = " · ".join(filter_summary) if filter_summary else "Sem filtros adicionais"
+
+            export_disabled = curr_df.empty
+            export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
+            header_html = render_app_header(
+                curr_label=curr_label,
+                total_games=total_games,
+                highlight_count=highlight_count,
+                acc_result=acc_result,
+                auto_view_label=auto_view_label,
+                last_update_label=last_update_dt.strftime('%d/%m %H:%M'),
+                active_filters=active_filters,
+                filter_line=filter_line,
+                export_state_label=export_state_label,
             )
+            with topbar_placeholder.container():
+                brand_col, action_col = st.columns([4, 1.4])
+                brand_col.markdown(header_html, unsafe_allow_html=True)
+                with action_col:
+                    st.toggle(
+                        f"Alternar tema — {'escuro' if dark_mode else 'claro'}",
+                        value=bool(st.session_state.get("pg_dark_mode_toggle", dark_mode)),
+                        key="pg_dark_mode_toggle",
+                        help="Altere o tema para avaliar contraste em dark/light.",
+                        label_visibility="visible",
+                        on_change=_on_theme_toggle,
+                    )
+                    if st.session_state.get("pg_theme_announce"):
+                        st.markdown(
+                            f"<span class='pg-sr' aria-live='polite'>{st.session_state['pg_theme_announce']}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        st.session_state["pg_theme_announce"] = ""
+                    st.markdown(
+                        f"<div aria-hidden='true'>{render_chip(export_state_label, 'ghost')}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+            export_data = generate_pdf_report(curr_df) if not export_disabled else None
+            st.download_button(
+                label="Exportar recorte para PDF",
+                data=export_data,
+                file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
+                help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
+                disabled=export_disabled,
+            )
+            if export_disabled:
+                st.caption("O botão é habilitado ao aplicar filtros que retornem jogos neste recorte.")
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
@@ -360,27 +470,19 @@ try:
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
-                    pdf_data = generate_pdf_report(df_ag)
-                    st.download_button(
-                        label="Exportar para PDF",
-                        data=pdf_data,
-                        file_name=f"relatorio_jogos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                        mime="application/pdf",
-                    )
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
-                        cols_to_show = [
-                            "date", "home", "away", "tournament_id", "model",
-                            "status", "result_predicted", "score_predicted",
-                            "bet_suggestion", "goal_bet_suggestion",
-                            "btts_suggestion", "odds_H", "odds_D", "odds_A",
-                            "result_home", "result_away"
+                        preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
+                        cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
+                        existing_cols = [
+                            c for c in cols_to_show
+                            if c in df_ag.columns and (df_ag[c].notna().any() if c.startswith("odds") else True)
                         ]
-                        existing_cols = [c for c in cols_to_show if c in df_ag.columns]
                         render_glassy_table(
                             apply_friendly_for_display(df_ag[existing_cols]),
                             caption="Jogos agendados",
+                            density=table_density,
                         )
 
             else:
@@ -413,21 +515,25 @@ try:
                         )
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    if not hide_games:
+                    if hide_games:
+                        st.markdown(
+                            "<div class='pg-chip ghost'>Lista oculta. Desative o toggle acima para reexibir os jogos.</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
-                            cols_to_show = [
-                                "date", "home", "away", "tournament_id", "model",
-                                "status", "result_predicted", "score_predicted",
-                                "bet_suggestion", "goal_bet_suggestion",
-                                "btts_suggestion", "odds_H", "odds_D", "odds_A",
-                                "result_home", "result_away"
+                            preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
+                            cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
+                            existing_cols = [
+                                c for c in cols_to_show
+                                if c in df_fin.columns and (df_fin[c].notna().any() if c.startswith("odds") else True)
                             ]
-                            existing_cols = [c for c in cols_to_show if c in df_fin.columns]
                             render_glassy_table(
                                 apply_friendly_for_display(df_fin[existing_cols]),
                                 caption="Jogos finalizados",
+                                density=table_density,
                             )
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
@@ -474,10 +580,6 @@ try:
                               <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
                               <p class="pg-stats-desc">KPIs premium, gráficos e melhores modelos alinhados ao protótipo.</p>
                             </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Status: Finalizados</span>
-                              <span class="pg-chip ghost">Tema {"Dark" if dark_mode else "Light"}</span>
-                            </div>
                           </div>
                           <div class="pg-stat-grid">
                             <div class="pg-stat-card">
@@ -514,10 +616,6 @@ try:
                               <p class="pg-eyebrow">Gráfico de acertos</p>
                               <h4 style="margin:0;">Precisão por métrica</h4>
                               <p class="pg-stats-desc">Compare modelos, mercados e a taxa de acerto consolidada.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Interativo</span>
-                              <span class="pg-chip ghost">Ordene por coluna</span>
                             </div>
                           </div>
                         """,
