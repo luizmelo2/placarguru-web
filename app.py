@@ -22,6 +22,7 @@ from utils import (
     status_label, FINISHED_TOKENS,
 )
 from styles import inject_custom_css, apply_altair_theme, chart_tokens
+from state import detect_viewport_width, MOBILE_BREAKPOINT, set_filter_state, get_filter_state
 
 
 
@@ -75,21 +76,30 @@ if force_header_patch:
 
 # Estado inicial: Light por padrão com toggle visível
 st.session_state.setdefault("pg_dark_mode", False)
+st.session_state.setdefault("pg_theme_announce", "")
+
+
+def _on_theme_toggle():
+    st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_toggle", False))
+    st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
+
+
 theme_col, _ = st.columns([1.1, 3])
 with theme_col:
-    theme_selected = st.toggle(
-        "Ativar modo escuro",
+    st.toggle(
+        "Alternar modo escuro (acessível)",
         value=bool(st.session_state["pg_dark_mode"]),
         key="pg_dark_mode_toggle",
-        help="Alterne contraste para testar legibilidade em dark/light.",
+        help="Altere o tema para avaliar contraste em dark/light.",
         label_visibility="visible",
+        on_change=_on_theme_toggle,
     )
-    st.session_state["pg_dark_mode"] = bool(theme_selected)
     dark_mode = bool(st.session_state["pg_dark_mode"])
-    st.markdown(
-        f"<span class='pg-sr' aria-live='polite'>Tema {'escuro' if dark_mode else 'claro'} ativo</span>",
-        unsafe_allow_html=True,
-    )
+    if st.session_state.get("pg_theme_announce"):
+        st.markdown(
+            f"<span class='pg-sr' aria-live='polite'>{st.session_state['pg_theme_announce']}</span>",
+            unsafe_allow_html=True,
+        )
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -97,51 +107,27 @@ apply_altair_theme(dark_mode)
 chart_theme = chart_tokens(dark_mode)
 
 topbar_placeholder = st.empty()
-
-
-
-
-
-def detect_viewport_width(default: int = 1280) -> int:
-    """Sincroniza a largura do viewport sem poluir a URL ou depender do history API."""
-
-    width = components.html(
-        """
-        <script>
-          const sendWidth = () => {
-            const width = window.innerWidth || window.document.documentElement.clientWidth;
-            if (window.Streamlit && window.Streamlit.setComponentValue) {
-              window.Streamlit.setComponentValue(width);
-            }
-          };
-          sendWidth();
-          window.addEventListener('resize', () => {
-            clearTimeout(window.pgViewportTimer);
-            window.pgViewportTimer = setTimeout(sendWidth, 240);
-          }, { passive: true });
-        </script>
-        """,
-        height=0,
-        key="pg_viewport_sync",
-    )
-
-    try:
-        viewport_width = int(width) if width else int(st.session_state.get("pg_viewport_width", default))
-    except Exception:
-        viewport_width = int(st.session_state.get("pg_viewport_width", default))
-
-    st.session_state["pg_viewport_width"] = viewport_width or default
-    return st.session_state["pg_viewport_width"]
-
-
 viewport_width = detect_viewport_width()
-modo_mobile = viewport_width < 1100
+modo_mobile = viewport_width < MOBILE_BREAKPOINT
 st.session_state["pg_mobile_auto"] = modo_mobile
 auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+
+TABLE_COLUMNS = {
+    "desktop": [
+        "date", "home", "away", "tournament_id", "model",
+        "guru_highlight", "status", "result_predicted", "score_predicted",
+        "bet_suggestion", "goal_bet_suggestion", "btts_suggestion",
+        "odds_H", "odds_D", "odds_A", "result_home", "result_away",
+    ],
+    "mobile": [
+        "date", "home", "away", "tournament_id", "model", "guru_highlight",
+        "status", "bet_suggestion", "goal_bet_suggestion", "result_predicted",
+    ],
+}
 # ============================
 # Exibição amigável
 # ============================
@@ -219,7 +205,7 @@ try:
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
-        q_team = flt["q_team"]
+        q_team = flt.get("search_query", "")
         tournament_opts = flt.get("tournament_opts", [])
         min_date, max_date = flt.get("min_date"), flt.get("max_date")
         active_filters = 0
@@ -246,6 +232,16 @@ try:
                 value=bool(st.session_state.get("pg_list_view_pref", False)),
                 help="Mantém a listagem em cards mesmo no desktop quando preferir.",
             )
+
+        st.session_state.setdefault("pg_table_density", "comfortable")
+        density_toggle = st.toggle(
+            "Compactar linhas da tabela",
+            key="pg_density_toggle",
+            value=st.session_state.get("pg_table_density") == "compact",
+            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
+        )
+        table_density = "compact" if density_toggle else "comfortable"
+        st.session_state["pg_table_density"] = table_density
 
         use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
 
@@ -290,6 +286,8 @@ try:
                 label_visibility="collapsed",
             )
             st.session_state["pg_q_team_shared"] = q_team
+            st.session_state.setdefault("pg_filters_cache", {})
+            st.session_state["pg_filters_cache"]["search_query"] = q_team
 
             with st.container():
                 chip_col1, chip_col2, chip_col3 = st.columns([1, 1, 1])
@@ -302,8 +300,8 @@ try:
                     st.session_state.pg_filters_open = True
 
             if quick_tourn != "Todos":
-                st.session_state.sel_tournaments = [quick_tourn]
                 tournaments_sel = [quick_tourn]
+                st.session_state["pg_filters_cache"]["tournaments_sel"] = tournaments_sel
             if quick_range != "Todos" and min_date and max_date:
                 today = date.today()
                 if quick_range == "Hoje":
@@ -313,6 +311,7 @@ try:
                 elif quick_range == "Últimos 3 dias":
                     selected_date_range = (today - timedelta(days=3), today)
                 st.session_state.pg_filters_cache["selected_date_range"] = selected_date_range
+                set_filter_state(get_filter_state())
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -437,14 +436,14 @@ try:
                     </div>
                   </div>
                   <div class="pg-header__status" role="status">
-                    <span class="pg-chip ghost" role="status">{auto_view_label}</span>
-                    <span class="pg-chip ghost" role="status">Última atualização {last_update_dt.strftime('%d/%m %H:%M')}</span>
-                    <span class="pg-chip ghost" role="status">Filtros ativos: {active_filters}</span>
-                    <span class="pg-chip ghost" role="status">{filter_line}</span>
+                    <span class="pg-chip ghost" role="status" aria-label="Viewport detectado {auto_view_label}">{auto_view_label}</span>
+                    <span class="pg-chip ghost" role="status" aria-label="Última atualização em {last_update_dt.strftime('%d/%m %H:%M')}">Última atualização {last_update_dt.strftime('%d/%m %H:%M')}</span>
+                    <span class="pg-chip ghost" role="status" aria-label="{active_filters} filtros ativos">Filtros ativos: {active_filters}</span>
+                    <span class="pg-chip ghost" role="status" aria-label="Resumo de filtros {filter_line}">{filter_line}</span>
                   </div>
                   <div class="pg-header__actions">
-                    <span class="pg-chip" role="status">Tema {'dark' if dark_mode else 'light'}</span>
-                    <span class="pg-chip {'ghost' if export_disabled else ''}" role="status">{export_state_label}</span>
+                    <span class="pg-chip" role="status" aria-label="Tema {'dark' if dark_mode else 'light'} ativo">Tema {'dark' if dark_mode else 'light'}</span>
+                    <span class="pg-chip {'ghost' if export_disabled else ''}" role="status" aria-label="{export_state_label}">{export_state_label}</span>
                   </div>
                 </div>
                 """,
@@ -541,15 +540,7 @@ try:
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
-                        cols_to_show = [
-                            "date", "home", "away", "tournament_id", "model",
-                            "guru_highlight", "status", "result_predicted", "score_predicted",
-                            "bet_suggestion", "goal_bet_suggestion",
-                            "btts_suggestion", "odds_H", "odds_D", "odds_A",
-                            "result_home", "result_away"
-                        ]
-                        if modo_mobile:
-                            cols_to_show = [c for c in cols_to_show if c not in {"odds_H", "odds_D", "odds_A", "score_predicted"}]
+                        cols_to_show = TABLE_COLUMNS["mobile" if modo_mobile else "desktop"]
                         existing_cols = [
                             c for c in cols_to_show
                             if c in df_ag.columns and (df_ag[c].notna().any() if c.startswith("odds") else True)
@@ -557,6 +548,7 @@ try:
                         render_glassy_table(
                             apply_friendly_for_display(df_ag[existing_cols]),
                             caption="Jogos agendados",
+                            density=table_density,
                         )
 
             else:
@@ -598,15 +590,7 @@ try:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
-                            cols_to_show = [
-                                "date", "home", "away", "tournament_id", "model",
-                                "guru_highlight", "status", "result_predicted", "score_predicted",
-                                "bet_suggestion", "goal_bet_suggestion",
-                                "btts_suggestion", "odds_H", "odds_D", "odds_A",
-                                "result_home", "result_away"
-                            ]
-                            if modo_mobile:
-                                cols_to_show = [c for c in cols_to_show if c not in {"odds_H", "odds_D", "odds_A", "score_predicted"}]
+                            cols_to_show = TABLE_COLUMNS["mobile" if modo_mobile else "desktop"]
                             existing_cols = [
                                 c for c in cols_to_show
                                 if c in df_fin.columns and (df_fin[c].notna().any() if c.startswith("odds") else True)
@@ -614,6 +598,7 @@ try:
                             render_glassy_table(
                                 apply_friendly_for_display(df_fin[existing_cols]),
                                 caption="Jogos finalizados",
+                                density=table_density,
                             )
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------

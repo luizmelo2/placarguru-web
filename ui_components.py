@@ -5,6 +5,8 @@ import pandas as pd
 from typing import Optional, List
 from datetime import date, timedelta
 
+from state import get_filter_state, set_filter_state, reset_filters
+
 from utils import (
     FRIENDLY_COLS, market_label, tournament_label, status_label,
     eval_result_pred_row, eval_score_pred_row, eval_bet_row,
@@ -19,7 +21,12 @@ HIGHLIGHT_PROB_THRESHOLD = 0.60
 HIGHLIGHT_ODD_THRESHOLD = 1.20
 
 
-def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
+def render_glassy_table(
+    df: pd.DataFrame,
+    caption: Optional[str] = None,
+    show_index: Optional[bool] = None,
+    density: str = "comfortable",
+):
     """Renderiza uma tabela interativa com visual glassy e realce de Sugestão Guru.
 
     show_index: força a exibição do índice. Quando None, ativa para índices nomeados
@@ -58,8 +65,9 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
         ),
     }
 
+    density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
     with st.container():
-        st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
+        st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
         st.data_editor(
             df_to_render,
             use_container_width=True,
@@ -103,7 +111,7 @@ def _render_filtros_modelos(container, model_opts: list, default_models: list, m
     col = container.columns(1)[0] if modo_mobile else container.columns(2)[0]
     return col.multiselect(FRIENDLY_COLS["model"], model_opts, default=default_models)
 
-def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel: Optional[List]):
+def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel: Optional[List], search_query: str):
     """Renderiza os filtros de equipes e a busca rápida."""
     c1, c2 = container.columns(2)
     with c1:
@@ -118,7 +126,7 @@ def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tourn
         "🔍 Buscar equipe (Casa/Visitante)",
         placeholder="Digite parte do nome da equipe...",
         key="pg_q_team_shared",
-        value=st.session_state.get("pg_q_team_shared", ""),
+        value=search_query,
     )
     return teams_sel, q_team
 
@@ -184,9 +192,7 @@ def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    # Mantém o controle dos filtros no menu lateral esquerdo, oculto por padrão
     st.session_state.setdefault("pg_filters_open", False)
-    st.session_state.setdefault("pg_filters_cache", {})
     # --- 1. Extração de Opções ---
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
     tourn_opts = sorted(df["tournament_id"].dropna().unique()) if "tournament_id" in df.columns else []
@@ -214,15 +220,22 @@ def filtros_ui(
     min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
     max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
 
-    # controle de campeonatos no sidebar
-    st.session_state.setdefault("sel_tournaments", list(tourn_opts))
-    # mantém apenas válidos
-    valid_sel = [t for t in st.session_state.sel_tournaments if t in tourn_opts]
-    if valid_sel != st.session_state.sel_tournaments:
-        st.session_state.sel_tournaments = valid_sel
-    if not st.session_state.sel_tournaments and tourn_opts:
-        st.session_state.sel_tournaments = list(tourn_opts)
-    tournaments_sel = list(st.session_state.sel_tournaments)
+    defaults = {
+        "tournaments_sel": list(tourn_opts),
+        "models_sel": default_models,
+        "teams_sel": [] if modo_mobile else team_opts,
+        "bet_sel": [],
+        "goal_sel": [],
+        "selected_date_range": (min_date, max_date) if min_date and max_date else (),
+        "sel_h": _odds_default("odds_H"),
+        "sel_d": _odds_default("odds_D"),
+        "sel_a": _odds_default("odds_A"),
+        "search_query": st.session_state.get("pg_q_team_shared", ""),
+    }
+
+    state = get_filter_state(defaults)
+    tournaments_sel = [t for t in (state.tournaments_sel or []) if t in tourn_opts] or list(tourn_opts)
+    state.tournaments_sel = tournaments_sel
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -238,6 +251,8 @@ def filtros_ui(
             """,
             unsafe_allow_html=True,
         )
+        if state.active_count:
+            st.button("Limpar filtros", use_container_width=True, key="btn_clear_filters", on_click=lambda: reset_filters(defaults))
         st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar filtros</div>", unsafe_allow_html=True)
         st.toggle(
             "Exibir filtros",
@@ -250,11 +265,9 @@ def filtros_ui(
             csel_all, cclear = st.columns(2)
             with csel_all:
                 if st.button("Selecionar Todos", use_container_width=True, key="btn_sel_all_tourn"):
-                    st.session_state.sel_tournaments = list(tourn_opts)
                     tournaments_sel = list(tourn_opts)
             with cclear:
                 if st.button("Limpar", use_container_width=True, key="btn_clear_tourn"):
-                    st.session_state.sel_tournaments = []
                     tournaments_sel = []
 
             st.multiselect(
@@ -266,63 +279,29 @@ def filtros_ui(
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
-            models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
-            teams_sel, q_team = _render_filtros_equipes(
-                st, team_opts, modo_mobile, tournaments_sel
+            state.models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
+            state.teams_sel, state.search_query = _render_filtros_equipes(
+                st, team_opts, modo_mobile, tournaments_sel, state.search_query
             )
-            bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
-            selected_date_range = _render_filtros_periodo(st, min_date, max_date)
-            sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
-
-            st.session_state.pg_filters_cache = {
-                "tournaments_sel": tournaments_sel,
-                "models_sel": models_sel,
-                "teams_sel": teams_sel,
-                "q_team": q_team,
-                "bet_sel": bet_sel,
-                "goal_sel": goal_sel,
-                "selected_date_range": selected_date_range,
-                "sel_h": sel_h,
-                "sel_d": sel_d,
-                "sel_a": sel_a,
-            }
+            state.bet_sel, state.goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
+            state.selected_date_range = _render_filtros_periodo(st, min_date, max_date)
+            state.sel_h, state.sel_d, state.sel_a = _render_filtros_odds(st, df)
         else:
-            cache = st.session_state.get("pg_filters_cache", {})
-            tournaments_sel = cache.get("tournaments_sel", tournaments_sel)
-            models_sel = cache.get("models_sel", default_models)
-            teams_sel = cache.get("teams_sel", [])
-            q_team = cache.get("q_team", "")
-            bet_sel = cache.get("bet_sel", [])
-            goal_sel = cache.get("goal_sel", [])
-            selected_date_range = cache.get("selected_date_range", ())
-            sel_h = cache.get("sel_h")
-            sel_d = cache.get("sel_d")
-            sel_a = cache.get("sel_a")
-            if sel_h is None:
-                sel_h = _odds_default("odds_H")
-            if sel_d is None:
-                sel_d = _odds_default("odds_D")
-            if sel_a is None:
-                sel_a = _odds_default("odds_A")
             st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Use o toggle acima para ajustar.</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+    state.tournaments_sel = tournaments_sel
+
     # --- 4. Sincronização e Retorno ---
     try:
-        st.query_params["model"] = models_sel or []
+        st.query_params["model"] = state.models_sel or []
     except Exception:
         pass  # Pode falhar em alguns contextos de execução
 
+    set_filter_state(state)
     return {
-        "tournaments_sel": tournaments_sel,
-        "models_sel": models_sel,
-        "teams_sel": teams_sel,
-        "bet_sel": bet_sel,
-        "goal_sel": goal_sel,
-        "selected_date_range": selected_date_range,
-        "sel_h": sel_h, "sel_d": sel_d, "sel_a": sel_a,
-        "q_team": q_team,
+        **state.to_dict(),
         "tournament_opts": tourn_opts,
         "min_date": min_date,
         "max_date": max_date,

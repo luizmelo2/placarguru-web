@@ -139,8 +139,8 @@ def inject_custom_css(dark_mode: bool = False):
     align-items: center;
     padding: 8px 12px;
     border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--stroke) 70%, var(--primary));
+    background: color-mix(in srgb, var(--panel) 92%, var(--glass-strong));
     font-weight: 700;
     font-size: 13px;
     color: var(--muted);
@@ -171,13 +171,13 @@ def inject_custom_css(dark_mode: bool = False):
     color: var(--text);
     transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
   }
-  .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 75%, transparent); color: var(--muted); }
+  .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 88%, var(--glass-strong)); color: color-mix(in srgb, var(--text) 86%, var(--muted)); border-color: color-mix(in srgb, var(--stroke) 80%, var(--primary)); }
   .pg-chip:hover { border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 10px 30px rgba(37,99,235,0.14); }
   .pg-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .pg-subhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
   .pg-hero-breadcrumb { color: var(--muted); font-size: 13px; }
   .pg-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  @media (max-width: 900px) {
+  @media (max-width: 980px) {
     .pg-header { grid-template-columns: 1fr; padding: 12px 14px; }
     .pg-header__status { justify-content: flex-start; }
     .pg-header__actions { width: 100%; justify-content: flex-start; }
@@ -242,7 +242,7 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-hide-chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .pg-hide-card [data-testid="stToggle"] { justify-content: flex-end; }
   .pg-hide-card [data-testid="stWidgetLabel"] p { color: var(--text) !important; font-weight: 700; }
-  @media (max-width: 900px) {
+  @media (max-width: 980px) {
     .pg-hide-card { flex-direction: column; align-items: flex-start; }
     .pg-hide-card [data-testid="stToggle"] { width: 100%; }
   }
@@ -473,6 +473,10 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-table-card--interactive td:first-child { font-weight: 700; color: var(--text); }
   .pg-table-card--interactive td:last-child { border-right: none; }
   .pg-table-card--interactive tbody tr:last-child td { border-bottom: none; }
+  .pg-density-compact .pg-table-card--interactive table td,
+  .pg-density-compact .pg-table-card--interactive table th { padding-top: 8px !important; padding-bottom: 8px !important; }
+  .pg-density-comfortable .pg-table-card--interactive table td,
+  .pg-density-comfortable .pg-table-card--interactive table th { padding-top: 12px !important; padding-bottom: 12px !important; }
   .pg-table {
     width: 100%;
     border-collapse: separate;
