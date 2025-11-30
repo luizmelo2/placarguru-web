@@ -137,15 +137,7 @@ def detect_viewport_width(default: int = 1280) -> int:
 viewport_width = detect_viewport_width()
 modo_mobile = viewport_width < 1100
 st.session_state["pg_mobile_auto"] = modo_mobile
-st.markdown(
-    f"""
-    <div class="pg-subhead" aria-live="polite" role="status">
-      <span class="pg-chip ghost">Visual automático: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)</span>
-      <span class="pg-chip ghost">Ajuste o tamanho da janela para alternar</span>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
@@ -292,10 +284,22 @@ try:
             )
             q_team = st.text_input(
                 "Busca rápida por equipe",
-                value=q_team or "",
+                key="pg_q_team_shared",
+                value=st.session_state.get("pg_q_team_shared", q_team or ""),
                 placeholder="Digite nome do time...",
                 label_visibility="collapsed",
             )
+            st.session_state["pg_q_team_shared"] = q_team
+
+            with st.container():
+                chip_col1, chip_col2, chip_col3 = st.columns([1, 1, 1])
+                chip_col1.markdown(f"<div class='pg-chip ghost'>Modelos: {len(models_sel) or 'Todos'}</div>", unsafe_allow_html=True)
+                chip_col2.markdown(
+                    f"<div class='pg-chip ghost'>Odds filtradas: {'Sim' if any([flt for flt in (sel_h, sel_d, sel_a) if flt]) else 'Não'}</div>",
+                    unsafe_allow_html=True,
+                )
+                if chip_col3.button("Abrir filtros completos", use_container_width=True, key="btn_open_filters_mobile"):
+                    st.session_state.pg_filters_open = True
 
             if quick_tourn != "Todos":
                 st.session_state.sel_tournaments = [quick_tourn]
@@ -408,8 +412,8 @@ try:
             export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
             topbar_placeholder.markdown(
                 f"""
-                <div class="pg-topbar" role="banner">
-                  <div class="pg-topbar__brand" aria-label="Placar Guru">
+                <div class="pg-header" role="banner">
+                  <div class="pg-header__brand" aria-label="Placar Guru">
                     <div class="pg-logo" aria-label="Escudo do Placar Guru" role="img">
                       <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                         <title>Placar Guru</title>
@@ -432,70 +436,72 @@ try:
                       </div>
                     </div>
                   </div>
-                  <div class="pg-topbar__nav" role="status">
-                    <span class="pg-chip ghost">Última atualização {last_update_dt.strftime('%d/%m %H:%M')}</span>
-                    <span class="pg-chip ghost">Filtros ativos: {active_filters}</span>
-                    <span class="pg-chip ghost">{filter_line}</span>
+                  <div class="pg-header__status" role="status">
+                    <span class="pg-chip ghost" role="status">{auto_view_label}</span>
+                    <span class="pg-chip ghost" role="status">Última atualização {last_update_dt.strftime('%d/%m %H:%M')}</span>
+                    <span class="pg-chip ghost" role="status">Filtros ativos: {active_filters}</span>
+                    <span class="pg-chip ghost" role="status">{filter_line}</span>
                   </div>
-                  <div class="pg-topbar__actions">
-                    <span class="pg-chip">Tema {'dark' if dark_mode else 'light'}</span>
-                    <span class="pg-chip {'ghost' if export_disabled else ''}">{export_state_label}</span>
+                  <div class="pg-header__actions">
+                    <span class="pg-chip" role="status">Tema {'dark' if dark_mode else 'light'}</span>
+                    <span class="pg-chip {'ghost' if export_disabled else ''}" role="status">{export_state_label}</span>
                   </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            if not curr_df.empty:
-                st.markdown(
-                    f"""
-                    <div class="pg-hero" aria-live="polite">
-                      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-                        <div>
-                          <div class="pg-meta">Dashboard — {curr_label}</div>
-                          <h2 style="margin:4px 0;">Visão rápida com foco no que importa</h2>
-                          <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} · {filter_line}</div>
-                        </div>
-                        <div class="pg-hero-breadcrumb">{filter_line}</div>
-                      </div>
-                      <div class="pg-kpi-grid">
-                        <div class="pg-kpi">
-                          <div class="label">Total no filtro</div>
-                          <div class="value">{total_games}</div>
-                          <div class="delta">{today_count} hoje</div>
-                        </div>
-                        <div class="pg-kpi">
-                          <div class="label">Sugestão Guru</div>
-                          <div class="value">{highlight_count}</div>
-                          <div class="delta">Prob > 60% & Odd > 1.20</div>
-                        </div>
-                        <div class="pg-kpi">
-                          <div class="label">Torneios</div>
-                          <div class="value">{tourn_count}</div>
-                          <div class="delta">Filtro ativo</div>
-                        </div>
-                        <div class="pg-kpi">
-                          <div class="label">Acurácia (finalizados)</div>
-                          <div class="value">{acc_result:.1f}%</div>
-                          <div class="delta">Sugestões {acc_bet:.1f}%</div>
-                        </div>
-                      </div>
+            st.markdown(
+                f"""
+                <div class="pg-hero pg-hero--compact" aria-live="polite">
+                  <div class="pg-hero__head">
+                    <div>
+                      <div class="pg-meta">Dashboard — {curr_label}</div>
+                      <h2 style="margin:4px 0;">Visão rápida com foco no que importa</h2>
+                      <div class="text-muted" style="font-size:13px;">{filter_line}</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    <div class="pg-hero__cta">
+                      <div class="pg-chip ghost">{export_state_label}</div>
+                    </div>
+                  </div>
+                  <div class="pg-kpi-grid">
+                    <div class="pg-kpi">
+                      <div class="label">Total no filtro</div>
+                      <div class="value">{total_games}</div>
+                      <div class="delta">{today_count} hoje</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Sugestão Guru</div>
+                      <div class="value">{highlight_count}</div>
+                      <div class="delta">Prob ≥ 60% & Odd > 1.20</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Torneios</div>
+                      <div class="value">{tourn_count}</div>
+                      <div class="delta">Filtro ativo</div>
+                    </div>
+                    <div class="pg-kpi">
+                      <div class="label">Acurácia (finalizados)</div>
+                      <div class="value">{acc_result:.1f}%</div>
+                      <div class="delta">Sugestões {acc_bet:.1f}%</div>
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-            if not export_disabled:
-                export_data = generate_pdf_report(curr_df)
-                st.download_button(
-                    label="Exportar recorte para PDF",
-                    data=export_data,
-                    file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                    mime="application/pdf",
-                    help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
-                )
-            else:
-                st.info("Aplique um filtro ou escolha um status com jogos para habilitar o download em PDF.")
+            export_data = generate_pdf_report(curr_df) if not export_disabled else None
+            st.download_button(
+                label="Exportar recorte para PDF",
+                data=export_data,
+                file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
+                help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
+                disabled=export_disabled,
+            )
+            if export_disabled:
+                st.caption("O botão é habilitado ao aplicar filtros que retornem jogos neste recorte.")
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
@@ -542,7 +548,12 @@ try:
                             "btts_suggestion", "odds_H", "odds_D", "odds_A",
                             "result_home", "result_away"
                         ]
-                        existing_cols = [c for c in cols_to_show if c in df_ag.columns]
+                        if modo_mobile:
+                            cols_to_show = [c for c in cols_to_show if c not in {"odds_H", "odds_D", "odds_A", "score_predicted"}]
+                        existing_cols = [
+                            c for c in cols_to_show
+                            if c in df_ag.columns and (df_ag[c].notna().any() if c.startswith("odds") else True)
+                        ]
                         render_glassy_table(
                             apply_friendly_for_display(df_ag[existing_cols]),
                             caption="Jogos agendados",
@@ -594,7 +605,12 @@ try:
                                 "btts_suggestion", "odds_H", "odds_D", "odds_A",
                                 "result_home", "result_away"
                             ]
-                            existing_cols = [c for c in cols_to_show if c in df_fin.columns]
+                            if modo_mobile:
+                                cols_to_show = [c for c in cols_to_show if c not in {"odds_H", "odds_D", "odds_A", "score_predicted"}]
+                            existing_cols = [
+                                c for c in cols_to_show
+                                if c in df_fin.columns and (df_fin[c].notna().any() if c.startswith("odds") else True)
+                            ]
                             render_glassy_table(
                                 apply_friendly_for_display(df_fin[existing_cols]),
                                 caption="Jogos finalizados",

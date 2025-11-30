@@ -32,8 +32,10 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
 
     df_to_render = df.copy()
     df_to_render["Guru"] = df_to_render.get("guru_highlight", False).apply(
-        lambda v: "🌟" if bool(v) else ""
+        lambda v: "🌟 Destaque" if bool(v) else "—"
     )
+    if "status" in df_to_render.columns:
+        df_to_render["Status (badge)"] = df_to_render["status"].apply(lambda v: f"✅ {v}" if "inaliz" in str(v).lower() else f"🗓️ {v}")
     if show_index is None:
         show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
 
@@ -51,6 +53,9 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
             help="Mostra se o jogo está agendado ou finalizado.",
             width="small",
         ),
+        "Status (badge)": st.column_config.TextColumn(
+            label="Status", help="Badge com o estágio do jogo.", width="small",
+        ),
     }
 
     with st.container():
@@ -62,8 +67,10 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
             disabled=True,
             column_config=column_config,
         )
+        legend = "⭐ Sugestão Guru: Prob ≥ 60% e Odd > 1.20."
         if caption:
-            st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
+            legend = f"{caption} · {legend}"
+        st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -109,7 +116,9 @@ def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tourn
     )
     q_team = container.text_input(
         "🔍 Buscar equipe (Casa/Visitante)",
-        placeholder="Digite parte do nome da equipe..."
+        placeholder="Digite parte do nome da equipe...",
+        key="pg_q_team_shared",
+        value=st.session_state.get("pg_q_team_shared", ""),
     )
     return teams_sel, q_team
 

@@ -87,7 +87,7 @@ def inject_custom_css(dark_mode: bool = False):
   h2 { font-size: 1.25rem; font-weight: 700; }
   h3 { font-size: 1.1rem; font-weight: 700; }
 
-  .pg-topbar {
+  .pg-header {
     position: sticky;
     top: 0;
     z-index: 50;
@@ -95,17 +95,16 @@ def inject_custom_css(dark_mode: bool = False):
     grid-template-columns: auto 1fr auto;
     gap: 14px;
     align-items: center;
-    padding: 14px 18px;
-    margin: 0 -1rem 12px -1rem;
-    background: color-mix(in srgb, var(--panel) 96%, transparent);
+    padding: 12px 16px;
+    margin: 0 -1rem 10px -1rem;
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
     backdrop-filter: blur(var(--blur-bg));
     border: 1px solid var(--stroke);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
-    position: sticky;
   }
-  .pg-topbar > * { position: relative; z-index: 1; }
-  .pg-topbar__brand { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+  .pg-header > * { position: relative; z-index: 1; }
+  .pg-header__brand { display: flex; align-items: center; gap: 12px; min-width: 220px; }
   .pg-logo {
     width: 48px; height: 48px;
     border-radius: var(--radius-md);
@@ -133,7 +132,8 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-logo .pg-logo-glow { fill: rgba(163, 230, 53, 0.88); filter: drop-shadow(0 4px 10px rgba(163, 230, 53, 0.28)); }
   .pg-eyebrow { margin: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .pg-appname { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
-  .pg-topbar__nav { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .pg-header__status { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .pg-header__actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
   .pg-tab {
     display: inline-flex;
     align-items: center;
@@ -178,9 +178,9 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-hero-breadcrumb { color: var(--muted); font-size: 13px; }
   .pg-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   @media (max-width: 900px) {
-    .pg-topbar { grid-template-columns: 1fr; padding: 12px 14px; }
-    .pg-topbar__nav { justify-content: flex-start; }
-    .pg-topbar__actions { width: 100%; }
+    .pg-header { grid-template-columns: 1fr; padding: 12px 14px; }
+    .pg-header__status { justify-content: flex-start; }
+    .pg-header__actions { width: 100%; justify-content: flex-start; }
   }
 
   /* Filtros principais */
