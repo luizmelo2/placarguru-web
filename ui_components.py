@@ -20,7 +20,7 @@ HIGHLIGHT_ODD_THRESHOLD = 1.20
 
 
 def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
-    """Renderiza uma tabela interativa com visual glassy e ordenação por cabeçalho.
+    """Renderiza uma tabela interativa com visual glassy e realce de Sugestão Guru.
 
     show_index: força a exibição do índice. Quando None, ativa para índices nomeados
     ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
@@ -31,18 +31,36 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
         return
 
     df_to_render = df.copy()
+    df_to_render["Guru"] = df_to_render.get("guru_highlight", False).apply(
+        lambda v: "🌟" if bool(v) else ""
+    )
     if show_index is None:
         show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
 
     if show_index and not df_to_render.index.name:
         df_to_render.index.name = ""
 
+    column_config = {
+        "Guru": st.column_config.Column(
+            label="Sugestão Guru",
+            help="Aplica quando prob. ≥ 60% e odd > 1.20.",
+            width="small",
+        ),
+        "status": st.column_config.TextColumn(
+            label="Status",
+            help="Mostra se o jogo está agendado ou finalizado.",
+            width="small",
+        ),
+    }
+
     with st.container():
         st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
-        st.dataframe(
+        st.data_editor(
             df_to_render,
             use_container_width=True,
             hide_index=not show_index,
+            disabled=True,
+            column_config=column_config,
         )
         if caption:
             st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
@@ -296,6 +314,9 @@ def filtros_ui(
         "selected_date_range": selected_date_range,
         "sel_h": sel_h, "sel_d": sel_d, "sel_a": sel_a,
         "q_team": q_team,
+        "tournament_opts": tourn_opts,
+        "min_date": min_date,
+        "max_date": max_date,
     }
 
 

@@ -35,8 +35,7 @@ from styles import inject_custom_css, apply_altair_theme, chart_tokens
 st.set_page_config(
     layout="wide",
     page_title="Placar Guru",
-    # Deixa expanded só para testar; depois você pode voltar para "collapsed"
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # CSS para garantir que o header e o botão do menu (hambúrguer) apareçam
@@ -67,62 +66,86 @@ section[data-testid="stSidebar"] {
 }
 </style>
 """
-st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
+# Aplica correção do header somente se estiver habilitada em secrets ou query string
+force_header_patch = bool(st.secrets.get("force_header_patch", False))
+force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
+if force_header_patch:
+    st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
 
 
-# Estado inicial: Light por padrão
+# Estado inicial: Light por padrão com toggle visível
 st.session_state.setdefault("pg_dark_mode", False)
-dark_mode = bool(st.session_state["pg_dark_mode"])
+theme_col, _ = st.columns([1.1, 3])
+with theme_col:
+    theme_selected = st.toggle(
+        "Ativar modo escuro",
+        value=bool(st.session_state["pg_dark_mode"]),
+        key="pg_dark_mode_toggle",
+        help="Alterne contraste para testar legibilidade em dark/light.",
+        label_visibility="visible",
+    )
+    st.session_state["pg_dark_mode"] = bool(theme_selected)
+    dark_mode = bool(st.session_state["pg_dark_mode"])
+    st.markdown(
+        f"<span class='pg-sr' aria-live='polite'>Tema {'escuro' if dark_mode else 'claro'} ativo</span>",
+        unsafe_allow_html=True,
+    )
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
 apply_altair_theme(dark_mode)
 chart_theme = chart_tokens(dark_mode)
 
-# Barra superior inspirada no modelo (Futebol + Data Science Placar Guru)
-st.markdown(
-    """
-    <div class="pg-topbar">
-      <div class="pg-topbar__brand">
-        <div class="pg-logo" aria-hidden="true" role="presentation">
-          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
-            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
-            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
-            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
-            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
-            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
-            <path class="pg-logo-ball" d="M28 20c2.6 1.2 5.2 1.2 7.8 0l2.7 3.2-2.2 4.8h-4.8L29.2 23z" fill="none" />
-            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
-          </svg>
-        </div>
-        <div>
-          <p class="pg-eyebrow">Placar Guru</p>
-          <div class="pg-appname">Futebol + Data Science</div>
-        </div>
-      </div>
+topbar_placeholder = st.empty()
 
+
+
+
+
+def detect_viewport_width(default: int = 1280) -> int:
+    """Sincroniza a largura do viewport sem poluir a URL ou depender do history API."""
+
+    width = components.html(
+        """
+        <script>
+          const sendWidth = () => {
+            const width = window.innerWidth || window.document.documentElement.clientWidth;
+            if (window.Streamlit && window.Streamlit.setComponentValue) {
+              window.Streamlit.setComponentValue(width);
+            }
+          };
+          sendWidth();
+          window.addEventListener('resize', () => {
+            clearTimeout(window.pgViewportTimer);
+            window.pgViewportTimer = setTimeout(sendWidth, 240);
+          }, { passive: true });
+        </script>
+        """,
+        height=0,
+        key="pg_viewport_sync",
+    )
+
+    try:
+        viewport_width = int(width) if width else int(st.session_state.get("pg_viewport_width", default))
+    except Exception:
+        viewport_width = int(st.session_state.get("pg_viewport_width", default))
+
+    st.session_state["pg_viewport_width"] = viewport_width or default
+    return st.session_state["pg_viewport_width"]
+
+
+viewport_width = detect_viewport_width()
+modo_mobile = viewport_width < 1100
+st.session_state["pg_mobile_auto"] = modo_mobile
+st.markdown(
+    f"""
+    <div class="pg-subhead" aria-live="polite" role="status">
+      <span class="pg-chip ghost">Visual automático: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)</span>
+      <span class="pg-chip ghost">Ajuste o tamanho da janela para alternar</span>
     </div>
     """,
     unsafe_allow_html=True,
 )
-
-
-
-
-# Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2 = st.columns([1.2, 4])
-with col_m1:
-    modo_mobile = st.toggle("📱 Mobile", value=True)
-with col_m2:
-    st.markdown(
-        """
-        <div class="pg-subhead">
-          <span class="pg-chip ghost">Altere para desktop para ver a grade</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 from reporting import generate_pdf_report
 from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
@@ -166,6 +189,9 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     if "btts_suggestion" in out.columns:
         out["btts_prediction"] = out["btts_suggestion"].apply(market_label, default="-")
 
+    if "guru_highlight" in out.columns:
+        out["guru_highlight"] = out["guru_highlight"].apply(lambda v: "⭐" if bool(v) else "")
+
     return out.rename(columns=FRIENDLY_COLS)
 
 
@@ -202,8 +228,87 @@ try:
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
         q_team = flt["q_team"]
+        tournament_opts = flt.get("tournament_opts", [])
+        min_date, max_date = flt.get("min_date"), flt.get("max_date")
+        active_filters = 0
+        if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
+            active_filters += 1
+        model_unique = df["model"].nunique() if "model" in df.columns else 0
+        if models_sel and (model_unique and len(models_sel) != model_unique):
+            active_filters += 1
+        if teams_sel:
+            active_filters += 1
+        if q_team:
+            active_filters += 1
+        if bet_sel or goal_sel:
+            active_filters += 1
+        if selected_date_range:
+            active_filters += 1
 
-        use_list_view = True if modo_mobile else st.checkbox("Usar visualização em lista (mobile)", value=False)
+        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
+        if modo_mobile:
+            st.session_state["pg_list_view_pref"] = True
+        else:
+            st.session_state["pg_list_view_pref"] = st.checkbox(
+                "Usar visualização em lista (mobile)",
+                value=bool(st.session_state.get("pg_list_view_pref", False)),
+                help="Mantém a listagem em cards mesmo no desktop quando preferir.",
+            )
+
+        use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
+
+        if modo_mobile:
+            quick_summary = []
+            if tournaments_sel:
+                quick_summary.append(tournament_label(tournaments_sel[0]))
+            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
+            quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+            st.markdown(
+                """
+                <div class="pg-mobile-toolbar">
+                  <div class="pg-mobile-toolbar__title">Atalhos rápidos</div>
+                  <p class="pg-mobile-toolbar__hint">Selecione torneio e período sem abrir o menu lateral.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div class='pg-chip ghost' role='status'>Ativos: {quick_summary_txt}</div>",
+                unsafe_allow_html=True,
+            )
+            c1, c2 = st.columns(2)
+            quick_tourn = c1.selectbox(
+                "Torneio (atalho)",
+                options=["Todos"] + tournament_opts,
+                index=0,
+                label_visibility="collapsed",
+            )
+            quick_range = c2.selectbox(
+                "Período (atalho)",
+                options=["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"],
+                index=0,
+                label_visibility="collapsed",
+            )
+            q_team = st.text_input(
+                "Busca rápida por equipe",
+                value=q_team or "",
+                placeholder="Digite nome do time...",
+                label_visibility="collapsed",
+            )
+
+            if quick_tourn != "Todos":
+                st.session_state.sel_tournaments = [quick_tourn]
+                tournaments_sel = [quick_tourn]
+            if quick_range != "Todos" and min_date and max_date:
+                today = date.today()
+                if quick_range == "Hoje":
+                    selected_date_range = (today, today)
+                elif quick_range == "Próx. 3 dias":
+                    selected_date_range = (today, today + timedelta(days=3))
+                elif quick_range == "Últimos 3 dias":
+                    selected_date_range = (today - timedelta(days=3), today)
+                st.session_state.pg_filters_cache["selected_date_range"] = selected_date_range
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -245,6 +350,7 @@ try:
             final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
         df_filtered = df[final_mask]
+        df_filtered = df_filtered.assign(guru_highlight=df_filtered.apply(is_guru_highlight, axis=1))
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -287,43 +393,109 @@ try:
                 if not _bet.empty:
                     acc_bet = float(_bet.iloc[0]["Acerto (%)"])
 
-            st.markdown(
+            filter_summary = []
+            if tournaments_sel:
+                filter_summary.append(f"{len(tournaments_sel)} torneios")
+            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                filter_summary.append(
+                    f"{selected_date_range[0].strftime('%d/%m')} → {selected_date_range[1].strftime('%d/%m')}"
+                )
+            if q_team:
+                filter_summary.append(f"Busca por '{q_team}'")
+            filter_line = " · ".join(filter_summary) if filter_summary else "Sem filtros adicionais"
+
+            export_disabled = curr_df.empty
+            export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
+            topbar_placeholder.markdown(
                 f"""
-                <div class="pg-hero">
-                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                <div class="pg-topbar" role="banner">
+                  <div class="pg-topbar__brand" aria-label="Placar Guru">
+                    <div class="pg-logo" aria-label="Escudo do Placar Guru" role="img">
+                      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                        <title>Placar Guru</title>
+                        <desc>Escudo minimalista do Placar Guru com barras de desempenho.</desc>
+                        <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
+                        <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
+                        <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
+                        <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
+                        <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
+                        <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
+                        <path class="pg-logo-ball" d="M28 20c2.6 1.2 5.2 1.2 7.8 0l2.7 3.2-2.2 4.8h-4.8L29.2 23z" fill="none" />
+                        <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
+                      </svg>
+                    </div>
                     <div>
-                      <div class="pg-meta">Dashboard — {curr_label}</div>
-                      <h2 style="margin:4px 0;">Informações essenciais por status</h2>
-                      <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
+                      <p class="pg-eyebrow">Placar Guru</p>
+                      <div class="pg-appname">Futebol + Data Science</div>
+                      <div class="pg-breadcrumbs" aria-label="Seção atual">
+                        <span>Home</span><span aria-hidden="true">/</span><span>{curr_label}</span>
+                      </div>
                     </div>
-                    <span class="badge">Tema: {'Dark' if dark_mode else 'Light'}</span>
                   </div>
-                  <div class="pg-kpi-grid">
-                    <div class="pg-kpi">
-                      <div class="label">Total no filtro</div>
-                      <div class="value">{total_games}</div>
-                      <div class="delta">{today_count} hoje</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Sugestão Guru</div>
-                      <div class="value">{highlight_count}</div>
-                      <div class="delta">Prob > 60% & Odd > 1.20</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Torneios</div>
-                      <div class="value">{tourn_count}</div>
-                      <div class="delta">Filtro ativo</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Acurácia (finalizados)</div>
-                      <div class="value">{acc_result:.1f}%</div>
-                      <div class="delta">Sugestões {acc_bet:.1f}%</div>
-                    </div>
+                  <div class="pg-topbar__nav" role="status">
+                    <span class="pg-chip ghost">Última atualização {last_update_dt.strftime('%d/%m %H:%M')}</span>
+                    <span class="pg-chip ghost">Filtros ativos: {active_filters}</span>
+                    <span class="pg-chip ghost">{filter_line}</span>
+                  </div>
+                  <div class="pg-topbar__actions">
+                    <span class="pg-chip">Tema {'dark' if dark_mode else 'light'}</span>
+                    <span class="pg-chip {'ghost' if export_disabled else ''}">{export_state_label}</span>
                   </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+            if not curr_df.empty:
+                st.markdown(
+                    f"""
+                    <div class="pg-hero" aria-live="polite">
+                      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                        <div>
+                          <div class="pg-meta">Dashboard — {curr_label}</div>
+                          <h2 style="margin:4px 0;">Visão rápida com foco no que importa</h2>
+                          <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} · {filter_line}</div>
+                        </div>
+                        <div class="pg-hero-breadcrumb">{filter_line}</div>
+                      </div>
+                      <div class="pg-kpi-grid">
+                        <div class="pg-kpi">
+                          <div class="label">Total no filtro</div>
+                          <div class="value">{total_games}</div>
+                          <div class="delta">{today_count} hoje</div>
+                        </div>
+                        <div class="pg-kpi">
+                          <div class="label">Sugestão Guru</div>
+                          <div class="value">{highlight_count}</div>
+                          <div class="delta">Prob > 60% & Odd > 1.20</div>
+                        </div>
+                        <div class="pg-kpi">
+                          <div class="label">Torneios</div>
+                          <div class="value">{tourn_count}</div>
+                          <div class="delta">Filtro ativo</div>
+                        </div>
+                        <div class="pg-kpi">
+                          <div class="label">Acurácia (finalizados)</div>
+                          <div class="value">{acc_result:.1f}%</div>
+                          <div class="delta">Sugestões {acc_bet:.1f}%</div>
+                        </div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            if not export_disabled:
+                export_data = generate_pdf_report(curr_df)
+                st.download_button(
+                    label="Exportar recorte para PDF",
+                    data=export_data,
+                    file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
+                )
+            else:
+                st.info("Aplique um filtro ou escolha um status com jogos para habilitar o download em PDF.")
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
@@ -360,19 +532,12 @@ try:
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
-                    pdf_data = generate_pdf_report(df_ag)
-                    st.download_button(
-                        label="Exportar para PDF",
-                        data=pdf_data,
-                        file_name=f"relatorio_jogos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                        mime="application/pdf",
-                    )
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
                         cols_to_show = [
                             "date", "home", "away", "tournament_id", "model",
-                            "status", "result_predicted", "score_predicted",
+                            "guru_highlight", "status", "result_predicted", "score_predicted",
                             "bet_suggestion", "goal_bet_suggestion",
                             "btts_suggestion", "odds_H", "odds_D", "odds_A",
                             "result_home", "result_away"
@@ -413,13 +578,18 @@ try:
                         )
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    if not hide_games:
+                    if hide_games:
+                        st.markdown(
+                            "<div class='pg-chip ghost'>Lista oculta. Desative o toggle acima para reexibir os jogos.</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
                             cols_to_show = [
                                 "date", "home", "away", "tournament_id", "model",
-                                "status", "result_predicted", "score_predicted",
+                                "guru_highlight", "status", "result_predicted", "score_predicted",
                                 "bet_suggestion", "goal_bet_suggestion",
                                 "btts_suggestion", "odds_H", "odds_D", "odds_A",
                                 "result_home", "result_away"
