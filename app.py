@@ -33,10 +33,6 @@ from state import (
     reset_filters,
 )
 
-
-
-
-
 # ============================
 # Configuração da página
 # ============================
