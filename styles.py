@@ -226,6 +226,13 @@ def inject_custom_css(dark_mode: bool = False):
     margin-top: 6px;
   }
   .pg-filter-section { padding: 10px 12px 4px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--stroke) 90%, var(--primary) 10%); margin-bottom: 8px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+  .pg-filter-section__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .pg-filter-section__title { margin: 0; font-size: clamp(15px, 2.3vw, 16px); }
+  .pg-filter-section__hint { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .pg-filter-chip { font-weight: 700; font-size: 12px; padding: 6px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--stroke) 78%, var(--primary) 22%); background: color-mix(in srgb, var(--panel) 86%, transparent); }
+  .pg-filter-section--models { border-style: solid; border-color: color-mix(in srgb, var(--stroke) 72%, var(--primary) 18%); background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--primary) 8%, var(--panel))); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
+  .pg-filter-section--teams { border-style: dashed; border-color: color-mix(in srgb, var(--stroke) 82%, var(--accent) 22%); background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--accent) 8%, var(--panel))); }
+  .pg-filter-section--teams .pg-filter-chip { border-color: color-mix(in srgb, var(--stroke) 74%, var(--accent) 24%); }
 
   .pg-mobile-toolbar {
     border: 1px dashed var(--stroke);
