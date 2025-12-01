@@ -75,6 +75,78 @@ def render_custom_navigation():
         st.divider()
 
 
+def inject_topbar_branding():
+    """Oculta o botão Deploy do Streamlit e adiciona o nome/slogan no header nativo."""
+
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"] .pg-topbar-brand {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--stroke) 80%, var(--primary) 12%);
+            background: color-mix(in srgb, var(--panel) 92%, var(--glass-strong));
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+            color: var(--text);
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        header[data-testid="stHeader"] .pg-topbar-brand span { color: var(--muted); font-weight: 700; }
+        header[data-testid="stHeader"] .pg-topbar-brand strong { font-weight: 800; }
+
+        /* Oculta apenas ações de deploy/compartilhamento nativas do Streamlit */
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] .stDeployButton { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    components.html(
+        """
+        <script>
+        const pgTopbarInterval = setInterval(() => {
+          const doc = window.parent?.document;
+          if (!doc) { return; }
+          const header = doc.querySelector('header[data-testid="stHeader"]');
+          if (!header) { return; }
+          const toolbar = header.querySelector('[data-testid="stToolbar"]') || header;
+          const actions = header.querySelector('[data-testid="stToolbarActions"]');
+          if (actions) {
+            actions.querySelectorAll('button').forEach(btn => {
+              const label = (btn.innerText || '').toLowerCase();
+              const title = (btn.title || '').toLowerCase();
+              if (label.includes('deploy') || label.includes('share') || title.includes('deploy') || title.includes('share')) {
+                btn.style.display = 'none';
+              }
+            });
+          }
+
+          if (!header.querySelector('.pg-topbar-brand')) {
+            const brand = doc.createElement('div');
+            brand.className = 'pg-topbar-brand';
+            brand.innerHTML = '<strong>Placar Guru</strong><span>/ Futebol + Data Science</span>';
+            toolbar.appendChild(brand);
+          } else {
+            clearInterval(pgTopbarInterval);
+          }
+        }, 350);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 # Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
 render_custom_navigation()
 
@@ -138,6 +210,7 @@ st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 inject_custom_css(dark_mode)
 apply_altair_theme(dark_mode)
 chart_theme = chart_tokens(dark_mode)
+inject_topbar_branding()
 
 topbar_placeholder = st.empty()
 viewport_width = detect_viewport_width()
