@@ -453,7 +453,7 @@ try:
                 brand_col.markdown(header_html, unsafe_allow_html=True)
 
 
-            export_data = generate_pdf_report(curr_df) if not export_disabled else None
+            export_data = generate_pdf_report(curr_df) if not export_disabled else b""
             st.download_button(
                 label="Exportar recorte para PDF",
                 data=export_data,
