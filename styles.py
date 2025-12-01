@@ -85,9 +85,9 @@ def inject_custom_css(dark_mode: bool = False):
 
   .block-container { padding-top: 0.5rem !important; max-width: 1200px; }
   .stMain, .block-container, .main { background: transparent !important; }
-  h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
-  h2 { font-size: 1.25rem; font-weight: 700; }
-  h3 { font-size: 1.1rem; font-weight: 700; }
+  h1 { font-size: clamp(1.25rem, 2.9vw, 1.55rem); font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: clamp(1.15rem, 2.5vw, 1.35rem); font-weight: 700; }
+  h3 { font-size: clamp(1.05rem, 2.2vw, 1.2rem); font-weight: 700; }
 
   .pg-header {
     position: sticky;

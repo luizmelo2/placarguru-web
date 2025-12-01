@@ -4,5 +4,5 @@
 - **Rodadas 5–6**: ajustes de estado compartilhado, quick filters e tabelas migrados para `state.py` e componentes atuais.
 - **Rodadas 7–8**: recomendações aplicadas aqui (header compacto, status único, presets enxutos, barra móvel unificada).
 - **Rodada 9**: recomendações implementadas (header simplificado, toolbar móvel única, chips/badges reutilizáveis e presets enxutos).
-- **Rodada 10**: revisão entregue; priorizar alinhamento de breakpoints, presets fidedignos e unificação da toolbar móvel/busca.
-- **Pendências**: monitorar novos gráficos temáticos e futuros componentes reutilizáveis para outras páginas.
+- **Rodada 10**: recomendações implementadas (breakpoint único, toolbar móvel/busca unificada, presets e legendas enxutas).
+- **Pendências**: acompanhar próximos gráficos temáticos e novos componentes reutilizáveis em rodadas futuras.

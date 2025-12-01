@@ -420,6 +420,15 @@ try:
 
             export_disabled = curr_df.empty
             export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
+            live_messages = [
+                export_state_label,
+                f"Última atualização {last_update_dt.strftime('%d/%m %H:%M')}",
+                f"{active_filters} filtros ativos",
+                auto_view_label,
+            ]
+            if st.session_state.get("pg_theme_announce"):
+                live_messages.append(st.session_state.get("pg_theme_announce"))
+                st.session_state["pg_theme_announce"] = ""
             header_html = render_app_header(
                 curr_label=curr_label,
                 total_games=total_games,
@@ -431,6 +440,7 @@ try:
                 filter_line=filter_line,
                 export_state_label=export_state_label,
                 today_count=today_count,
+                live_messages=live_messages,
             )
             with topbar_placeholder.container():
                 brand_col, action_col = st.columns([4, 1.4])
@@ -443,16 +453,6 @@ try:
                         help="Altere o tema para avaliar contraste em dark/light.",
                         label_visibility="visible",
                         on_change=_on_theme_toggle,
-                    )
-                    if st.session_state.get("pg_theme_announce"):
-                        st.markdown(
-                            f"<span class='pg-sr' aria-live='polite'>{st.session_state['pg_theme_announce']}</span>",
-                            unsafe_allow_html=True,
-                        )
-                        st.session_state["pg_theme_announce"] = ""
-                    st.markdown(
-                        f"<div aria-hidden='true'>{render_chip(export_state_label, 'ghost')}</div>",
-                        unsafe_allow_html=True,
                     )
 
             export_data = generate_pdf_report(curr_df) if not export_disabled else None

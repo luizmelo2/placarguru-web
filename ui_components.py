@@ -56,24 +56,35 @@ def render_app_header(
     filter_line: str,
     export_state_label: str,
     today_count: int = 0,
-) -> str:
-    """Componente de header compacto com status unificado."""
 
-    live_text = " | ".join(
+    live_messages: Optional[list[str]] = None,
+) -> str:
+    """Componente de header compacto com status unificado e announcer único."""
+
+    live_text = " | ".join([m for m in (live_messages or []) if m])
+
+    summary_chips = "".join(
         [
-            export_state_label,
-            f"Última atualização {last_update_label}",
-            f"{active_filters} filtros ativos",
-            auto_view_label,
+            render_chip(f"Jogos: {total_games}", "ghost", "Total de jogos no recorte"),
+            render_chip(f"Destaques: {highlight_count}", "ghost", "Quantidade de destaques Guru")
+            if highlight_count
+            else "",
+            render_chip(f"Acurácia: {acc_result:.1f}%", "ghost", "Acurácia em jogos finalizados")
+            if acc_result
+            else "",
+            render_chip(f"Hoje: {today_count}", "ghost", "Jogos marcados para hoje") if today_count else "",
         ]
     )
 
-    secondary = "".join(
+    meta_line = "".join(
         [
-            render_chip(f"Destaques Guru: {highlight_count}", "ghost", "Quantidade de destaques Guru")
-            if highlight_count else "",
-            render_chip(f"Acurácia: {acc_result:.1f}%", "ghost", "Acurácia em jogos finalizados")
-            if acc_result else "",
+            render_chip(filter_line or "Sem filtros", "ghost", "Resumo dos filtros"),
+            render_chip(auto_view_label, "ghost", "Viewport atual"),
+            render_chip(f"Atualizado {last_update_label}", "ghost", "Momento da última atualização"),
+            render_chip(export_state_label, "ghost", "Status da exportação"),
+            render_chip(f"Filtros ativos: {active_filters}", "ghost", "Filtros aplicados")
+            if active_filters
+            else "",
         ]
     )
 
@@ -94,22 +105,11 @@ def render_app_header(
         <div>
           <p class="pg-eyebrow">Placar Guru</p>
           <div class="pg-appname">Futebol + Data Science</div>
-          <div class="pg-breadcrumbs" aria-label="Seção atual">
-            <span>Home</span><span aria-hidden="true">/</span><span>{curr_label}</span>
-          </div>
           <div class="pg-header__summary">
-            {render_chip(f'{curr_label}', 'ghost', 'Recorte atual')}
-            {render_chip(f'Jogos: {total_games}', 'ghost', 'Total de jogos no recorte')}
-            {render_chip(f'Hoje: {today_count}', 'ghost', 'Jogos marcados para hoje') if today_count else ''}
-            {render_chip(f'Filtros ativos: {active_filters}', 'ghost', 'Filtros aplicados')}
-            {render_chip(export_state_label, 'ghost', 'Status da exportação')}
+            {render_chip(curr_label, 'ghost', 'Recorte atual')}
+            {summary_chips}
           </div>
-          <div class="pg-header__meta">
-            {render_chip(filter_line or 'Sem filtros adicionais', 'ghost', 'Resumo dos filtros')}
-            {render_chip(auto_view_label, 'ghost', 'Viewport atual')}
-            {render_chip(f'Atualizado {last_update_label}', 'ghost', 'Momento da última atualização')}
-          </div>
-          {f'<div class="pg-header__secondary">{secondary}</div>' if secondary else ''}
+          <div class="pg-header__meta">{meta_line}</div>
         </div>
       </div>
       <div class="pg-sr" aria-live="polite">{live_text}</div>
@@ -155,7 +155,7 @@ def render_glassy_table(
     density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
     with st.container():
         st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
-        legend = "⭐ Sugestão Guru (prob ≥ 60% e odd > 1.20)."
+        legend = "⭐ Sugestão Guru (prob ≥60% · odd >1.20)"
         if caption:
             legend = f"{caption} · {legend}"
         st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
