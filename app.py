@@ -484,15 +484,7 @@ try:
             with topbar_placeholder.container():
                 brand_col, action_col = st.columns([4, 1.4])
                 brand_col.markdown(header_html, unsafe_allow_html=True)
-                with action_col:
-                    st.toggle(
-                        f"Alternar tema — {'escuro' if dark_mode else 'claro'}",
-                        value=bool(st.session_state.get("pg_dark_mode_header", dark_mode)),
-                        key="pg_dark_mode_header",
-                        help="Altere o tema para avaliar contraste em dark/light.",
-                        label_visibility="visible",
-                        on_change=lambda: _sync_theme_toggle("pg_dark_mode_header"),
-                    )
+
 
             export_data = generate_pdf_report(curr_df) if not export_disabled else None
             st.download_button(

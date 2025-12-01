@@ -78,13 +78,13 @@ def render_app_header(
 
     meta_line = "".join(
         [
-            render_chip(filter_line or "Sem filtros", "ghost", "Resumo dos filtros"),
-            render_chip(auto_view_label, "ghost", "Viewport atual"),
-            render_chip(f"Atualizado {last_update_label}", "ghost", "Momento da última atualização"),
-            render_chip(export_state_label, "ghost", "Status da exportação"),
+            #render_chip(filter_line or "Sem filtros", "ghost", "Resumo dos filtros"),
+            #render_chip(auto_view_label, "ghost", "Viewport atual"),
+            #render_chip(f"Atualizado {last_update_label}", "ghost", "Momento da última atualização"),
+            #render_chip(export_state_label, "ghost", "Status da exportação"),
             render_chip(f"Filtros ativos: {active_filters}", "ghost", "Filtros aplicados")
             if active_filters
-            else "",
+            else ""
         ]
     )
 
