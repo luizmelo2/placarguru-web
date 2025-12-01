@@ -428,35 +428,6 @@ try:
                 curr_df = df_fin
                 curr_label = "Finalizados"
 
-            total_games = len(curr_df)
-            highlight_count = int(curr_df.apply(is_guru_highlight, axis=1).sum()) if not curr_df.empty else 0
-            tourn_count = int(curr_df["tournament_id"].nunique()) if (not curr_df.empty and "tournament_id" in curr_df.columns) else 0
-            today_count = 0
-            if not curr_df.empty and "date" in curr_df.columns and curr_df["date"].notna().any():
-                today_count = int(curr_df[curr_df["date"].dt.date == date.today()].shape[0])
-
-            metrics_df = pd.DataFrame()
-            acc_result = acc_bet = 0.0
-            if curr_label == "Finalizados" and not curr_df.empty:
-                metrics_df = calculate_kpis(curr_df, multi_model=False)
-                _res = metrics_df.loc[metrics_df["Métrica"] == "Resultado"]
-                _bet = metrics_df.loc[metrics_df["Métrica"] == "Sugestão de Aposta"]
-                if not _res.empty:
-                    acc_result = float(_res.iloc[0]["Acerto (%)"])
-                if not _bet.empty:
-                    acc_bet = float(_bet.iloc[0]["Acerto (%)"])
-
-            filter_summary = []
-            if tournaments_sel:
-                filter_summary.append(f"{len(tournaments_sel)} torneios")
-            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
-                filter_summary.append(
-                    f"{selected_date_range[0].strftime('%d/%m')} → {selected_date_range[1].strftime('%d/%m')}"
-                )
-            if q_team:
-                filter_summary.append(f"Busca por '{q_team}'")
-            filter_line = " · ".join(filter_summary) if filter_summary else "Sem filtros adicionais"
-
             export_disabled = curr_df.empty
             export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
             live_messages = [
@@ -468,19 +439,7 @@ try:
             if st.session_state.get("pg_theme_announce"):
                 live_messages.append(st.session_state.get("pg_theme_announce"))
                 st.session_state["pg_theme_announce"] = ""
-            header_html = render_app_header(
-                curr_label=curr_label,
-                total_games=total_games,
-                highlight_count=highlight_count,
-                acc_result=acc_result,
-                auto_view_label=auto_view_label,
-                last_update_label=last_update_dt.strftime('%d/%m %H:%M'),
-                active_filters=active_filters,
-                filter_line=filter_line,
-                export_state_label=export_state_label,
-                today_count=today_count,
-                live_messages=live_messages,
-            )
+            header_html = render_app_header(live_messages=live_messages)
             with topbar_placeholder.container():
                 brand_col, action_col = st.columns([4, 1.4])
                 brand_col.markdown(header_html, unsafe_allow_html=True)
