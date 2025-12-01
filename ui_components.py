@@ -572,15 +572,6 @@ def display_list_view(df: pd.DataFrame):
                 if data["is_finished"]
                 else ""
             )
-            prob_odd_badge = ""
-            if data["suggested_prob"] is not None:
-                prob_odd_badge = (
-                    f"<span class=\"badge\" style=\"background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);\">"
-                    f"Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • "
-                    f"Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}"
-                    "</span>"
-                )
-
             hit_badges = []
             for label, key in [
                 ("Resultado", "badge_res"),
@@ -637,7 +628,6 @@ def display_list_view(df: pd.DataFrame):
 
                   <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
                     {final_score_badge}
-                    {prob_odd_badge}
                     {hit_html}
                   </div>
 
