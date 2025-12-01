@@ -46,47 +46,11 @@ def render_status_badge(status: str) -> str:
 
 
 def render_app_header(
-    curr_label: str,
-    total_games: int,
-    highlight_count: int,
-    acc_result: float,
-    auto_view_label: str,
-    last_update_label: str,
-    active_filters: int,
-    filter_line: str,
-    export_state_label: str,
-    today_count: int = 0,
-
     live_messages: Optional[list[str]] = None,
 ) -> str:
-    """Componente de header compacto com status unificado e announcer único."""
+    """Header minimalista com apenas nome e slogan."""
 
     live_text = " | ".join([m for m in (live_messages or []) if m])
-
-    summary_chips = "".join(
-        [
-            render_chip(f"Jogos: {total_games}", "ghost", "Total de jogos no recorte"),
-            render_chip(f"Destaques: {highlight_count}", "ghost", "Quantidade de destaques Guru")
-            if highlight_count
-            else "",
-            render_chip(f"Acurácia: {acc_result:.1f}%", "ghost", "Acurácia em jogos finalizados")
-            if acc_result
-            else "",
-            render_chip(f"Hoje: {today_count}", "ghost", "Jogos marcados para hoje") if today_count else "",
-        ]
-    )
-
-    meta_line = "".join(
-        [
-            render_chip(filter_line or "Sem filtros", "ghost", "Resumo dos filtros"),
-            render_chip(auto_view_label, "ghost", "Viewport atual"),
-            render_chip(f"Atualizado {last_update_label}", "ghost", "Momento da última atualização"),
-            render_chip(export_state_label, "ghost", "Status da exportação"),
-            render_chip(f"Filtros ativos: {active_filters}", "ghost", "Filtros aplicados")
-            if active_filters
-            else "",
-        ]
-    )
 
     return f"""
     <div class="pg-header" role="banner">
@@ -105,11 +69,6 @@ def render_app_header(
         <div>
           <p class="pg-eyebrow">Placar Guru</p>
           <div class="pg-appname">Futebol + Data Science</div>
-          <div class="pg-header__summary">
-            {render_chip(curr_label, 'ghost', 'Recorte atual')}
-            {summary_chips}
-          </div>
-          <div class="pg-header__meta">{meta_line}</div>
         </div>
       </div>
       <div class="pg-sr" aria-live="polite">{live_text}</div>
