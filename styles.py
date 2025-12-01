@@ -233,6 +233,8 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-filter-section--models { border-style: solid; border-color: color-mix(in srgb, var(--stroke) 72%, var(--primary) 18%); background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--primary) 8%, var(--panel))); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
   .pg-filter-section--teams { border-style: dashed; border-color: color-mix(in srgb, var(--stroke) 82%, var(--accent) 22%); background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--accent) 8%, var(--panel))); }
   .pg-filter-section--teams .pg-filter-chip { border-color: color-mix(in srgb, var(--stroke) 74%, var(--accent) 24%); }
+  .pg-filter-section--period { border-style: solid; border-color: color-mix(in srgb, var(--stroke) 78%, var(--primary) 18%); background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--primary) 8%, var(--panel))); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+  .pg-filter-section--period .pg-filter-chip { border-color: color-mix(in srgb, var(--stroke) 70%, var(--primary) 30%); }
   .pg-filter-section--suggestions { border-style: solid; border-color: color-mix(in srgb, var(--stroke) 76%, var(--highlight) 18%); background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--highlight) 10%, var(--panel))); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
   .pg-filter-section--suggestions .pg-filter-chip { border-color: color-mix(in srgb, var(--stroke) 74%, var(--highlight) 22%); background: color-mix(in srgb, var(--panel) 84%, transparent); color: var(--text); }
 
