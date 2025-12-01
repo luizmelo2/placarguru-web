@@ -311,7 +311,20 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
 
 def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()):  # type: ignore[call-arg]
     """Renderiza o filtro de período com botões de atalho."""
-    selected_date_range = current_range or ()
+
+    def _normalize_range(range_value: tuple | list | date | None):
+        if not range_value:
+            return ()
+        if isinstance(range_value, date):
+            return (range_value, range_value)
+        if isinstance(range_value, (list, tuple)):
+            if len(range_value) >= 2:
+                return (range_value[0], range_value[1])
+            if len(range_value) == 1:
+                return (range_value[0], range_value[0])
+        return ()
+
+    selected_date_range = _normalize_range(current_range)
     if not (min_date and max_date):
         return selected_date_range
 
@@ -346,9 +359,10 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
         selected_date_range = ()
 
     def _clamp_range(range_value: tuple[date, date] | tuple) -> tuple[date, date] | tuple:
-        if not range_value:
+        normed = _normalize_range(range_value)
+        if not normed:
             return ()
-        start, end = range_value
+        start, end = normed
         start = max(min_date, min(start, max_date))
         end = max(min_date, min(end, max_date))
         if start > end:
@@ -364,6 +378,7 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
         max_value=max_date,
         key="pg_period_range",
     )
+    selected_date_range = _clamp_range(selected_date_range)
     wrapper.markdown("</div>", unsafe_allow_html=True)
     return selected_date_range
 
