@@ -276,13 +276,37 @@ def _render_filtros_equipes(
 def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaults: Optional[dict] = None):
     """Renderiza os filtros de sugestões de aposta."""
     defaults = defaults or {}
-    c1, c2 = container.columns(2)
+    wrapper = container.container()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--suggestions">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Sugestões</p>
+              <h5 class="pg-filter-section__title">Refine as previsões sugeridas</h5>
+              <p class="pg-filter-section__hint">Escolha mercados de aposta e gols para focar apenas nas sugestões desejadas.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">⭐ Destaque Guru</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2 = wrapper.columns(2)
     bet_sel = c1.multiselect(
-        FRIENDLY_COLS["bet_suggestion"], bet_opts, default=defaults.get("bet_sel", []), format_func=market_label
+        FRIENDLY_COLS["bet_suggestion"],
+        bet_opts,
+        default=defaults.get("bet_sel", []),
+        format_func=market_label,
+        placeholder="Ex.: Vencedor, Dupla chance, Empate anula...",
     )
     goal_sel = c2.multiselect(
-        FRIENDLY_COLS["goal_bet_suggestion"], goal_opts, default=defaults.get("goal_sel", []), format_func=market_label
+        FRIENDLY_COLS["goal_bet_suggestion"],
+        goal_opts,
+        default=defaults.get("goal_sel", []),
+        format_func=market_label,
+        placeholder="Ex.: Over/Under, Ambos Marcam, gols por time...",
     )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
     return bet_sel, goal_sel
 
 def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()): 
