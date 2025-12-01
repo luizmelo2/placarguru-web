@@ -220,12 +220,8 @@ def _render_filtros_equipes(
     default_teams: Optional[list] = None,
 ):
     """Renderiza os filtros de equipes e a busca rápida."""
-    c1, c2 = container.columns(2)
-    with c1:
-        # Apenas para alinhar com o seletor de equipes
-        st.write(f"**{len(tournaments_sel or []):d} torneios selecionados**")
-
-    teams_sel = c2.multiselect(
+    _, col_input = container.columns([1, 2])
+    teams_sel = col_input.multiselect(
         "Equipe (Casa ou Visitante)", team_opts,
         default=default_teams if default_teams is not None else ([] if modo_mobile else team_opts)
     )
@@ -326,19 +322,32 @@ def filtros_ui(
             <div class="pg-filter-header">
               <div>
                 <p class="pg-eyebrow">Filtros principais</p>
-                <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
+                <h4 class="pg-filter-title">Refine torneios, modelos e odds</h4>
+                <p class="pg-filter-sub">Combine torneios, período e sugestões com atalhos mais claros.</p>
+              </div>
+              <div class="pg-filter-actions">
+                <span class="pg-chip ghost">Visual refinado</span>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.toggle(
-            "Tema escuro",
-            key="pg_dark_mode_sidebar",
-            value=bool(st.session_state.get("pg_dark_mode_sidebar", False)),
-            on_change=_sync_sidebar_theme,
-            help="Altere rapidamente entre tema claro e escuro.",
-        )
+        top_left, top_right = st.columns([1, 1])
+        with top_left:
+            st.toggle(
+                "Tema escuro",
+                key="pg_dark_mode_sidebar",
+                value=bool(st.session_state.get("pg_dark_mode_sidebar", False)),
+                on_change=_sync_sidebar_theme,
+                help="Altere rapidamente entre tema claro e escuro.",
+            )
+        with top_right:
+            st.toggle(
+                "Exibir filtros",
+                key="pg_filters_open",
+                value=st.session_state.get("pg_filters_open", False),
+                help="Mostre ou esconda os controles principais.",
+            )
         if state.active_count:
             st.button(
                 f"Limpar filtros ({state.active_count})",
@@ -348,14 +357,8 @@ def filtros_ui(
                     st.session_state.update({"pg_table_density": DEFAULT_TABLE_DENSITY}),
                     reset_filters(defaults)
                 ),
-                help="Remove todos os filtros aplicados. O número indica quantos filtros estão ativos.",
+                help="Remova rapidamente filtros ativos e volte ao padrão.",
             )
-        st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar filtros</div>", unsafe_allow_html=True)
-        st.toggle(
-            "Exibir filtros",
-            key="pg_filters_open",
-            value=st.session_state.get("pg_filters_open", False),
-        )
 
         if st.session_state.get("pg_filters_open", False):
             st.markdown("<div class='pg-filter-section'><p class='pg-eyebrow'>Campeonatos</p>", unsafe_allow_html=True)
