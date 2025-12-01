@@ -1034,218 +1034,34 @@ try:
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
-# --- Tabela de Melhor Modelo por Campeonato e Mercado ---
+                    # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
 
-                        tbl1_id = f"tbl-best-model-{uuid.uuid4().hex[:8]}"
-                        tbl2_id = f"tbl-best-summary-{uuid.uuid4().hex[:8]}"
-
-                        table1_html = best_model_data.to_html(
-                            index=False,
-                            classes="display compact pg-glass-table",
-                            border=0,
-                            table_id=tbl1_id,
-                        )
-                        table2_html = summary_pivot_table.to_html(
-                            index=False,
-                            classes="display compact pg-glass-table",
-                            border=0,
-                            table_id=tbl2_id,
-                        )
-
-                        table1_csv_b64 = base64.b64encode(
-                            best_model_data.to_csv(index=False).encode("utf-8")
-                        ).decode("utf-8")
-                        table2_csv_b64 = base64.b64encode(
-                            summary_pivot_table.to_csv(index=False).encode("utf-8")
-                        ).decode("utf-8")
-
-                        palette = {
-                            "bg": "#0b1224" if st.session_state.get("pg_dark_mode", False) else "#f8fafc",
-                            "panel": "#0f172a" if st.session_state.get("pg_dark_mode", False) else "#ffffff",
-                            "glass": "rgba(255,255,255,0.08)" if st.session_state.get("pg_dark_mode", False) else "rgba(255,255,255,0.65)",
-                            "stroke": "#1f2937" if st.session_state.get("pg_dark_mode", False) else "#e2e8f0",
-                            "text": "#e2e8f0" if st.session_state.get("pg_dark_mode", False) else "#0f172a",
-                            "muted": "#94a3b8" if st.session_state.get("pg_dark_mode", False) else "#475569",
-                            "primary": "#60a5fa" if st.session_state.get("pg_dark_mode", False) else "#2563eb",
-                            "primary2": "#22d3ee",
-                            "neon": "#bfff3b",
-                            "shadow": "0 20px 60px rgba(0,0,0,0.35)" if st.session_state.get("pg_dark_mode", False) else "0 20px 60px rgba(0,0,0,0.12)",
-                        }
-
-                        
-                        best_panel_tpl = Template(
+                        st.markdown(
                             """
-                            <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-                            <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css" />
-                            <style>
-                              :root {
-                                --bg: ${bg};
-                                --panel: ${panel};
-                                --glass: ${glass};
-                                --stroke: ${stroke};
-                                --text: ${text};
-                                --muted: ${muted};
-                                --primary: ${primary};
-                                --primary-2: ${primary2};
-                                --neon: ${neon};
-                                --shadow: ${shadow};
-                                --accent: ${primary};
-                                --white: #ffffff;
-                                --text-strong: ${text};
-                              }
-                              body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system,sans-serif; }
-                              .pg-eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; font-size: 11px; color: var(--muted); margin: 0 0 4px 0; }
-                              .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
-                              .pg-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text); font-weight:700; font-size:12px; }
-                              .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 75%, transparent); color: var(--muted); }
-                              .pg-stats-panel { border:1px solid var(--stroke); border-radius:16px; padding:16px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
-                              .pg-best-panel { padding: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 86%, transparent)); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: 0 12px 60px color-mix(in srgb, var(--shadow) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent) inset; }
-                              .pg-best-panel .pg-stats-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
-                              .pg-best-panel .pg-table-stack { display:flex; flex-direction:column; gap:16px; }
-                              .pg-best-panel .pg-table-block { padding:12px; background: color-mix(in srgb, var(--panel) 94%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius:14px; box-shadow: 0 6px 36px color-mix(in srgb, var(--shadow) 14%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) inset; }
-                              .pg-best-panel .pg-table-block h5 { color: var(--text); }
-                              /* Base table styling even if DataTables fails */
-                              .pg-best-panel table { width:100%; border-collapse:separate; border-spacing:0; background: color-mix(in srgb, var(--panel) 97%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
-                              .pg-best-panel thead th { background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 78%, transparent)); color: var(--text-strong); font-weight:700; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent); cursor:pointer; padding:10px 12px; }
-                              .pg-best-panel tbody td { padding:10px 12px; color: var(--text); border:none; }
-                              .pg-best-panel tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--panel) 96%, transparent); }
-                              .pg-best-panel tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 92%, transparent); }
-                              .pg-best-panel tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)); box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
-                              /* DataTables overrides */
-                              .pg-best-panel .dataTables_wrapper { background: color-mix(in srgb, var(--panel) 94%, transparent); padding: 10px 10px 14px; border-radius: 14px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent); }
-                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; background: color-mix(in srgb, var(--panel) 97%, transparent) !important; border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent) !important; border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
-                              .pg-best-panel table.dataTable thead th { background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 78%, transparent)) !important; color: var(--text-strong) !important; font-weight:700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; cursor:pointer; }
-                              .pg-best-panel table.dataTable tbody tr.pg-row-odd { background: color-mix(in srgb, var(--panel) 96%, transparent) !important; }
-                              .pg-best-panel table.dataTable tbody tr.pg-row-even { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; }
-                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)) !important; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
-                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px !important; color: var(--text) !important; border:none !important; }
-                              .pg-best-panel .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%,transparent); }
-                              .pg-best-panel .dataTables_wrapper .dataTables_filter, .pg-best-panel .dataTables_wrapper .dataTables_info, .pg-best-panel .dataTables_wrapper .dataTables_paginate { display:none; }
-                              .pg-best-panel .dt-buttons { display:flex; flex-wrap:wrap; gap:8px; margin: 4px 0 10px; }
-                              .pg-best-panel .dt-button { background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text); border:1px solid color-mix(in srgb, var(--stroke) 78%, transparent); border-radius: 10px; padding: 6px 10px; font-weight:700; box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow) 16%, transparent); transition: transform 150ms ease, box-shadow 150ms ease; }
-                              .pg-best-panel .dt-button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow) 22%, transparent); color: var(--accent); }
-                              .pg-best-panel .pg-dt-fallback { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
-                              .pg-best-panel .pg-dt-fallback a { text-decoration:none; color: var(--accent); font-weight:700; padding:6px 10px; border-radius:10px; background: color-mix(in srgb, var(--panel) 86%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 78%, transparent); }
-                              .pg-best-panel .pg-dt-active thead th { color: var(--accent) !important; }
-                              .pg-best-panel table.dataTable.pg-glass-table { width:100% !important; }
-                              table.dataTable.display > tbody > tr:nth-child(odd) > * { background: transparent !important; }
-                              table.dataTable.display > tbody > tr:nth-child(even) > * { background: transparent !important; }
-                            </style>
-                            <div class='pg-stats-panel pg-best-panel'>
+                            <div class='pg-stats-panel'>
                               <div class="pg-stats-header">
                                 <div>
                                   <p class="pg-eyebrow">Modelos vencedores</p>
                                   <h4 style="margin:0;">Sessão de Melhor Modelo</h4>
-                                  <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado com tabelas ordenáveis no visual glassy.</p>
-                                </div>
-                                <div class="pg-stats-tags">
-                                  <span class="pg-chip ghost">Interativo</span>
-                                  <span class="pg-chip ghost">Ordenável</span>
-                                </div>
-                              </div>
-                              <div class="pg-table-stack">
-                                <div class="pg-table-block">
-                                  <p class="pg-eyebrow">Visão detalhada</p>
-                                  <h5 style="margin:0;">Melhor Modelo por Campeonato e Mercado</h5>
-                                  ${table1}
-                                  <div class="pg-dt-fallback">
-                                    <a href="data:text/csv;base64,${t1csv}" download="melhor-modelo-campeonato.csv">⬇ Exportar CSV</a>
-                                  </div>
-                                </div>
-                                <div class="pg-table-block">
-                                  <p class="pg-eyebrow">Resumo</p>
-                                  <h5 style="margin:0;">Resumo do Melhor Modelo por Mercado</h5>
-                                  ${table2}
-                                  <div class="pg-dt-fallback">
-                                    <a href="data:text/csv;base64,${t2csv}" download="resumo-melhor-modelo-mercado.csv">⬇ Exportar CSV</a>
-                                  </div>
+                                  <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado no mesmo layout das demais tabelas glassy.</p>
                                 </div>
                               </div>
                             </div>
-                            <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-                            <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-                            <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-                            <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
-                            <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-                            <script>
-                              const pgFallbackSort = (tblId) => {
-                                const el = document.getElementById(tblId);
-                                if (!el) return;
-                                const getCell = (row, idx) => row.children[idx]?.innerText?.toLowerCase?.() || '';
-                                Array.from(el.querySelectorAll('th')).forEach((th, idx) => {
-                                  th.addEventListener('click', () => {
-                                    const rows = Array.from(el.querySelectorAll('tbody tr'));
-                                    const asc = !th.classList.contains('pg-sort-asc');
-                                    el.querySelectorAll('th').forEach(h => h.classList.remove('pg-sort-asc','pg-sort-desc'));
-                                    th.classList.add(asc ? 'pg-sort-asc' : 'pg-sort-desc');
-                                    rows.sort((a,b)=>{
-                                      const va = getCell(asc ? a : b, idx);
-                                      const vb = getCell(asc ? b : a, idx);
-                                      return va.localeCompare(vb, 'pt', {numeric:true});
-                                    }).forEach(r => el.querySelector('tbody').appendChild(r));
-                                  });
-                                });
-                              };
-                              const pgInitDt = (tblId) => {
-                                const el = document.getElementById(tblId);
-                                if (!el || !window.jQuery) { pgFallbackSort(tblId); return; }
-                                const $tbl = window.jQuery(el);
-                                if ($tbl.length === 0 || !window.jQuery.fn?.dataTable) { pgFallbackSort(tblId); return; }
-                                if (window.jQuery.fn.dataTable.isDataTable($tbl)) {
-                                  $tbl.DataTable().destroy();
-                                }
-                                $tbl.DataTable({
-                                  paging:false,
-                                  searching:false,
-                                  info:false,
-                                  ordering:true,
-                                  order: [],
-                                  scrollX:true,
-                                  autoWidth:false,
-                                  stripeClasses: ['pg-row-odd','pg-row-even'],
-                                  dom: '<"pg-dt-top"B>t',
-                                  buttons: [
-                                    { extend:'copyHtml5', text:'📋 Copiar', className:'pg-dt-btn'},
-                                    { extend:'csvHtml5', text:'⬇ CSV', className:'pg-dt-btn'},
-                                    { extend:'excelHtml5', text:'⬇ Excel', className:'pg-dt-btn'}
-                                  ]
-                                });
-                                $tbl.on('click', 'th', () => $tbl.addClass('pg-dt-active'));
-                              };
-                              (function ensureReady(){
-                                const ready = window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable && window.jQuery.fn.dataTable.Buttons;
-                                if (!ready) { setTimeout(ensureReady, 120); return; }
-                                pgInitDt('${tbl1_id}');
-                                pgInitDt('${tbl2_id}');
-                              })();
-                            </script>
-                            """
-                        )
-                        panel_html = best_panel_tpl.safe_substitute(
-                            bg=palette["bg"],
-                            panel=palette["panel"],
-                            glass=palette["glass"],
-                            stroke=palette["stroke"],
-                            text=palette["text"],
-                            muted=palette["muted"],
-                            primary=palette["primary"],
-                            primary2=palette["primary2"],
-                            neon=palette["neon"],
-                            shadow=palette["shadow"],
-                            table1=table1_html,
-                            table2=table2_html,
-                            t1csv=table1_csv_b64,
-                            t2csv=table2_csv_b64,
+                            """,
+                            unsafe_allow_html=True,
                         )
 
-                        est_height = 420 + (len(best_model_data) + len(summary_pivot_table)) * 24
-                        est_height = max(520, min(est_height, 1400))
-                        est_width = 1200 if modo_mobile else 1500
-
-                        components.html(panel_html, height=est_height, width=est_width, scrolling=True)
+                        render_glassy_table(
+                            best_model_data,
+                            caption="Melhor Modelo por Campeonato e Mercado",
+                        )
+                        render_glassy_table(
+                            summary_pivot_table,
+                            caption="Resumo do Melhor Modelo por Mercado",
+                        )
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
