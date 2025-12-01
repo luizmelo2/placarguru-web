@@ -1,5 +1,6 @@
 """Módulo principal da aplicação Placar Guru."""
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 import streamlit.components.v1 as components
 import json
@@ -76,7 +77,10 @@ section[data-testid="stSidebar"] {
 </style>
 """
 # Aplica correção do header somente se estiver habilitada em secrets ou query string
-force_header_patch = bool(st.secrets.get("force_header_patch", False))
+try:
+    force_header_patch = bool(st.secrets.get("force_header_patch", False))
+except StreamlitSecretNotFoundError:
+    force_header_patch = False
 force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
 if force_header_patch:
     st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
