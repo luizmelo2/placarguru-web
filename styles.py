@@ -196,11 +196,11 @@ def inject_custom_css(dark_mode: bool = False):
 
   /* Filtros principais */
   .pg-filter-shell {
-    background: color-mix(in srgb, var(--panel) 95%, transparent);
-    border: 1px solid var(--stroke);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel) 88%, var(--glass-weak)));
+    border: 1px solid color-mix(in srgb, var(--stroke) 85%, var(--primary) 8%);
     border-radius: 16px;
-    box-shadow: var(--shadow);
-    padding: 14px 16px 4px 16px;
+    box-shadow: 0 12px 32px rgba(37,99,235,0.08), inset 0 1px 0 rgba(255,255,255,0.05);
+    padding: 16px 18px 8px 18px;
     margin: 6px 0 14px 0;
     backdrop-filter: blur(14px);
   }
@@ -212,6 +212,9 @@ def inject_custom_css(dark_mode: bool = False):
     flex-wrap: wrap;
     margin-bottom: 10px;
   }
+  .pg-filter-title { margin: 0; }
+  .pg-filter-sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .pg-filter-actions { display: flex; gap: 6px; align-items: center; }
   .pg-filter-toggle-label { color: var(--muted); font-size: 12px; margin-bottom: 2px; text-align: right; }
   .pg-filter-shell .streamlit-expanderHeader,
   .pg-filter-shell label,
@@ -222,6 +225,7 @@ def inject_custom_css(dark_mode: bool = False):
   .pg-filter-shell [data-baseweb="slider"] {
     margin-top: 6px;
   }
+  .pg-filter-section { padding: 10px 12px 4px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--stroke) 90%, var(--primary) 10%); margin-bottom: 8px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
 
   .pg-mobile-toolbar {
     border: 1px dashed var(--stroke);
@@ -598,12 +602,17 @@ def inject_custom_css(dark_mode: bool = False):
   @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; gap: 0.25rem; } }
 
   button, .stButton>button {
-    border-radius: 14px; padding: 10px 14px; font-weight: 700;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-weight: 700;
+    font-size: var(--font-sm);
+    line-height: 1.3;
     background: linear-gradient(120deg, var(--primary), var(--primary-2));
-    color: white; border: 1px solid color-mix(in srgb, var(--primary) 70%, var(--stroke));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 10px 30px rgba(37,99,235,0.25);
+    color: white;
+    border: 1px solid color-mix(in srgb, var(--primary) 70%, var(--stroke));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 22px rgba(37,99,235,0.22);
   }
-  button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(37,99,235,0.35); }
+  button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(37,99,235,0.28); }
 
   div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.02rem; font-weight: 700; }
 </style>
