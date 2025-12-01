@@ -345,6 +345,18 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
     if btn_cols[4].button("Limpar", use_container_width=True, key="btn_period_clear"):
         selected_date_range = ()
 
+    def _clamp_range(range_value: tuple[date, date] | tuple) -> tuple[date, date] | tuple:
+        if not range_value:
+            return ()
+        start, end = range_value
+        start = max(min_date, min(start, max_date))
+        end = max(min_date, min(end, max_date))
+        if start > end:
+            start = end
+        return (start, end)
+
+    selected_date_range = _clamp_range(selected_date_range)
+
     selected_date_range = wrapper.date_input(
         "Período (intervalo)",
         value=selected_date_range or (min_date, max_date),
