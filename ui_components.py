@@ -208,8 +208,30 @@ def is_guru_highlight(row: pd.Series) -> bool:
 
 def _render_filtros_modelos(container, model_opts: list, default_models: list, modo_mobile: bool):
     """Renderiza o filtro de seleção de modelos."""
-    col = container.columns(1)[0] if modo_mobile else container.columns(2)[0]
-    return col.multiselect(FRIENDLY_COLS["model"], model_opts, default=default_models)
+    wrapper = container.container()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--models">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Modelos</p>
+              <h5 class="pg-filter-section__title">Combine previsões por modelo</h5>
+              <p class="pg-filter-section__hint">Escolha apenas os modelos favoritos ou deixe em branco para ver todos.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">Comparar</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    col = wrapper.columns(1)[0] if modo_mobile else wrapper.columns(2)[0]
+    selected = col.multiselect(
+        FRIENDLY_COLS["model"],
+        model_opts,
+        default=default_models,
+        placeholder="Selecione um ou mais modelos...",
+    )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
+    return selected
 
 def _render_filtros_equipes(
     container,
@@ -220,17 +242,35 @@ def _render_filtros_equipes(
     default_teams: Optional[list] = None,
 ):
     """Renderiza os filtros de equipes e a busca rápida."""
-    _, col_input = container.columns([1, 2])
-    teams_sel = col_input.multiselect(
-        "Equipe (Casa ou Visitante)", team_opts,
-        default=default_teams if default_teams is not None else ([] if modo_mobile else team_opts)
+    wrapper = container.container()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--teams">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Equipes</p>
+              <h5 class="pg-filter-section__title">Encontre times rapidamente</h5>
+              <p class="pg-filter-section__hint">Filtre por equipes mandantes ou visitantes e use a busca para atalhos.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">Busca rápida</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
     )
-    q_team = container.text_input(
+    col_sel, col_input = wrapper.columns([1, 1]) if modo_mobile else wrapper.columns([1, 1.2])
+    teams_sel = col_sel.multiselect(
+        "Equipe (Casa ou Visitante)",
+        team_opts,
+        default=default_teams if default_teams is not None else ([] if modo_mobile else team_opts),
+        placeholder="Escolha uma ou mais equipes...",
+    )
+    q_team = col_input.text_input(
         "🔍 Buscar equipe (Casa/Visitante)",
         placeholder="Digite parte do nome da equipe...",
         key="pg_q_team_shared",
         value=search_query,
     )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
     return teams_sel, q_team
 
 def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaults: Optional[dict] = None):
