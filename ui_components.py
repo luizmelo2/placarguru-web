@@ -309,30 +309,50 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
     wrapper.markdown("</div>", unsafe_allow_html=True)
     return bet_sel, goal_sel
 
-def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()): 
+def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()):  # type: ignore[call-arg]
     """Renderiza o filtro de período com botões de atalho."""
-    selected_date_range = ()
-    with container.expander("Período", expanded=False):
-        if min_date and max_date:
-            today = date.today()
-            btn_cols = st.columns(5)
-            if btn_cols[0].button("Hoje"):
-                selected_date_range = (today, today)
-            if btn_cols[1].button("Próx. 3 dias"):
-                selected_date_range = (today, today + timedelta(days=3))
-            if btn_cols[2].button("Últimos 3 dias"):
-                selected_date_range = (today - timedelta(days=3), today)
-            if btn_cols[3].button("Semana"):
-                start = today - timedelta(days=today.weekday())
-                selected_date_range = (start, start + timedelta(days=6))
-            if btn_cols[4].button("Limpar"):
-                selected_date_range = ()
+    selected_date_range = current_range or ()
+    if not (min_date and max_date):
+        return selected_date_range
 
-            if not selected_date_range:
-                selected_date_range = st.date_input(
-                    "Período (intervalo)", value=current_range or (min_date, max_date),
-                    min_value=min_date, max_value=max_date
-                )
+    wrapper = container.container()
+    today = date.today()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--period">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Período</p>
+              <h5 class="pg-filter-section__title">Filtre por datas rapidamente</h5>
+              <p class="pg-filter-section__hint">Use atalhos rápidos ou escolha um intervalo personalizado.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">Calendário</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    btn_cols = wrapper.columns(5)
+    if btn_cols[0].button("Hoje", use_container_width=True, key="btn_period_today"):
+        selected_date_range = (today, today)
+    if btn_cols[1].button("Próx. 3 dias", use_container_width=True, key="btn_period_next3"):
+        selected_date_range = (today, today + timedelta(days=3))
+    if btn_cols[2].button("Últimos 3 dias", use_container_width=True, key="btn_period_prev3"):
+        selected_date_range = (today - timedelta(days=3), today)
+    if btn_cols[3].button("Semana", use_container_width=True, key="btn_period_week"):
+        start = today - timedelta(days=today.weekday())
+        selected_date_range = (start, start + timedelta(days=6))
+    if btn_cols[4].button("Limpar", use_container_width=True, key="btn_period_clear"):
+        selected_date_range = ()
+
+    selected_date_range = wrapper.date_input(
+        "Período (intervalo)",
+        value=selected_date_range or (min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        key="pg_period_range",
+    )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
     return selected_date_range
 
 def _render_filtros_odds(container, df: pd.DataFrame, defaults: Optional[dict] = None):
