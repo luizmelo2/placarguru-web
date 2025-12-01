@@ -598,12 +598,17 @@ def inject_custom_css(dark_mode: bool = False):
   @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; gap: 0.25rem; } }
 
   button, .stButton>button {
-    border-radius: 14px; padding: 10px 14px; font-weight: 700;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-weight: 700;
+    font-size: var(--font-sm);
+    line-height: 1.3;
     background: linear-gradient(120deg, var(--primary), var(--primary-2));
-    color: white; border: 1px solid color-mix(in srgb, var(--primary) 70%, var(--stroke));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 10px 30px rgba(37,99,235,0.25);
+    color: white;
+    border: 1px solid color-mix(in srgb, var(--primary) 70%, var(--stroke));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 22px rgba(37,99,235,0.22);
   }
-  button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(37,99,235,0.35); }
+  button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(37,99,235,0.28); }
 
   div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.02rem; font-weight: 700; }
 </style>
