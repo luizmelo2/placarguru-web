@@ -297,11 +297,16 @@ def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    st.session_state.setdefault("pg_filters_open", False)
+    st.session_state.setdefault("pg_filters_open", True)
     defaults, opts = build_filter_defaults(df, modo_mobile)
     state = get_filter_state(defaults)
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
     state.tournaments_sel = tournaments_sel
+
+    def _sync_sidebar_theme():
+        st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_sidebar", False))
+        st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
+        st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -316,6 +321,13 @@ def filtros_ui(
             </div>
             """,
             unsafe_allow_html=True,
+        )
+        st.toggle(
+            "Tema escuro",
+            key="pg_dark_mode_sidebar",
+            value=bool(st.session_state.get("pg_dark_mode_sidebar", False)),
+            on_change=_sync_sidebar_theme,
+            help="Altere rapidamente entre tema claro e escuro.",
         )
         if state.active_count:
             st.button(

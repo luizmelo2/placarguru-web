@@ -45,7 +45,7 @@ from state import (
 st.set_page_config(
     layout="wide",
     page_title="Previsões",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 
@@ -125,13 +125,18 @@ st.session_state.setdefault("pg_dark_mode", False)
 st.session_state.setdefault("pg_theme_announce", "")
 
 
-def _on_theme_toggle():
-    st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_toggle", False))
+def _sync_theme_toggle(source_key: str) -> None:
+    st.session_state["pg_dark_mode"] = bool(st.session_state.get(source_key, False))
     st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
+    st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
+    st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 
 dark_mode = bool(st.session_state.get("pg_dark_mode", False))
-st.session_state.setdefault("pg_dark_mode_toggle", dark_mode)
+st.session_state.setdefault("pg_dark_mode_header", dark_mode)
+st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
+st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
+st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -486,11 +491,11 @@ try:
                 with action_col:
                     st.toggle(
                         f"Alternar tema — {'escuro' if dark_mode else 'claro'}",
-                        value=bool(st.session_state.get("pg_dark_mode_toggle", dark_mode)),
-                        key="pg_dark_mode_toggle",
+                        value=bool(st.session_state.get("pg_dark_mode_header", dark_mode)),
+                        key="pg_dark_mode_header",
                         help="Altere o tema para avaliar contraste em dark/light.",
                         label_visibility="visible",
-                        on_change=_on_theme_toggle,
+                        on_change=lambda: _sync_theme_toggle("pg_dark_mode_header"),
                     )
 
             export_data = generate_pdf_report(curr_df) if not export_disabled else None
