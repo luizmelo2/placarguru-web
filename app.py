@@ -44,7 +44,7 @@ from state import (
 
 st.set_page_config(
     layout="wide",
-    page_title="Placar Guru",
+    page_title="Previsões",
     initial_sidebar_state="collapsed",
 )
 
