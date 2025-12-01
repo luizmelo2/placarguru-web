@@ -48,6 +48,40 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+
+def render_custom_navigation():
+    """Renderiza uma navegação customizada para renomear a página principal para 'Previsões'."""
+
+    # `page_link` está disponível nas versões mais novas do Streamlit; evitamos quebrar builds antigas.
+    if not hasattr(st.sidebar, "page_link"):
+        return
+
+    st.markdown(
+        """
+        <style>
+        /* Esconde a navegação padrão para evitar duplicação de links */
+        [data-testid="stSidebarNav"] { display: none; }
+        /* Reduz o espaçamento superior quando a nav padrão está oculta */
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child { padding-top: 0.25rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.sidebar:
+        st.markdown("#### Navegação")
+        st.page_link("app.py", label="Previsões", icon="🔮")
+        st.page_link(
+            "pages/2_Analise_de_Desempenho.py",
+            label="Análise de Desempenho",
+            icon="📊",
+        )
+        st.divider()
+
+
+# Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
+render_custom_navigation()
+
 # CSS para garantir que o header e o botão do menu (hambúrguer) apareçam
 fix_header_and_sidebar_css = """
 <style>
