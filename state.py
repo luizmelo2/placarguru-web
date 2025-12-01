@@ -68,7 +68,6 @@ def set_filter_state(state: FilterState) -> None:
     """Persiste o estado de filtros em sessão."""
 
     st.session_state["pg_filters_cache"] = state.to_dict()
-    st.session_state["pg_q_team_shared"] = state.search_query
     save_persisted_filters({
         "tournaments_sel": state.tournaments_sel,
         "models_sel": state.models_sel,
