@@ -150,6 +150,7 @@ from ui_components import (
     filtros_ui,
     display_list_view,
     is_guru_highlight,
+    guru_highlight_summary,
     render_glassy_table,
     render_app_header,
     render_chip,
@@ -196,7 +197,11 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
         out["btts_prediction"] = out["btts_suggestion"].apply(market_label, default="-")
 
     if "guru_highlight" in out.columns:
-        out["guru_highlight"] = out["guru_highlight"].apply(lambda v: "⭐" if bool(v) else "")
+        scope_series = out["guru_highlight_scope"] if "guru_highlight_scope" in out.columns else pd.Series("", index=out.index)
+        out["guru_highlight"] = [
+            f"⭐ {scope}".strip() if bool(flag) else ""
+            for flag, scope in zip(out["guru_highlight"], scope_series)
+        ]
 
     return out.rename(columns=FRIENDLY_COLS)
 
@@ -403,7 +408,10 @@ try:
             final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
         df_filtered = df[final_mask]
-        df_filtered = df_filtered.assign(guru_highlight=df_filtered.apply(is_guru_highlight, axis=1))
+        df_filtered = df_filtered.assign(
+            guru_highlight_scope=df_filtered.apply(guru_highlight_summary, axis=1)
+        )
+        df_filtered["guru_highlight"] = df_filtered["guru_highlight_scope"].apply(bool)
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:

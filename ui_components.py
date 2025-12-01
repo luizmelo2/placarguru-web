@@ -19,12 +19,11 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
+    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
 
 
-HIGHLIGHT_PROB_THRESHOLD = 0.60
-HIGHLIGHT_ODD_THRESHOLD = 1.20
+HIGHLIGHT_PROB_THRESHOLD = 0.80
 
 
 def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None) -> str:
@@ -43,6 +42,50 @@ def render_status_badge(status: str) -> str:
     label = status_label(status)
     prefix = "✅" if norm_status_key(status) in FINISHED_TOKENS else "🗓️"
     return f"{prefix} {label}"
+
+
+def _prob_from_market(row: pd.Series, market_code: Optional[str]) -> Optional[float]:
+    """Retorna a probabilidade associada a um mercado, se existir."""
+
+    if pd.isna(market_code):
+        return None
+
+    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+    if not cols:
+        return None
+
+    prob = row.get(cols[0])
+    try:
+        prob_val = float(prob)
+    except Exception:
+        return None
+
+    return prob_val if not pd.isna(prob_val) else None
+
+
+def guru_highlight_flags(row: pd.Series) -> dict[str, bool]:
+    """Retorna flags de destaque Guru por tipo de previsão (prob >= 80%)."""
+
+    mapping = {
+        "Resultado": row.get("result_predicted"),
+        "Sugestão": row.get("bet_suggestion"),
+        "Gols": row.get("goal_bet_suggestion"),
+        "Ambos Marcam": row.get("btts_suggestion"),
+    }
+
+    flags: dict[str, bool] = {}
+    for label, market_code in mapping.items():
+        prob_val = _prob_from_market(row, market_code)
+        flags[label] = bool(prob_val is not None and prob_val >= HIGHLIGHT_PROB_THRESHOLD)
+    return flags
+
+
+def guru_highlight_summary(row: pd.Series, sep: str = " · ") -> str:
+    """Retorna uma string com as previsões que passaram do corte Guru."""
+
+    flags = guru_highlight_flags(row)
+    active = [label for label, is_on in flags.items() if is_on]
+    return sep.join(active)
 
 
 def render_app_header(
@@ -93,12 +136,39 @@ def render_glassy_table(
         return
 
     df_to_render = df.copy()
+    guru_key = None
+    for candidate in ("guru_highlight", "Sugestão Guru"):
+        if candidate in df_to_render.columns:
+            guru_key = candidate
+            break
+
+    guru_scope_key = None
+    for candidate in ("guru_highlight_scope", "Sugestão Guru (detalhe)"):
+        if candidate in df_to_render.columns:
+            guru_scope_key = candidate
+            break
+
     guru_col = (
-        df_to_render["guru_highlight"]
-        if "guru_highlight" in df_to_render.columns
+        df_to_render[guru_key]
+        if guru_key
         else pd.Series(False, index=df_to_render.index)
     )
-    df_to_render["Guru"] = guru_col.apply(lambda v: "⭐" if bool(v) else "—")
+
+    def _guru_cell(idx, value):
+        if not bool(value):
+            return "—"
+        scope = ""
+        if guru_scope_key and guru_scope_key in df_to_render.columns:
+            try:
+                scope = str(df_to_render.at[idx, guru_scope_key]).strip()
+            except Exception:
+                scope = ""
+        return f"⭐ {scope}" if scope else "⭐"
+
+    df_to_render["Guru"] = [
+        _guru_cell(idx, v)
+        for idx, v in zip(df_to_render.index, guru_col)
+    ]
     status_col = "Status" if "Status" in df_to_render.columns else ("status" if "status" in df_to_render.columns else None)
     if status_col:
         df_to_render["Status (badge)"] = df_to_render[status_col].apply(render_status_badge)
@@ -117,7 +187,7 @@ def render_glassy_table(
     density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
     with st.container():
         st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
-        legend = "⭐ Sugestão Guru (prob ≥60% · odd >1.20)"
+        legend = "⭐ Sugestão Guru (prob ≥80% para Resultado/Sugestão/Gols/BTTS)"
         if caption:
             legend = f"{caption} · {legend}"
         st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
@@ -132,28 +202,9 @@ def render_glassy_table(
 
 
 def is_guru_highlight(row: pd.Series) -> bool:
-    """Aplica a regra de destaque (prob > 60% e odd > 1.20) usando a sugestão de aposta."""
-    market_code = row.get("bet_suggestion")
-    if pd.isna(market_code):
-        return False
+    """Destaque geral se qualquer mercado chave tiver probabilidade >= 80%."""
 
-    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
-    if not cols:
-        return False
-
-    prob = row.get(cols[0])
-    odd = row.get(cols[1])
-
-    try:
-        prob_val = float(prob)
-        odd_val = float(odd)
-    except Exception:
-        return False
-
-    if pd.isna(prob_val) or pd.isna(odd_val):
-        return False
-
-    return prob_val >= HIGHLIGHT_PROB_THRESHOLD and odd_val > HIGHLIGHT_ODD_THRESHOLD
+    return any(guru_highlight_flags(row).values())
 
 def _render_filtros_modelos(container, model_opts: list, default_models: list, modo_mobile: bool):
     """Renderiza o filtro de seleção de modelos."""
@@ -371,7 +422,8 @@ def _prepare_display_data(row: pd.Series) -> dict:
         if cols:
             prob_val = row.get(cols[0])
             odd_val = row.get(cols[1])
-    highlight = is_guru_highlight(row)
+    highlight_scope = guru_highlight_summary(row)
+    highlight = bool(highlight_scope)
 
     # Avaliações de acerto
     hit_res = eval_result_pred_row(row)
@@ -408,6 +460,7 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
         "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—",
         "highlight": highlight,
+        "highlight_scope": highlight_scope,
         "suggested_prob": prob_val,
         "suggested_odd": odd_val,
         "match_title": f"{row.get('home','?')} vs {row.get('away','?')}",
@@ -506,11 +559,14 @@ def display_list_view(df: pd.DataFrame):
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
-            highlight_label = (
-                "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>"
-                if data["highlight"]
-                else ""
-            )
+            highlight_label = ""
+            if data["highlight"]:
+                scope_txt = data.get("highlight_scope", "").strip()
+                scope_hint = f" — {scope_txt}" if scope_txt else ""
+                highlight_label = (
+                    "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru"
+                    f"{scope_hint}</span>"
+                )
             final_score_badge = (
                 f"<span class=\"badge badge-finished\">Placar Final {data['final_score']}</span>"
                 if data["is_finished"]
@@ -564,7 +620,7 @@ def display_list_view(df: pd.DataFrame):
                     <div class="pg-pill">
                       <div class="label">💡 Sugestão</div>
                       <div class="value">{green_html(data['aposta_txt'])}</div>
-                      <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
+                      <div class="text-muted" style="font-size:12px;">Prob ≥80% ativa destaque Guru individual</div>
                     </div>
                     <div class="pg-pill">
                       <div class="label">⚽ Gols</div>
