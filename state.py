@@ -181,7 +181,6 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
         </script>
         """,
         height=0,
-        key="pg_viewport_sync",
     )
 
     try:
