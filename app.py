@@ -465,7 +465,7 @@ try:
                         on_change=lambda: _sync_theme_toggle("pg_dark_mode_header"),
                     )
 
-            export_data = generate_pdf_report(curr_df) if not export_disabled else None
+            export_data = generate_pdf_report(curr_df) if not export_disabled else b""
             st.download_button(
                 label="Exportar recorte para PDF",
                 data=export_data,
