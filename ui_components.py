@@ -134,9 +134,12 @@ def render_glassy_table(
         return
 
     df_to_render = df.copy()
-    df_to_render["Guru"] = df_to_render.get("guru_highlight", False).apply(
-        lambda v: "⭐" if bool(v) else "—"
+    guru_col = (
+        df_to_render["guru_highlight"]
+        if "guru_highlight" in df_to_render.columns
+        else pd.Series(False, index=df_to_render.index)
     )
+    df_to_render["Guru"] = guru_col.apply(lambda v: "⭐" if bool(v) else "—")
     status_col = "Status" if "Status" in df_to_render.columns else ("status" if "status" in df_to_render.columns else None)
     if status_col:
         df_to_render["Status (badge)"] = df_to_render[status_col].apply(render_status_badge)
