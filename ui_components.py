@@ -223,8 +223,7 @@ def _render_filtros_modelos(container, model_opts: list, default_models: list, m
         """,
         unsafe_allow_html=True,
     )
-    col = wrapper.columns(1)[0] if modo_mobile else wrapper.columns(2)[0]
-    selected = col.multiselect(
+    selected = wrapper.multiselect(
         FRIENDLY_COLS["model"],
         model_opts,
         default=default_models,
