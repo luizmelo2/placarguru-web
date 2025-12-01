@@ -620,7 +620,6 @@ def display_list_view(df: pd.DataFrame):
                     <div class="pg-pill">
                       <div class="label">💡 Sugestão</div>
                       <div class="value">{green_html(data['aposta_txt'])}</div>
-                      <div class="text-muted" style="font-size:12px;">Prob ≥80% ativa destaque Guru individual</div>
                     </div>
                     <div class="pg-pill">
                       <div class="label">⚽ Gols</div>
