@@ -327,12 +327,20 @@ def inject_custom_css(dark_mode: bool = False):
   .tourn-box:hover { border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 16px 44px rgba(37,99,235,0.16); }
   .tourn-title { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
 
-  .badge { padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; border: 1px solid var(--stroke); transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease; }
+  .badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid var(--stroke);
+    transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease;
+    color: color-mix(in srgb, var(--text) 92%, #0b1224);
+  }
   .badge:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(37,99,235,0.12); border-color: var(--primary); background: color-mix(in srgb, var(--panel) 94%, transparent); }
-  .badge-ok { background: color-mix(in srgb, var(--positive) 22%, var(--panel)); color: #d1fae5; }
-  .badge-bad { background: color-mix(in srgb, #ef4444 22%, var(--panel)); color: #fee2e2; }
-  .badge-wait { background: color-mix(in srgb, var(--stroke) 32%, var(--panel)); color: var(--text); }
-  .badge-finished { background: color-mix(in srgb, var(--primary) 24%, var(--panel)); color: #dbeafe; }
+  .badge-ok { background: color-mix(in srgb, var(--positive) 22%, var(--panel)); color: color-mix(in srgb, #065f46 82%, var(--text)); }
+  .badge-bad { background: color-mix(in srgb, #ef4444 22%, var(--panel)); color: color-mix(in srgb, #7f1d1d 82%, var(--text)); }
+  .badge-wait { background: color-mix(in srgb, var(--stroke) 32%, var(--panel)); color: color-mix(in srgb, var(--text) 92%, #0b1224); }
+  .badge-finished { background: color-mix(in srgb, var(--primary) 24%, var(--panel)); color: color-mix(in srgb, var(--text) 94%, #0b1224); }
 
   .accent-green { color:#22c55e; font-weight:700; }
   .text-odds { color: var(--muted); font-size: 0.9em; margin-left: 0.35rem; }
