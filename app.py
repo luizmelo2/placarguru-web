@@ -33,6 +33,10 @@ from state import (
     reset_filters,
 )
 
+
+
+
+
 # ============================
 # Configuração da página
 # ============================
@@ -311,17 +315,18 @@ try:
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
+        guru_only = flt.get("guru_only", False)
         q_team = flt.get("search_query", "")
         tournament_opts = flt.get("tournament_opts", [])
         min_date, max_date = flt.get("min_date"), flt.get("max_date")
 
-        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
+        st.session_state.setdefault("pg_list_view_pref", True)
         if modo_mobile:
             st.session_state["pg_list_view_pref"] = True
         else:
             st.session_state["pg_list_view_pref"] = st.checkbox(
                 "Usar visualização em lista (mobile)",
-                value=bool(st.session_state.get("pg_list_view_pref", False)),
+                value=bool(st.session_state.get("pg_list_view_pref", True)),
                 help="Mantém a listagem em cards mesmo no desktop quando preferir.",
             )
 
@@ -413,6 +418,7 @@ try:
                         teams_sel = cleared.teams_sel or []
                         bet_sel = cleared.bet_sel or []
                         goal_sel = cleared.goal_sel or []
+                        guru_only = cleared.guru_only or False
                         selected_date_range = cleared.selected_date_range
                         sel_h, sel_d, sel_a = cleared.sel_h, cleared.sel_d, cleared.sel_a
                         q_team_input = cleared.search_query
@@ -439,6 +445,8 @@ try:
         if bet_sel or goal_sel:
             active_filters += 1
         if selected_date_range:
+            active_filters += 1
+        if guru_only:
             active_filters += 1
 
         # Máscara combinada (sem status)
@@ -486,6 +494,9 @@ try:
         )
         df_filtered["guru_highlight"] = df_filtered["guru_highlight_scope"].apply(bool)
 
+        if guru_only:
+            df_filtered = df_filtered[df_filtered["guru_highlight"]]
+
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
@@ -524,7 +535,15 @@ try:
             with topbar_placeholder.container():
                 brand_col, action_col = st.columns([4, 1.4])
                 brand_col.markdown(header_html, unsafe_allow_html=True)
-
+                with action_col:
+                    st.toggle(
+                        f"Alternar tema — {'escuro' if dark_mode else 'claro'}",
+                        value=bool(st.session_state.get("pg_dark_mode_header", dark_mode)),
+                        key="pg_dark_mode_header",
+                        help="Altere o tema para avaliar contraste em dark/light.",
+                        label_visibility="visible",
+                        on_change=lambda: _sync_theme_toggle("pg_dark_mode_header"),
+                    )
 
             export_data = generate_pdf_report(curr_df) if not export_disabled else b""
             st.download_button(
