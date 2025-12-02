@@ -704,62 +704,32 @@ try:
                             tourn_metrics = calculate_kpis(tourn_df, False)
                             campeonatos_stats.append((tournament_label(tourn_id), _metric_stats_for(tourn_metrics)))
 
-                    def _render_stat_cards(stats: dict[str, tuple[float, int, int]]) -> str:
-                        cards = []
-                        for metric in metric_order:
+                    def _render_stat_row(title: str, desc: str, stats: dict[str, tuple[float, int, int]], tag: str | None = None):
+                        st.markdown(f"**{title}**")
+                        st.caption(desc)
+                        if tag:
+                            st.caption(f"[{tag}]")
+                        cols = st.columns(len(metric_order))
+                        for col, metric in zip(cols, metric_order):
                             acc, hits, total = stats.get(metric, (0.0, 0, 0))
-                            cards.append(
-                                f"""
-                                <div class="pg-stat-card">
-                                  <p class="pg-stat-label">{metric}</p>
-                                  <div class="pg-stat-value">{acc:.1f}%</div>
-                                  <p class="pg-stat-foot">{hits} acertos / {total} jogos</p>
-                                </div>
-                                """
-                            )
-                        return "".join(cards)
+                            col.metric(metric, f"{acc:.1f}%", f"{hits} / {total} jogos")
 
-                    sections_html = [
-                        f"""
-                        <div class="pg-stats-section">
-                          <div class="pg-stats-header">
-                            <div>
-                              <p class="pg-eyebrow">Sessão de estatísticas</p>
-                              <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
-                              <p class="pg-stats-desc">Percentual de acertos e volume avaliado por mercado.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Consolidado</span>
-                            </div>
-                          </div>
-                          <div class="pg-stat-grid">{_render_stat_cards(overall_stats)}</div>
-                        </div>
-                        """
-                    ]
+                    st.markdown("### Insights dos jogos finalizados")
+                    st.caption("Percentual de acertos e volume avaliado por mercado.")
+                    _render_stat_row(
+                        "Consolidado",
+                        "Resumo geral dos jogos finalizados.",
+                        overall_stats,
+                    )
 
                     for tourn_name, stats in campeonatos_stats:
-                        sections_html.append(
-                            f"""
-                            <div class="pg-stats-section">
-                              <div class="pg-stats-header">
-                                <div>
-                                  <p class="pg-eyebrow">Campeonato</p>
-                                  <h4 style="margin: 0;">{tourn_name}</h4>
-                                  <p class="pg-stats-desc">Precisão por mercado para jogos finalizados do campeonato.</p>
-                                </div>
-                                <div class="pg-stats-tags">
-                                  <span class="pg-chip ghost">Recorte do campeonato</span>
-                                </div>
-                              </div>
-                              <div class="pg-stat-grid">{_render_stat_cards(stats)}</div>
-                            </div>
-                            """
+                        st.divider()
+                        _render_stat_row(
+                            tourn_name,
+                            "Precisão por mercado para jogos finalizados do campeonato.",
+                            stats,
+                            tag="Recorte do campeonato",
                         )
-
-                    st.markdown(
-                        f"<div class='pg-stats-stack'>{''.join(sections_html)}</div>",
-                        unsafe_allow_html=True,
-                    )
 
                     st.markdown(
                         """
