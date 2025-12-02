@@ -673,23 +673,53 @@ try:
                     metrics_df = calculate_kpis(df_fin, multi_model)
                     overall_metrics = calculate_kpis(df_fin, False)
 
-                    def _metric_stats(metric: str) -> tuple[float, int, int]:
-                        row = overall_metrics[overall_metrics["Métrica"] == metric]
-                        if row.empty:
-                            return 0.0, 0, 0
-                        acc = float(row["Acerto (%)"].iloc[0]) if pd.notna(row["Acerto (%)"].iloc[0]) else 0.0
-                        hits = int(row["Acertos"].iloc[0]) if pd.notna(row["Acertos"].iloc[0]) else 0
-                        total = int(row["Total Avaliado"].iloc[0]) if pd.notna(row["Total Avaliado"].iloc[0]) else 0
-                        return acc, hits, total
+                    metric_order = [
+                        "Resultado",
+                        "Sugestão de Aposta",
+                        "Sugestão Combo",
+                        "Sugestão de Gols",
+                        "Ambos Marcam",
+                    ]
 
-                    resultado_acc, resultado_hit, resultado_total = _metric_stats("Resultado")
-                    aposta_acc, aposta_hit, aposta_total = _metric_stats("Sugestão de Aposta")
-                    combo_acc, combo_hit, combo_total = _metric_stats("Sugestão Combo")
-                    gols_acc, gols_hit, gols_total = _metric_stats("Sugestão de Gols")
-                    btts_acc, btts_hit, btts_total = _metric_stats("Ambos Marcam")
+                    def _metric_stats_for(metrics_frame: pd.DataFrame) -> dict[str, tuple[float, int, int]]:
+                        def _extract(metric: str) -> tuple[float, int, int]:
+                            row = metrics_frame[metrics_frame["Métrica"] == metric]
+                            if row.empty:
+                                return 0.0, 0, 0
+                            acc = float(row["Acerto (%)"].iloc[0]) if pd.notna(row["Acerto (%)"].iloc[0]) else 0.0
+                            hits = int(row["Acertos"].iloc[0]) if pd.notna(row["Acertos"].iloc[0]) else 0
+                            total = int(row["Total Avaliado"].iloc[0]) if pd.notna(row["Total Avaliado"].iloc[0]) else 0
+                            return acc, hits, total
 
-                    st.markdown("<div class='pg-stats-stack'>", unsafe_allow_html=True)
-                    st.markdown(
+                        return {metric: _extract(metric) for metric in metric_order}
+
+                    overall_stats = _metric_stats_for(overall_metrics)
+
+                    campeonatos_stats: list[tuple[str, dict[str, tuple[float, int, int]]]] = []
+                    if "tournament_id" in df_fin.columns:
+                        for tourn_id in sorted(df_fin["tournament_id"].dropna().unique()):
+                            tourn_df = df_fin[df_fin["tournament_id"] == tourn_id]
+                            if tourn_df.empty:
+                                continue
+                            tourn_metrics = calculate_kpis(tourn_df, False)
+                            campeonatos_stats.append((tournament_label(tourn_id), _metric_stats_for(tourn_metrics)))
+
+                    def _render_stat_cards(stats: dict[str, tuple[float, int, int]]) -> str:
+                        cards = []
+                        for metric in metric_order:
+                            acc, hits, total = stats.get(metric, (0.0, 0, 0))
+                            cards.append(
+                                f"""
+                                <div class="pg-stat-card">
+                                  <p class="pg-stat-label">{metric}</p>
+                                  <div class="pg-stat-value">{acc:.1f}%</div>
+                                  <p class="pg-stat-foot">{hits} acertos / {total} jogos</p>
+                                </div>
+                                """
+                            )
+                        return "".join(cards)
+
+                    sections_html = [
                         f"""
                         <div class="pg-stats-section">
                           <div class="pg-stats-header">
@@ -698,36 +728,36 @@ try:
                               <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
                               <p class="pg-stats-desc">Percentual de acertos e volume avaliado por mercado.</p>
                             </div>
-                          </div>
-                          <div class="pg-stat-grid">
-                            <div class="pg-stat-card">
-                              <p class="pg-stat-label">Resultado</p>
-                              <div class="pg-stat-value">{resultado_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{resultado_hit} acertos / {resultado_total} jogos</p>
-                            </div>
-                            <div class="pg-stat-card">
-                              <p class="pg-stat-label">Sugestão de Aposta</p>
-                              <div class="pg-stat-value">{aposta_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{aposta_hit} acertos / {aposta_total} jogos</p>
-                            </div>
-                            <div class="pg-stat-card">
-                              <p class="pg-stat-label">Sugestão Combo</p>
-                              <div class="pg-stat-value">{combo_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{combo_hit} acertos / {combo_total} jogos</p>
-                            </div>
-                            <div class="pg-stat-card">
-                              <p class="pg-stat-label">Sugestão de Gols</p>
-                              <div class="pg-stat-value">{gols_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{gols_hit} acertos / {gols_total} jogos</p>
-                            </div>
-                            <div class="pg-stat-card">
-                              <p class="pg-stat-label">Ambos Marcam</p>
-                              <div class="pg-stat-value">{btts_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{btts_hit} acertos / {btts_total} jogos</p>
+                            <div class="pg-stats-tags">
+                              <span class="pg-chip ghost">Consolidado</span>
                             </div>
                           </div>
+                          <div class="pg-stat-grid">{_render_stat_cards(overall_stats)}</div>
                         </div>
-                        """,
+                        """
+                    ]
+
+                    for tourn_name, stats in campeonatos_stats:
+                        sections_html.append(
+                            f"""
+                            <div class="pg-stats-section">
+                              <div class="pg-stats-header">
+                                <div>
+                                  <p class="pg-eyebrow">Campeonato</p>
+                                  <h4 style="margin: 0;">{tourn_name}</h4>
+                                  <p class="pg-stats-desc">Precisão por mercado para jogos finalizados do campeonato.</p>
+                                </div>
+                                <div class="pg-stats-tags">
+                                  <span class="pg-chip ghost">Recorte do campeonato</span>
+                                </div>
+                              </div>
+                              <div class="pg-stat-grid">{_render_stat_cards(stats)}</div>
+                            </div>
+                            """
+                        )
+
+                    st.markdown(
+                        f"<div class='pg-stats-stack'>{''.join(sections_html)}</div>",
                         unsafe_allow_html=True,
                     )
 
