@@ -490,7 +490,7 @@ def filtros_ui(
                 if st.button("Limpar", use_container_width=True, key="btn_clear_tourn"):
                     tournaments_sel = []
 
-            st.multiselect(
+            tournaments_sel = st.multiselect(
                 label="Selecione campeonatos",
                 options=opts["tourn_opts"],
                 key="sel_tournaments",
