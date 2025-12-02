@@ -305,8 +305,14 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
         format_func=market_label,
         placeholder="Ex.: Over/Under, Ambos Marcam, gols por time...",
     )
+    guru_only = wrapper.toggle(
+        "Apenas Sugestão Guru ativa",
+        key="pg_guru_only",
+        value=bool(defaults.get("guru_only", False)),
+        help="Filtrar somente os jogos que passaram no corte Guru (probabilidade ≥ 80%).",
+    )
     wrapper.markdown("</div>", unsafe_allow_html=True)
-    return bet_sel, goal_sel
+    return bet_sel, goal_sel, guru_only
 
 def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()):  # type: ignore[call-arg]
     """Renderiza o filtro de período com botões de atalho."""
@@ -494,7 +500,7 @@ def filtros_ui(
             state.teams_sel, state.search_query = _render_filtros_equipes(
                 st, opts["team_opts"], modo_mobile, tournaments_sel, state.search_query, default_teams=defaults.get("teams_sel")
             )
-            state.bet_sel, state.goal_sel = _render_filtros_sugestoes(
+            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
                 st, opts["bet_opts"], opts["goal_opts"], defaults
             )
             state.selected_date_range = _render_filtros_periodo(

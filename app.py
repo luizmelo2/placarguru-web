@@ -310,30 +310,24 @@ try:
         flt = filtros_ui(df, modo_mobile)
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
+        guru_only = flt.get("guru_only", False)
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
         q_team = flt.get("search_query", "")
         tournament_opts = flt.get("tournament_opts", [])
         min_date, max_date = flt.get("min_date"), flt.get("max_date")
 
-        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
+        st.session_state.setdefault("pg_list_view_pref", True)
         if modo_mobile:
             st.session_state["pg_list_view_pref"] = True
         else:
             st.session_state["pg_list_view_pref"] = st.checkbox(
                 "Usar visualização em lista (mobile)",
-                value=bool(st.session_state.get("pg_list_view_pref", False)),
+                value=bool(st.session_state.get("pg_list_view_pref", True)),
                 help="Mantém a listagem em cards mesmo no desktop quando preferir.",
             )
 
-        st.session_state.setdefault("pg_table_density", DEFAULT_TABLE_DENSITY)
-        density_toggle = st.toggle(
-            "Compactar linhas da tabela",
-            key="pg_density_toggle",
-            value=st.session_state.get("pg_table_density") == "compact",
-            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
-        )
-        table_density = "compact" if density_toggle else "comfortable"
-        st.session_state["pg_table_density"] = table_density
+        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
+        table_density = DEFAULT_TABLE_DENSITY
 
         use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
 
@@ -426,6 +420,9 @@ try:
             q_team = q_team_input
             set_filter_state(shared_state)
 
+        guru_scope_all = df.apply(guru_highlight_summary, axis=1)
+        guru_flag_all = guru_scope_all.apply(bool)
+
         active_filters = 0
         if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
             active_filters += 1
@@ -439,6 +436,8 @@ try:
         if bet_sel or goal_sel:
             active_filters += 1
         if selected_date_range:
+            active_filters += 1
+        if guru_only:
             active_filters += 1
 
         # Máscara combinada (sem status)
@@ -480,11 +479,13 @@ try:
         if "odds_A" in df.columns:
             final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
-        df_filtered = df[final_mask]
-        df_filtered = df_filtered.assign(
-            guru_highlight_scope=df_filtered.apply(guru_highlight_summary, axis=1)
+        if guru_only:
+            final_mask &= guru_flag_all
+
+        df_filtered = df[final_mask].assign(
+            guru_highlight_scope=guru_scope_all[final_mask],
+            guru_highlight=guru_flag_all[final_mask],
         )
-        df_filtered["guru_highlight"] = df_filtered["guru_highlight_scope"].apply(bool)
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
