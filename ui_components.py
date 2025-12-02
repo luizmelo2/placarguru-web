@@ -306,11 +306,16 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
         placeholder="Ex.: Over/Under, Ambos Marcam, gols por time...",
     )
     guru_only = wrapper.toggle(
-        "Apenas Sugestão Guru ativa",
+        "Sugestão Guru ativada",
         key="pg_guru_only",
         value=bool(defaults.get("guru_only", False)),
-        help="Filtrar somente os jogos que passaram no corte Guru (probabilidade ≥ 80%).",
+        help="Mostra apenas os jogos que estão com Sugestão Guru ativa (probabilidade ≥ 80%).",
     )
+    if guru_only:
+        wrapper.markdown(
+            "<div class='pg-chip success' aria-live='polite'>Filtrando apenas jogos com Sugestão Guru ativa.</div>",
+            unsafe_allow_html=True,
+        )
     wrapper.markdown("</div>", unsafe_allow_html=True)
     return bet_sel, goal_sel, guru_only
 
