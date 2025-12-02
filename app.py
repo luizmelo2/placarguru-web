@@ -671,24 +671,22 @@ try:
                     multi_model = len(selected_models) > 1
 
                     metrics_df = calculate_kpis(df_fin, multi_model)
+                    overall_metrics = calculate_kpis(df_fin, False)
 
-                    def _metric_value(name: str) -> float:
-                        row = metrics_df[metrics_df["Métrica"] == name]
+                    def _metric_stats(metric: str) -> tuple[float, int, int]:
+                        row = overall_metrics[overall_metrics["Métrica"] == metric]
                         if row.empty:
-                            return 0.0
-                        try:
-                            return float(row["Acerto (%)"].iloc[0])
-                        except Exception:
-                            return 0.0
+                            return 0.0, 0, 0
+                        acc = float(row["Acerto (%)"].iloc[0]) if pd.notna(row["Acerto (%)"].iloc[0]) else 0.0
+                        hits = int(row["Acertos"].iloc[0]) if pd.notna(row["Acertos"].iloc[0]) else 0
+                        total = int(row["Total Avaliado"].iloc[0]) if pd.notna(row["Total Avaliado"].iloc[0]) else 0
+                        return acc, hits, total
 
-                    avg_accuracy = round(metrics_df["Acerto (%)"].mean(), 1) if not metrics_df.empty else 0.0
-                    resultado_acc = _metric_value("Resultado")
-                    aposta_acc = _metric_value("Sugestão de Aposta")
-                    gols_acc = _metric_value("Sugestão de Gols")
-                    total_finished = len(df_fin)
-                    total_tourn_fin = df_fin["tournament_id"].nunique() if "tournament_id" in df_fin.columns else 0
-                    markets_covered = df_fin["bet_suggestion"].nunique() if "bet_suggestion" in df_fin.columns else 0
-                    guru_destaques = int(df_fin.apply(is_guru_highlight, axis=1).sum()) if not df_fin.empty else 0
+                    resultado_acc, resultado_hit, resultado_total = _metric_stats("Resultado")
+                    aposta_acc, aposta_hit, aposta_total = _metric_stats("Sugestão de Aposta")
+                    combo_acc, combo_hit, combo_total = _metric_stats("Sugestão Combo")
+                    gols_acc, gols_hit, gols_total = _metric_stats("Sugestão de Gols")
+                    btts_acc, btts_hit, btts_total = _metric_stats("Ambos Marcam")
 
                     st.markdown("<div class='pg-stats-stack'>", unsafe_allow_html=True)
                     st.markdown(
@@ -698,29 +696,34 @@ try:
                             <div>
                               <p class="pg-eyebrow">Sessão de estatísticas</p>
                               <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
-                              <p class="pg-stats-desc">KPIs premium, gráficos e melhores modelos alinhados ao protótipo.</p>
+                              <p class="pg-stats-desc">Percentual de acertos e volume avaliado por mercado.</p>
                             </div>
                           </div>
                           <div class="pg-stat-grid">
                             <div class="pg-stat-card">
-                              <p class="pg-stat-label">Acurácia média</p>
-                              <div class="pg-stat-value">{avg_accuracy:.1f}%</div>
-                              <p class="pg-stat-foot">Base {total_finished} partidas avaliadas</p>
-                            </div>
-                            <div class="pg-stat-card">
-                              <p class="pg-stat-label">Resultado previsto</p>
+                              <p class="pg-stat-label">Resultado</p>
                               <div class="pg-stat-value">{resultado_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{guru_destaques} destaques neon Guru</p>
+                              <p class="pg-stat-foot">{resultado_hit} acertos / {resultado_total} jogos</p>
                             </div>
                             <div class="pg-stat-card">
-                              <p class="pg-stat-label">Sugestão de aposta</p>
+                              <p class="pg-stat-label">Sugestão de Aposta</p>
                               <div class="pg-stat-value">{aposta_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{markets_covered} mercados cobertos</p>
+                              <p class="pg-stat-foot">{aposta_hit} acertos / {aposta_total} jogos</p>
                             </div>
                             <div class="pg-stat-card">
-                              <p class="pg-stat-label">Gols / BTTS</p>
+                              <p class="pg-stat-label">Sugestão Combo</p>
+                              <div class="pg-stat-value">{combo_acc:.1f}%</div>
+                              <p class="pg-stat-foot">{combo_hit} acertos / {combo_total} jogos</p>
+                            </div>
+                            <div class="pg-stat-card">
+                              <p class="pg-stat-label">Sugestão de Gols</p>
                               <div class="pg-stat-value">{gols_acc:.1f}%</div>
-                              <p class="pg-stat-foot">{total_tourn_fin} campeonatos avaliados</p>
+                              <p class="pg-stat-foot">{gols_hit} acertos / {gols_total} jogos</p>
+                            </div>
+                            <div class="pg-stat-card">
+                              <p class="pg-stat-label">Ambos Marcam</p>
+                              <div class="pg-stat-value">{btts_acc:.1f}%</div>
+                              <p class="pg-stat-foot">{btts_hit} acertos / {btts_total} jogos</p>
                             </div>
                           </div>
                         </div>
