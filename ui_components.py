@@ -5,22 +5,127 @@ import pandas as pd
 from typing import Optional, List
 from datetime import date, timedelta
 
+from state import (
+    get_filter_state,
+    set_filter_state,
+    reset_filters,
+    build_filter_defaults,
+    DEFAULT_TABLE_DENSITY,
+)
+
 from utils import (
     FRIENDLY_COLS, market_label, tournament_label, status_label,
     eval_result_pred_row, eval_score_pred_row, eval_bet_row,
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
+    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
 
 
-HIGHLIGHT_PROB_THRESHOLD = 0.60
-HIGHLIGHT_ODD_THRESHOLD = 1.20
+HIGHLIGHT_PROB_THRESHOLD = 0.80
 
 
-def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_index: Optional[bool] = None):
-    """Renderiza uma tabela interativa com visual glassy e ordenação por cabeçalho.
+def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None) -> str:
+    """Renderiza um chip reutilizável com tom e rótulo acessível."""
+
+    cls = "pg-chip"
+    if tone == "ghost":
+        cls += " ghost"
+    aria = f" aria-label=\"{aria_label}\"" if aria_label else ""
+    return f"<span class=\"{cls}\"{aria}>{text}</span>"
+
+
+def render_status_badge(status: str) -> str:
+    """Badge unificado de status para header/tabela."""
+
+    label = status_label(status)
+    prefix = "✅" if norm_status_key(status) in FINISHED_TOKENS else "🗓️"
+    return f"{prefix} {label}"
+
+
+def _prob_from_market(row: pd.Series, market_code: Optional[str]) -> Optional[float]:
+    """Retorna a probabilidade associada a um mercado, se existir."""
+
+    if pd.isna(market_code):
+        return None
+
+    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+    if not cols:
+        return None
+
+    prob = row.get(cols[0])
+    try:
+        prob_val = float(prob)
+    except Exception:
+        return None
+
+    return prob_val if not pd.isna(prob_val) else None
+
+
+def guru_highlight_flags(row: pd.Series) -> dict[str, bool]:
+    """Retorna flags de destaque Guru por tipo de previsão (prob >= 80%)."""
+
+    mapping = {
+        "Resultado": row.get("result_predicted"),
+        "Sugestão": row.get("bet_suggestion"),
+        "Gols": row.get("goal_bet_suggestion"),
+        "Ambos Marcam": row.get("btts_suggestion"),
+    }
+
+    flags: dict[str, bool] = {}
+    for label, market_code in mapping.items():
+        prob_val = _prob_from_market(row, market_code)
+        flags[label] = bool(prob_val is not None and prob_val >= HIGHLIGHT_PROB_THRESHOLD)
+    return flags
+
+
+def guru_highlight_summary(row: pd.Series, sep: str = " · ") -> str:
+    """Retorna uma string com as previsões que passaram do corte Guru."""
+
+    flags = guru_highlight_flags(row)
+    active = [label for label, is_on in flags.items() if is_on]
+    return sep.join(active)
+
+
+def render_app_header(
+    live_messages: Optional[list[str]] = None,
+) -> str:
+    """Header minimalista com apenas nome e slogan."""
+
+    live_text = " | ".join([m for m in (live_messages or []) if m])
+
+    return f"""
+    <div class="pg-header" role="banner">
+      <div class="pg-header__brand" aria-label="Placar Guru">
+        <div class="pg-logo" aria-label="Escudo do Placar Guru" role="img">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
+            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
+            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
+            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
+            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
+            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
+            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
+          </svg>
+        </div>
+        <div>
+          <p class="pg-eyebrow">Placar Guru</p>
+          <div class="pg-appname">Futebol + Data Science</div>
+        </div>
+      </div>
+      <div class="pg-sr" aria-live="polite">{live_text}</div>
+    </div>
+    """
+
+
+def render_glassy_table(
+    df: pd.DataFrame,
+    caption: Optional[str] = None,
+    show_index: Optional[bool] = None,
+    density: str = "comfortable",
+):
+    """Renderiza uma tabela interativa com visual glassy e realce de Sugestão Guru.
 
     show_index: força a exibição do índice. Quando None, ativa para índices nomeados
     ou não numéricos para preservar colunas como "Campeonato"/"Mercado de Aposta".
@@ -31,125 +136,281 @@ def render_glassy_table(df: pd.DataFrame, caption: Optional[str] = None, show_in
         return
 
     df_to_render = df.copy()
+    guru_key = None
+    for candidate in ("guru_highlight", "Sugestão Guru"):
+        if candidate in df_to_render.columns:
+            guru_key = candidate
+            break
+
+    guru_scope_key = None
+    for candidate in ("guru_highlight_scope", "Sugestão Guru (detalhe)"):
+        if candidate in df_to_render.columns:
+            guru_scope_key = candidate
+            break
+
+    guru_col = (
+        df_to_render[guru_key]
+        if guru_key
+        else pd.Series(False, index=df_to_render.index)
+    )
+
+    def _guru_cell(idx, value):
+        if not bool(value):
+            return "—"
+        scope = ""
+        if guru_scope_key and guru_scope_key in df_to_render.columns:
+            try:
+                scope = str(df_to_render.at[idx, guru_scope_key]).strip()
+            except Exception:
+                scope = ""
+        return f"⭐ {scope}" if scope else "⭐"
+
+    df_to_render["Guru"] = [
+        _guru_cell(idx, v)
+        for idx, v in zip(df_to_render.index, guru_col)
+    ]
+    status_col = "Status" if "Status" in df_to_render.columns else ("status" if "status" in df_to_render.columns else None)
+    if status_col:
+        df_to_render["Status (badge)"] = df_to_render[status_col].apply(render_status_badge)
     if show_index is None:
         show_index = not isinstance(df_to_render.index, pd.RangeIndex) or bool(df_to_render.index.name)
 
     if show_index and not df_to_render.index.name:
         df_to_render.index.name = ""
 
+    column_config = {
+        "Guru": st.column_config.Column(label="Sugestão Guru", width="small"),
+        "Status": st.column_config.TextColumn(label="Status", width="small"),
+        "Status (badge)": st.column_config.TextColumn(label="Status", width="small"),
+    }
+
+    density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
     with st.container():
-        st.markdown('<div class="pg-table-card pg-table-card--interactive">', unsafe_allow_html=True)
-        st.dataframe(
+        st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
+        legend = "⭐ Sugestão Guru (prob ≥80% para Resultado/Sugestão/Gols/BTTS)"
+        if caption:
+            legend = f"{caption} · {legend}"
+        st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
+        st.data_editor(
             df_to_render,
             use_container_width=True,
             hide_index=not show_index,
+            disabled=True,
+            column_config=column_config,
         )
-        if caption:
-            st.markdown(f"<div class='pg-table-caption'>{caption}</div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 
 def is_guru_highlight(row: pd.Series) -> bool:
-    """Aplica a regra de destaque (prob > 60% e odd > 1.20) usando a sugestão de aposta."""
-    market_code = row.get("bet_suggestion")
-    if pd.isna(market_code):
-        return False
+    """Destaque geral se qualquer mercado chave tiver probabilidade >= 80%."""
 
-    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
-    if not cols:
-        return False
-
-    prob = row.get(cols[0])
-    odd = row.get(cols[1])
-
-    try:
-        prob_val = float(prob)
-        odd_val = float(odd)
-    except Exception:
-        return False
-
-    if pd.isna(prob_val) or pd.isna(odd_val):
-        return False
-
-    return prob_val >= HIGHLIGHT_PROB_THRESHOLD and odd_val > HIGHLIGHT_ODD_THRESHOLD
+    return any(guru_highlight_flags(row).values())
 
 def _render_filtros_modelos(container, model_opts: list, default_models: list, modo_mobile: bool):
     """Renderiza o filtro de seleção de modelos."""
-    col = container.columns(1)[0] if modo_mobile else container.columns(2)[0]
-    return col.multiselect(FRIENDLY_COLS["model"], model_opts, default=default_models)
+    wrapper = container.container()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--models">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Modelos</p>
+              <h5 class="pg-filter-section__title">Combine previsões por modelo</h5>
+              <p class="pg-filter-section__hint">Escolha apenas os modelos favoritos ou deixe em branco para ver todos.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">Comparar</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    selected = wrapper.multiselect(
+        FRIENDLY_COLS["model"],
+        model_opts,
+        default=default_models,
+        placeholder="Selecione um ou mais modelos...",
+    )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
+    return selected
 
-def _render_filtros_equipes(container, team_opts: list, modo_mobile: bool, tournaments_sel: Optional[List]):
+def _render_filtros_equipes(
+    container,
+    team_opts: list,
+    modo_mobile: bool,
+    tournaments_sel: Optional[List],
+    search_query: str,
+    default_teams: Optional[list] = None,
+):
     """Renderiza os filtros de equipes e a busca rápida."""
-    c1, c2 = container.columns(2)
-    with c1:
-        # Apenas para alinhar com o seletor de equipes
-        st.write(f"**{len(tournaments_sel or []):d} torneios selecionados**")
-
-    teams_sel = c2.multiselect(
-        "Equipe (Casa ou Visitante)", team_opts,
-        default=[] if modo_mobile else team_opts
+    wrapper = container.container()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--teams">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Equipes</p>
+              <h5 class="pg-filter-section__title">Encontre times rapidamente</h5>
+              <p class="pg-filter-section__hint">Filtre por equipes mandantes ou visitantes e use a busca para atalhos.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">Busca rápida</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
     )
-    q_team = container.text_input(
+    col_sel, col_input = wrapper.columns([1, 1]) if modo_mobile else wrapper.columns([1, 1.2])
+    teams_sel = col_sel.multiselect(
+        "Equipe (Casa ou Visitante)",
+        team_opts,
+        default=default_teams if default_teams is not None else ([] if modo_mobile else team_opts),
+        placeholder="Escolha uma ou mais equipes...",
+    )
+    q_team = col_input.text_input(
         "🔍 Buscar equipe (Casa/Visitante)",
-        placeholder="Digite parte do nome da equipe..."
+        placeholder="Digite parte do nome da equipe...",
+        key="pg_q_team_shared",
+        value=search_query,
     )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
     return teams_sel, q_team
 
-def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list):
+def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaults: Optional[dict] = None):
     """Renderiza os filtros de sugestões de aposta."""
-    c1, c2 = container.columns(2)
+    defaults = defaults or {}
+    wrapper = container.container()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--suggestions">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Sugestões</p>
+              <h5 class="pg-filter-section__title">Refine as previsões sugeridas</h5>
+              <p class="pg-filter-section__hint">Escolha mercados de aposta e gols para focar apenas nas sugestões desejadas.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">⭐ Destaque Guru</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2 = wrapper.columns(2)
     bet_sel = c1.multiselect(
-        FRIENDLY_COLS["bet_suggestion"], bet_opts, default=[], format_func=market_label
+        FRIENDLY_COLS["bet_suggestion"],
+        bet_opts,
+        default=defaults.get("bet_sel", []),
+        format_func=market_label,
+        placeholder="Ex.: Vencedor, Dupla chance, Empate anula...",
     )
     goal_sel = c2.multiselect(
-        FRIENDLY_COLS["goal_bet_suggestion"], goal_opts, default=[], format_func=market_label
+        FRIENDLY_COLS["goal_bet_suggestion"],
+        goal_opts,
+        default=defaults.get("goal_sel", []),
+        format_func=market_label,
+        placeholder="Ex.: Over/Under, Ambos Marcam, gols por time...",
     )
-    return bet_sel, goal_sel
+    guru_only = wrapper.toggle(
+        "Somente jogos com Sugestão Guru",
+        value=defaults.get("guru_only", False),
+        help="Mostra apenas partidas com destaque Guru (probabilidade ≥80% em qualquer mercado principal).",
+    )
+    wrapper.markdown("</div>", unsafe_allow_html=True)
+    return bet_sel, goal_sel, guru_only
 
-def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date]):
+def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()):  # type: ignore[call-arg]
     """Renderiza o filtro de período com botões de atalho."""
-    selected_date_range = ()
-    with container.expander("Período", expanded=False):
-        if min_date and max_date:
-            today = date.today()
-            btn_cols = st.columns(5)
-            if btn_cols[0].button("Hoje"):
-                selected_date_range = (today, today)
-            if btn_cols[1].button("Próx. 3 dias"):
-                selected_date_range = (today, today + timedelta(days=3))
-            if btn_cols[2].button("Últimos 3 dias"):
-                selected_date_range = (today - timedelta(days=3), today)
-            if btn_cols[3].button("Semana"):
-                start = today - timedelta(days=today.weekday())
-                selected_date_range = (start, start + timedelta(days=6))
-            if btn_cols[4].button("Limpar"):
-                selected_date_range = ()
 
-            if not selected_date_range:
-                selected_date_range = st.date_input(
-                    "Período (intervalo)", value=(min_date, max_date),
-                    min_value=min_date, max_value=max_date
-                )
+    def _normalize_range(range_value: tuple | list | date | None):
+        if not range_value:
+            return ()
+        if isinstance(range_value, date):
+            return (range_value, range_value)
+        if isinstance(range_value, (list, tuple)):
+            if len(range_value) >= 2:
+                return (range_value[0], range_value[1])
+            if len(range_value) == 1:
+                return (range_value[0], range_value[0])
+        return ()
+
+    selected_date_range = _normalize_range(current_range)
+    if not (min_date and max_date):
+        return selected_date_range
+
+    wrapper = container.container()
+    today = date.today()
+    wrapper.markdown(
+        """
+        <div class="pg-filter-section pg-filter-section--period">
+          <div class="pg-filter-section__head">
+            <div>
+              <p class="pg-eyebrow">Período</p>
+              <h5 class="pg-filter-section__title">Filtre por datas rapidamente</h5>
+              <p class="pg-filter-section__hint">Use atalhos rápidos ou escolha um intervalo personalizado.</p>
+            </div>
+            <span class="pg-chip ghost pg-filter-chip">Calendário</span>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    btn_cols = wrapper.columns(5)
+    if btn_cols[0].button("Hoje", use_container_width=True, key="btn_period_today"):
+        selected_date_range = (today, today)
+    if btn_cols[1].button("Próx. 3 dias", use_container_width=True, key="btn_period_next3"):
+        selected_date_range = (today, today + timedelta(days=3))
+    if btn_cols[2].button("Últimos 3 dias", use_container_width=True, key="btn_period_prev3"):
+        selected_date_range = (today - timedelta(days=3), today)
+    if btn_cols[3].button("Semana", use_container_width=True, key="btn_period_week"):
+        start = today - timedelta(days=today.weekday())
+        selected_date_range = (start, start + timedelta(days=6))
+    if btn_cols[4].button("Limpar", use_container_width=True, key="btn_period_clear"):
+        selected_date_range = ()
+
+    def _clamp_range(range_value: tuple[date, date] | tuple) -> tuple[date, date] | tuple:
+        normed = _normalize_range(range_value)
+        if not normed:
+            return ()
+        start, end = normed
+        start = max(min_date, min(start, max_date))
+        end = max(min_date, min(end, max_date))
+        if start > end:
+            start = end
+        return (start, end)
+
+    selected_date_range = _clamp_range(selected_date_range)
+
+    selected_date_range = wrapper.date_input(
+        "Período (intervalo)",
+        value=selected_date_range or (min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        key="pg_period_range",
+    )
+    selected_date_range = _clamp_range(selected_date_range)
+    wrapper.markdown("</div>", unsafe_allow_html=True)
     return selected_date_range
 
-def _render_filtros_odds(container, df: pd.DataFrame):
+def _render_filtros_odds(container, df: pd.DataFrame, defaults: Optional[dict] = None):
     """Renderiza os sliders de filtro de odds."""
-    def _range(series: pd.Series, default=(0.0, 1.0)):
-        """Calcula o range (min, max) de uma série, com um valor padrão."""
-        s = series.dropna()
-        return (float(s.min()), float(s.max())) if not s.empty else default
+    defaults = defaults or {}
+    sel_h, sel_d, sel_a = (
+        defaults.get("sel_h", (0.0, 1.0)),
+        defaults.get("sel_d", (0.0, 1.0)),
+        defaults.get("sel_a", (0.0, 1.0)),
+    )
 
-    sel_h, sel_d, sel_a = (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)
+    def _range(col: str, fallback: tuple[float, float]) -> tuple[float, float]:
+        if col not in df.columns:
+            return fallback
+        series = df[col].dropna()
+        return (float(series.min()), float(series.max())) if not series.empty else fallback
+
     with container.expander("Odds", expanded=False):
         if "odds_H" in df.columns:
-            min_h, max_h = _range(df["odds_H"])
-            sel_h = st.slider(FRIENDLY_COLS["odds_H"], min_h, max_h, (min_h, max_h))
+            min_h, max_h = _range("odds_H", sel_h)
+            sel_h = st.slider(FRIENDLY_COLS["odds_H"], min_h, max_h, sel_h)
         if "odds_D" in df.columns:
-            min_d, max_d = _range(df["odds_D"])
-            sel_d = st.slider(FRIENDLY_COLS["odds_D"], min_d, max_d, (min_d, max_d))
+            min_d, max_d = _range("odds_D", sel_d)
+            sel_d = st.slider(FRIENDLY_COLS["odds_D"], min_d, max_d, sel_d)
         if "odds_A" in df.columns:
-            min_a, max_a = _range(df["odds_A"])
-            sel_a = st.slider(FRIENDLY_COLS["odds_A"], min_a, max_a, (min_a, max_a))
+            min_a, max_a = _range("odds_A", sel_a)
+            sel_a = st.slider(FRIENDLY_COLS["odds_A"], min_a, max_a, sel_a)
     return sel_h, sel_d, sel_a
 
 
@@ -157,45 +418,16 @@ def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    # Mantém o controle dos filtros no menu lateral esquerdo, oculto por padrão
-    st.session_state.setdefault("pg_filters_open", False)
-    st.session_state.setdefault("pg_filters_cache", {})
-    # --- 1. Extração de Opções ---
-    model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
-    tourn_opts = sorted(df["tournament_id"].dropna().unique()) if "tournament_id" in df.columns else []
-    team_opts = sorted(pd.concat([df["home"], df["away"]]).dropna().astype(str).unique()) if _exists(df, "home", "away") else []
-    bet_opts = sorted(df["bet_suggestion"].dropna().unique()) if "bet_suggestion" in df.columns else []
-    goal_opts = sorted(df["goal_bet_suggestion"].dropna().unique()) if "goal_bet_suggestion" in df.columns else []
+    st.session_state.setdefault("pg_filters_open", True)
+    defaults, opts = build_filter_defaults(df, modo_mobile)
+    state = get_filter_state(defaults)
+    tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
+    state.tournaments_sel = tournaments_sel
 
-    def _odds_default(col: str, default: tuple[float, float] = (0.0, 1.0)) -> tuple[float, float]:
-        """Retorna o range padrão para a coluna de odds quando o filtro está oculto."""
-        if col in df.columns:
-            s = df[col].dropna()
-            if not s.empty:
-                return (float(s.min()), float(s.max()))
-        return default
-
-    # --- 2. Lógica de Defaults ---
-    default_models = []
-    if model_opts:
-        url_models = [v.strip().lower() for v in st.session_state.get("model_init_raw", [])]
-        wanted = [m for m in model_opts if str(m).strip().lower() in url_models]
-        if not wanted:
-            wanted = [m for m in model_opts if str(m).strip().lower() == "combo"]
-        default_models = wanted or model_opts
-
-    min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
-    max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
-
-    # controle de campeonatos no sidebar
-    st.session_state.setdefault("sel_tournaments", list(tourn_opts))
-    # mantém apenas válidos
-    valid_sel = [t for t in st.session_state.sel_tournaments if t in tourn_opts]
-    if valid_sel != st.session_state.sel_tournaments:
-        st.session_state.sel_tournaments = valid_sel
-    if not st.session_state.sel_tournaments and tourn_opts:
-        st.session_state.sel_tournaments = list(tourn_opts)
-    tournaments_sel = list(st.session_state.sel_tournaments)
+    def _sync_sidebar_theme():
+        st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_sidebar", False))
+        st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
+        st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -205,97 +437,95 @@ def filtros_ui(
             <div class="pg-filter-header">
               <div>
                 <p class="pg-eyebrow">Filtros principais</p>
-                <h4 style="margin:0;">Refine torneios, modelos e odds</h4>
+                <h4 class="pg-filter-title">Refine torneios, modelos e odds</h4>
+                <p class="pg-filter-sub">Combine torneios, período e sugestões com atalhos mais claros.</p>
+              </div>
+              <div class="pg-filter-actions">
+                <span class="pg-chip ghost">Visual refinado</span>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.markdown("<div class='pg-filter-toggle-label'>Ocultar/mostrar filtros</div>", unsafe_allow_html=True)
-        st.toggle(
-            "Exibir filtros",
-            key="pg_filters_open",
-            value=st.session_state.get("pg_filters_open", False),
-        )
+        top_left, top_right = st.columns([1, 1])
+        with top_left:
+            st.toggle(
+                "Tema escuro",
+                key="pg_dark_mode_sidebar",
+                value=bool(st.session_state.get("pg_dark_mode_sidebar", False)),
+                on_change=_sync_sidebar_theme,
+                help="Altere rapidamente entre tema claro e escuro.",
+            )
+        with top_right:
+            st.toggle(
+                "Exibir filtros",
+                key="pg_filters_open",
+                value=st.session_state.get("pg_filters_open", False),
+                help="Mostre ou esconda os controles principais.",
+            )
+        if state.active_count:
+            st.button(
+                f"Limpar filtros ({state.active_count})",
+                use_container_width=True,
+                key="btn_clear_filters",
+                on_click=lambda: (
+                    st.session_state.update({"pg_table_density": DEFAULT_TABLE_DENSITY}),
+                    reset_filters(defaults)
+                ),
+                help="Remova rapidamente filtros ativos e volte ao padrão.",
+            )
 
         if st.session_state.get("pg_filters_open", False):
             st.markdown("<div class='pg-filter-section'><p class='pg-eyebrow'>Campeonatos</p>", unsafe_allow_html=True)
             csel_all, cclear = st.columns(2)
             with csel_all:
                 if st.button("Selecionar Todos", use_container_width=True, key="btn_sel_all_tourn"):
-                    st.session_state.sel_tournaments = list(tourn_opts)
                     tournaments_sel = list(tourn_opts)
             with cclear:
                 if st.button("Limpar", use_container_width=True, key="btn_clear_tourn"):
-                    st.session_state.sel_tournaments = []
                     tournaments_sel = []
 
             st.multiselect(
                 label="Selecione campeonatos",
-                options=tourn_opts,
+                options=opts["tourn_opts"],
                 key="sel_tournaments",
+                default=state.tournaments_sel,
                 format_func=tournament_label,
                 placeholder="Escolha um ou mais campeonatos...",
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
-            models_sel = _render_filtros_modelos(st, model_opts, default_models, modo_mobile)
-            teams_sel, q_team = _render_filtros_equipes(
-                st, team_opts, modo_mobile, tournaments_sel
+            state.models_sel = _render_filtros_modelos(st, opts["model_opts"], defaults.get("models_sel", []), modo_mobile)
+            state.teams_sel, state.search_query = _render_filtros_equipes(
+                st, opts["team_opts"], modo_mobile, tournaments_sel, state.search_query, default_teams=defaults.get("teams_sel")
             )
-            bet_sel, goal_sel = _render_filtros_sugestoes(st, bet_opts, goal_opts)
-            selected_date_range = _render_filtros_periodo(st, min_date, max_date)
-            sel_h, sel_d, sel_a = _render_filtros_odds(st, df)
-
-            st.session_state.pg_filters_cache = {
-                "tournaments_sel": tournaments_sel,
-                "models_sel": models_sel,
-                "teams_sel": teams_sel,
-                "q_team": q_team,
-                "bet_sel": bet_sel,
-                "goal_sel": goal_sel,
-                "selected_date_range": selected_date_range,
-                "sel_h": sel_h,
-                "sel_d": sel_d,
-                "sel_a": sel_a,
-            }
+            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
+                st, opts["bet_opts"], opts["goal_opts"], defaults
+            )
+            state.selected_date_range = _render_filtros_periodo(
+                st, opts["min_date"], opts["max_date"], state.selected_date_range
+            )
+            state.sel_h, state.sel_d, state.sel_a = _render_filtros_odds(st, df, defaults)
         else:
-            cache = st.session_state.get("pg_filters_cache", {})
-            tournaments_sel = cache.get("tournaments_sel", tournaments_sel)
-            models_sel = cache.get("models_sel", default_models)
-            teams_sel = cache.get("teams_sel", [])
-            q_team = cache.get("q_team", "")
-            bet_sel = cache.get("bet_sel", [])
-            goal_sel = cache.get("goal_sel", [])
-            selected_date_range = cache.get("selected_date_range", ())
-            sel_h = cache.get("sel_h")
-            sel_d = cache.get("sel_d")
-            sel_a = cache.get("sel_a")
-            if sel_h is None:
-                sel_h = _odds_default("odds_H")
-            if sel_d is None:
-                sel_d = _odds_default("odds_D")
-            if sel_a is None:
-                sel_a = _odds_default("odds_A")
             st.markdown("<div class='pg-chip ghost'>Filtros ocultos. Use o toggle acima para ajustar.</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+    state.tournaments_sel = tournaments_sel
+
     # --- 4. Sincronização e Retorno ---
     try:
-        st.query_params["model"] = models_sel or []
+        st.query_params["model"] = state.models_sel or []
     except Exception:
         pass  # Pode falhar em alguns contextos de execução
 
+    set_filter_state(state)
     return {
-        "tournaments_sel": tournaments_sel,
-        "models_sel": models_sel,
-        "teams_sel": teams_sel,
-        "bet_sel": bet_sel,
-        "goal_sel": goal_sel,
-        "selected_date_range": selected_date_range,
-        "sel_h": sel_h, "sel_d": sel_d, "sel_a": sel_a,
-        "q_team": q_team,
+        **state.to_dict(),
+        "tournament_opts": opts["tourn_opts"],
+        "min_date": opts["min_date"],
+        "max_date": opts["max_date"],
+        "defaults": defaults,
     }
 
 
@@ -310,7 +540,8 @@ def _prepare_display_data(row: pd.Series) -> dict:
         if cols:
             prob_val = row.get(cols[0])
             odd_val = row.get(cols[1])
-    highlight = is_guru_highlight(row)
+    highlight_scope = guru_highlight_summary(row)
+    highlight = bool(highlight_scope)
 
     # Avaliações de acerto
     hit_res = eval_result_pred_row(row)
@@ -347,6 +578,7 @@ def _prepare_display_data(row: pd.Series) -> dict:
         "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
         "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—",
         "highlight": highlight,
+        "highlight_scope": highlight_scope,
         "suggested_prob": prob_val,
         "suggested_odd": odd_val,
         "match_title": f"{row.get('home','?')} vs {row.get('away','?')}",
@@ -445,25 +677,19 @@ def display_list_view(df: pd.DataFrame):
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
-            highlight_label = (
-                "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru</span>"
-                if data["highlight"]
-                else ""
-            )
+            highlight_label = ""
+            if data["highlight"]:
+                scope_txt = data.get("highlight_scope", "").strip()
+                scope_hint = f" — {scope_txt}" if scope_txt else ""
+                highlight_label = (
+                    "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru"
+                    f"{scope_hint}</span>"
+                )
             final_score_badge = (
                 f"<span class=\"badge badge-finished\">Placar Final {data['final_score']}</span>"
                 if data["is_finished"]
                 else ""
             )
-            prob_odd_badge = ""
-            if data["suggested_prob"] is not None:
-                prob_odd_badge = (
-                    f"<span class=\"badge\" style=\"background:color-mix(in srgb, var(--panel) 90%, transparent); border-color:var(--stroke);\">"
-                    f"Prob: {fmt_prob(data['suggested_prob']) if data['suggested_prob'] is not None else 'N/A'} • "
-                    f"Odd: {fmt_odd(data['suggested_odd']) if data['suggested_odd'] is not None else 'N/A'}"
-                    "</span>"
-                )
-
             hit_badges = []
             for label, key in [
                 ("Resultado", "badge_res"),
@@ -503,7 +729,6 @@ def display_list_view(df: pd.DataFrame):
                     <div class="pg-pill">
                       <div class="label">💡 Sugestão</div>
                       <div class="value">{green_html(data['aposta_txt'])}</div>
-                      <div class="text-muted" style="font-size:12px;">Prob≥60% & Odd>1.20 ativa o destaque</div>
                     </div>
                     <div class="pg-pill">
                       <div class="label">⚽ Gols</div>
@@ -521,7 +746,6 @@ def display_list_view(df: pd.DataFrame):
 
                   <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
                     {final_score_badge}
-                    {prob_odd_badge}
                     {hit_html}
                   </div>
 

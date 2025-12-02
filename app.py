@@ -1,5 +1,6 @@
 """Módulo principal da aplicação Placar Guru."""
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 import streamlit.components.v1 as components
 import json
@@ -22,6 +23,15 @@ from utils import (
     status_label, FINISHED_TOKENS,
 )
 from styles import inject_custom_css, apply_altair_theme, chart_tokens
+from state import (
+    detect_viewport_width,
+    MOBILE_BREAKPOINT,
+    set_filter_state,
+    get_filter_state,
+    TABLE_COLUMN_PRESETS,
+    DEFAULT_TABLE_DENSITY,
+    reset_filters,
+)
 
 
 
@@ -34,10 +44,115 @@ from styles import inject_custom_css, apply_altair_theme, chart_tokens
 
 st.set_page_config(
     layout="wide",
-    page_title="Placar Guru",
-    # Deixa expanded só para testar; depois você pode voltar para "collapsed"
+    page_title="Previsões",
     initial_sidebar_state="expanded",
 )
+
+
+def render_custom_navigation():
+    """Renderiza uma navegação customizada para renomear a página principal para 'Previsões'."""
+
+    # `page_link` está disponível nas versões mais novas do Streamlit; evitamos quebrar builds antigas.
+    if not hasattr(st.sidebar, "page_link"):
+        return
+
+    st.markdown(
+        """
+        <style>
+        /* Esconde a navegação padrão para evitar duplicação de links */
+        [data-testid="stSidebarNav"] { display: none; }
+        /* Reduz o espaçamento superior quando a nav padrão está oculta */
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child { padding-top: 0.25rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.sidebar:
+        st.markdown("#### Navegação")
+        st.page_link("app.py", label="Previsões", icon="🔮")
+        st.page_link(
+            "pages/2_Analise_de_Desempenho.py",
+            label="Análise de Desempenho",
+            icon="📊",
+        )
+        st.divider()
+
+
+def inject_topbar_branding():
+    """Oculta o botão Deploy do Streamlit e adiciona o nome/slogan no header nativo."""
+
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"] .pg-topbar-brand {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--stroke) 80%, var(--primary) 12%);
+            background: color-mix(in srgb, var(--panel) 92%, var(--glass-strong));
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+            color: var(--text);
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        header[data-testid="stHeader"] .pg-topbar-brand span { color: var(--muted); font-weight: 700; }
+        header[data-testid="stHeader"] .pg-topbar-brand strong { font-weight: 800; }
+
+        /* Oculta apenas ações de deploy/compartilhamento nativas do Streamlit */
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] .stDeployButton { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    components.html(
+        """
+        <script>
+        const pgTopbarInterval = setInterval(() => {
+          const doc = window.parent?.document;
+          if (!doc) { return; }
+          const header = doc.querySelector('header[data-testid="stHeader"]');
+          if (!header) { return; }
+          const toolbar = header.querySelector('[data-testid="stToolbar"]') || header;
+          const actions = header.querySelector('[data-testid="stToolbarActions"]');
+          if (actions) {
+            actions.querySelectorAll('button').forEach(btn => {
+              const label = (btn.innerText || '').toLowerCase();
+              const title = (btn.title || '').toLowerCase();
+              if (label.includes('deploy') || label.includes('share') || title.includes('deploy') || title.includes('share')) {
+                btn.style.display = 'none';
+              }
+            });
+          }
+
+          if (!header.querySelector('.pg-topbar-brand')) {
+            const brand = doc.createElement('div');
+            brand.className = 'pg-topbar-brand';
+            brand.innerHTML = '<strong>Placar Guru</strong><span>/ Futebol + Data Science</span>';
+            toolbar.appendChild(brand);
+          } else {
+            clearInterval(pgTopbarInterval);
+          }
+        }, 350);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+# Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
+render_custom_navigation()
 
 # CSS para garantir que o header e o botão do menu (hambúrguer) apareçam
 fix_header_and_sidebar_css = """
@@ -67,66 +182,58 @@ section[data-testid="stSidebar"] {
 }
 </style>
 """
-st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
+# Aplica correção do header somente se estiver habilitada em secrets ou query string
+try:
+    force_header_patch = bool(st.secrets.get("force_header_patch", False))
+except StreamlitSecretNotFoundError:
+    force_header_patch = False
+force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
+if force_header_patch:
+    st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
 
 
-# Estado inicial: Light por padrão
+# Estado inicial: Light por padrão com anúncio único
 st.session_state.setdefault("pg_dark_mode", False)
-dark_mode = bool(st.session_state["pg_dark_mode"])
+st.session_state.setdefault("pg_theme_announce", "")
+
+
+def _sync_theme_toggle(source_key: str) -> None:
+    st.session_state["pg_dark_mode"] = bool(st.session_state.get(source_key, False))
+    st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
+    st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
+    st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
+
+
+dark_mode = bool(st.session_state.get("pg_dark_mode", False))
+st.session_state.setdefault("pg_dark_mode_header", dark_mode)
+st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
+st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
+st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
 apply_altair_theme(dark_mode)
 chart_theme = chart_tokens(dark_mode)
+inject_topbar_branding()
 
-# Barra superior inspirada no modelo (Futebol + Data Science Placar Guru)
-st.markdown(
-    """
-    <div class="pg-topbar">
-      <div class="pg-topbar__brand">
-        <div class="pg-logo" aria-hidden="true" role="presentation">
-          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-            <path class="pg-logo-shield" d="M12 10h40l-3.2 32.5L32 56 15.2 42.5 12 10Z" />
-            <rect class="pg-logo-chart" x="18" y="30" width="6" height="14" rx="2" />
-            <rect class="pg-logo-chart" x="26" y="26" width="6" height="18" rx="2" />
-            <rect class="pg-logo-chart" x="34" y="34" width="6" height="10" rx="2" />
-            <rect class="pg-logo-chart" x="42" y="22" width="6" height="22" rx="2" />
-            <circle class="pg-logo-ball" cx="34.5" cy="21.5" r="8" />
-            <path class="pg-logo-ball" d="M28 20c2.6 1.2 5.2 1.2 7.8 0l2.7 3.2-2.2 4.8h-4.8L29.2 23z" fill="none" />
-            <circle class="pg-logo-glow" cx="34.5" cy="21.5" r="3.4" />
-          </svg>
-        </div>
-        <div>
-          <p class="pg-eyebrow">Placar Guru</p>
-          <div class="pg-appname">Futebol + Data Science</div>
-        </div>
-      </div>
-
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-
-
-# Toggle manual de modo mobile (controle explícito para layout responsivo)
-col_m1, col_m2 = st.columns([1.2, 4])
-with col_m1:
-    modo_mobile = st.toggle("📱 Mobile", value=True)
-with col_m2:
-    st.markdown(
-        """
-        <div class="pg-subhead">
-          <span class="pg-chip ghost">Altere para desktop para ver a grade</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+topbar_placeholder = st.empty()
+viewport_width = detect_viewport_width()
+modo_mobile = viewport_width < MOBILE_BREAKPOINT
+st.session_state["pg_mobile_auto"] = modo_mobile
+auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
-from ui_components import filtros_ui, display_list_view, is_guru_highlight, render_glassy_table
+from ui_components import (
+    filtros_ui,
+    display_list_view,
+    is_guru_highlight,
+    guru_highlight_summary,
+    render_glassy_table,
+    render_app_header,
+    render_chip,
+)
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+
 # ============================
 # Exibição amigável
 # ============================
@@ -166,6 +273,13 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     if "btts_suggestion" in out.columns:
         out["btts_prediction"] = out["btts_suggestion"].apply(market_label, default="-")
 
+    if "guru_highlight" in out.columns:
+        scope_series = out["guru_highlight_scope"] if "guru_highlight_scope" in out.columns else pd.Series("", index=out.index)
+        out["guru_highlight"] = [
+            f"⭐ {scope}".strip() if bool(flag) else ""
+            for flag, scope in zip(out["guru_highlight"], scope_series)
+        ]
+
     return out.rename(columns=FRIENDLY_COLS)
 
 
@@ -201,9 +315,139 @@ try:
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
-        q_team = flt["q_team"]
+        guru_only = flt.get("guru_only", False)
+        q_team = flt.get("search_query", "")
+        tournament_opts = flt.get("tournament_opts", [])
+        min_date, max_date = flt.get("min_date"), flt.get("max_date")
 
-        use_list_view = True if modo_mobile else st.checkbox("Usar visualização em lista (mobile)", value=False)
+        st.session_state.setdefault("pg_list_view_pref", True)
+        if modo_mobile:
+            st.session_state["pg_list_view_pref"] = True
+        else:
+            st.session_state["pg_list_view_pref"] = st.checkbox(
+                "Usar visualização em lista (mobile)",
+                value=bool(st.session_state.get("pg_list_view_pref", True)),
+                help="Mantém a listagem em cards mesmo no desktop quando preferir.",
+            )
+
+        st.session_state.setdefault("pg_table_density", DEFAULT_TABLE_DENSITY)
+        density_toggle = st.toggle(
+            "Compactar linhas da tabela",
+            key="pg_density_toggle",
+            value=st.session_state.get("pg_table_density") == "compact",
+            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
+        )
+        table_density = "compact" if density_toggle else "comfortable"
+        st.session_state["pg_table_density"] = table_density
+
+        use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
+
+        shared_state = get_filter_state()
+        defaults = flt.get("defaults", {})
+        if modo_mobile:
+            quick_summary = []
+            if tournaments_sel:
+                quick_summary.append(tournament_label(tournaments_sel[0]))
+            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
+            quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+
+            with st.expander("Filtros rápidos (mobile)", expanded=True):
+                st.markdown(
+                    f"<p class='pg-mobile-toolbar__hint'>Concentre torneios, período e busca em um único bloco. Ativos: {quick_summary_txt}</p>",
+                    unsafe_allow_html=True,
+                )
+
+                c1, c2 = st.columns(2)
+                base_opts = ["Todos"] + tournament_opts
+                quick_idx = 0
+                if tournaments_sel and tournaments_sel[0] in tournament_opts:
+                    quick_idx = base_opts.index(tournaments_sel[0])
+                quick_tourn = c1.selectbox(
+                    "Torneio (atalho)",
+                    options=base_opts,
+                    index=quick_idx,
+                    label_visibility="collapsed",
+                )
+                range_opts = ["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"]
+                quick_range_idx = 0
+                if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+                    today = date.today()
+                    if selected_date_range == (today, today):
+                        quick_range_idx = 1
+                    elif selected_date_range == (today, today + timedelta(days=3)):
+                        quick_range_idx = 2
+                    elif selected_date_range == (today - timedelta(days=3), today):
+                        quick_range_idx = 3
+                quick_range = c2.selectbox(
+                    "Período (atalho)",
+                    options=range_opts,
+                    index=quick_range_idx,
+                    label_visibility="collapsed",
+                )
+                q_team_input = st.text_input(
+                    "Busca rápida por equipe",
+                    key="pg_q_team_shared",
+                    value=shared_state.search_query or "",
+                    placeholder="Digite nome do time...",
+                    label_visibility="collapsed",
+                )
+
+                if quick_tourn != "Todos":
+                    tournaments_sel = [quick_tourn]
+                    shared_state.tournaments_sel = tournaments_sel
+                if quick_range != "Todos" and min_date and max_date:
+                    today = date.today()
+                    if quick_range == "Hoje":
+                        selected_date_range = (today, today)
+                    elif quick_range == "Próx. 3 dias":
+                        selected_date_range = (today, today + timedelta(days=3))
+                    elif quick_range == "Últimos 3 dias":
+                        selected_date_range = (today - timedelta(days=3), today)
+                    shared_state.selected_date_range = selected_date_range
+
+                shared_state.search_query = q_team_input
+
+                clear_col, chips_col = st.columns([1, 2])
+                with clear_col:
+                    if st.button("Limpar recorte", use_container_width=True):
+                        cleared = reset_filters(defaults)
+                        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
+                        tournaments_sel = cleared.tournaments_sel or []
+                        models_sel = cleared.models_sel or []
+                        teams_sel = cleared.teams_sel or []
+                        bet_sel = cleared.bet_sel or []
+                        goal_sel = cleared.goal_sel or []
+                        guru_only = cleared.guru_only or False
+                        selected_date_range = cleared.selected_date_range
+                        sel_h, sel_d, sel_a = cleared.sel_h, cleared.sel_d, cleared.sel_a
+                        q_team_input = cleared.search_query
+                        shared_state = cleared
+                with chips_col:
+                    st.markdown(
+                        f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {shared_state.active_count}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+            q_team = q_team_input
+            set_filter_state(shared_state)
+
+        active_filters = 0
+        if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
+            active_filters += 1
+        model_unique = df["model"].nunique() if "model" in df.columns else 0
+        if models_sel and (model_unique and len(models_sel) != model_unique):
+            active_filters += 1
+        if teams_sel:
+            active_filters += 1
+        if q_team:
+            active_filters += 1
+        if bet_sel or goal_sel:
+            active_filters += 1
+        if selected_date_range:
+            active_filters += 1
+        if guru_only:
+            active_filters += 1
 
         # Máscara combinada (sem status)
         final_mask = pd.Series(True, index=df.index)
@@ -245,6 +489,13 @@ try:
             final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
         df_filtered = df[final_mask]
+        df_filtered = df_filtered.assign(
+            guru_highlight_scope=df_filtered.apply(guru_highlight_summary, axis=1)
+        )
+        df_filtered["guru_highlight"] = df_filtered["guru_highlight_scope"].apply(bool)
+
+        if guru_only:
+            df_filtered = df_filtered[df_filtered["guru_highlight"]]
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -269,61 +520,42 @@ try:
                 curr_df = df_fin
                 curr_label = "Finalizados"
 
-            total_games = len(curr_df)
-            highlight_count = int(curr_df.apply(is_guru_highlight, axis=1).sum()) if not curr_df.empty else 0
-            tourn_count = int(curr_df["tournament_id"].nunique()) if (not curr_df.empty and "tournament_id" in curr_df.columns) else 0
-            today_count = 0
-            if not curr_df.empty and "date" in curr_df.columns and curr_df["date"].notna().any():
-                today_count = int(curr_df[curr_df["date"].dt.date == date.today()].shape[0])
+            export_disabled = curr_df.empty
+            export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
+            live_messages = [
+                export_state_label,
+                f"Última atualização {last_update_dt.strftime('%d/%m %H:%M')}",
+                f"{active_filters} filtros ativos",
+                auto_view_label,
+            ]
+            if st.session_state.get("pg_theme_announce"):
+                live_messages.append(st.session_state.get("pg_theme_announce"))
+                st.session_state["pg_theme_announce"] = ""
+            header_html = render_app_header(live_messages=live_messages)
+            with topbar_placeholder.container():
+                brand_col, action_col = st.columns([4, 1.4])
+                brand_col.markdown(header_html, unsafe_allow_html=True)
+                with action_col:
+                    st.toggle(
+                        f"Alternar tema — {'escuro' if dark_mode else 'claro'}",
+                        value=bool(st.session_state.get("pg_dark_mode_header", dark_mode)),
+                        key="pg_dark_mode_header",
+                        help="Altere o tema para avaliar contraste em dark/light.",
+                        label_visibility="visible",
+                        on_change=lambda: _sync_theme_toggle("pg_dark_mode_header"),
+                    )
 
-            metrics_df = pd.DataFrame()
-            acc_result = acc_bet = 0.0
-            if curr_label == "Finalizados" and not curr_df.empty:
-                metrics_df = calculate_kpis(curr_df, multi_model=False)
-                _res = metrics_df.loc[metrics_df["Métrica"] == "Resultado"]
-                _bet = metrics_df.loc[metrics_df["Métrica"] == "Sugestão de Aposta"]
-                if not _res.empty:
-                    acc_result = float(_res.iloc[0]["Acerto (%)"])
-                if not _bet.empty:
-                    acc_bet = float(_bet.iloc[0]["Acerto (%)"])
-
-            st.markdown(
-                f"""
-                <div class="pg-hero">
-                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-                    <div>
-                      <div class="pg-meta">Dashboard — {curr_label}</div>
-                      <h2 style="margin:4px 0;">Informações essenciais por status</h2>
-                      <div class="text-muted" style="font-size:13px;">Atualizado em {last_update_dt.strftime('%d/%m %H:%M')} (hora local)</div>
-                    </div>
-                    <span class="badge">Tema: {'Dark' if dark_mode else 'Light'}</span>
-                  </div>
-                  <div class="pg-kpi-grid">
-                    <div class="pg-kpi">
-                      <div class="label">Total no filtro</div>
-                      <div class="value">{total_games}</div>
-                      <div class="delta">{today_count} hoje</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Sugestão Guru</div>
-                      <div class="value">{highlight_count}</div>
-                      <div class="delta">Prob > 60% & Odd > 1.20</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Torneios</div>
-                      <div class="value">{tourn_count}</div>
-                      <div class="delta">Filtro ativo</div>
-                    </div>
-                    <div class="pg-kpi">
-                      <div class="label">Acurácia (finalizados)</div>
-                      <div class="value">{acc_result:.1f}%</div>
-                      <div class="delta">Sugestões {acc_bet:.1f}%</div>
-                    </div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            export_data = generate_pdf_report(curr_df) if not export_disabled else b""
+            st.download_button(
+                label="Exportar recorte para PDF",
+                data=export_data,
+                file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
+                help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
+                disabled=export_disabled,
             )
+            if export_disabled:
+                st.caption("O botão é habilitado ao aplicar filtros que retornem jogos neste recorte.")
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
@@ -360,27 +592,19 @@ try:
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
-                    pdf_data = generate_pdf_report(df_ag)
-                    st.download_button(
-                        label="Exportar para PDF",
-                        data=pdf_data,
-                        file_name=f"relatorio_jogos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                        mime="application/pdf",
-                    )
                     if use_list_view:
                         display_list_view(df_ag)
                     else:
-                        cols_to_show = [
-                            "date", "home", "away", "tournament_id", "model",
-                            "status", "result_predicted", "score_predicted",
-                            "bet_suggestion", "goal_bet_suggestion",
-                            "btts_suggestion", "odds_H", "odds_D", "odds_A",
-                            "result_home", "result_away"
+                        preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
+                        cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
+                        existing_cols = [
+                            c for c in cols_to_show
+                            if c in df_ag.columns and (df_ag[c].notna().any() if c.startswith("odds") else True)
                         ]
-                        existing_cols = [c for c in cols_to_show if c in df_ag.columns]
                         render_glassy_table(
                             apply_friendly_for_display(df_ag[existing_cols]),
                             caption="Jogos agendados",
+                            density=table_density,
                         )
 
             else:
@@ -413,21 +637,25 @@ try:
                         )
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    if not hide_games:
+                    if hide_games:
+                        st.markdown(
+                            "<div class='pg-chip ghost'>Lista oculta. Desative o toggle acima para reexibir os jogos.</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
                         if use_list_view:
                             display_list_view(df_fin)
                         else:
-                            cols_to_show = [
-                                "date", "home", "away", "tournament_id", "model",
-                                "status", "result_predicted", "score_predicted",
-                                "bet_suggestion", "goal_bet_suggestion",
-                                "btts_suggestion", "odds_H", "odds_D", "odds_A",
-                                "result_home", "result_away"
+                            preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
+                            cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
+                            existing_cols = [
+                                c for c in cols_to_show
+                                if c in df_fin.columns and (df_fin[c].notna().any() if c.startswith("odds") else True)
                             ]
-                            existing_cols = [c for c in cols_to_show if c in df_fin.columns]
                             render_glassy_table(
                                 apply_friendly_for_display(df_fin[existing_cols]),
                                 caption="Jogos finalizados",
+                                density=table_density,
                             )
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
@@ -474,10 +702,6 @@ try:
                               <h3 style="margin: 0;">Insights dos jogos finalizados</h3>
                               <p class="pg-stats-desc">KPIs premium, gráficos e melhores modelos alinhados ao protótipo.</p>
                             </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Status: Finalizados</span>
-                              <span class="pg-chip ghost">Tema {"Dark" if dark_mode else "Light"}</span>
-                            </div>
                           </div>
                           <div class="pg-stat-grid">
                             <div class="pg-stat-card">
@@ -514,10 +738,6 @@ try:
                               <p class="pg-eyebrow">Gráfico de acertos</p>
                               <h4 style="margin:0;">Precisão por métrica</h4>
                               <p class="pg-stats-desc">Compare modelos, mercados e a taxa de acerto consolidada.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Interativo</span>
-                              <span class="pg-chip ghost">Ordene por coluna</span>
                             </div>
                           </div>
                         """,
@@ -894,218 +1114,34 @@ try:
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
-# --- Tabela de Melhor Modelo por Campeonato e Mercado ---
+                    # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
                     best_model_data = get_best_model_by_market(df_fin.copy())
                     if not best_model_data.empty:
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
 
-                        tbl1_id = f"tbl-best-model-{uuid.uuid4().hex[:8]}"
-                        tbl2_id = f"tbl-best-summary-{uuid.uuid4().hex[:8]}"
-
-                        table1_html = best_model_data.to_html(
-                            index=False,
-                            classes="display compact pg-glass-table",
-                            border=0,
-                            table_id=tbl1_id,
-                        )
-                        table2_html = summary_pivot_table.to_html(
-                            index=False,
-                            classes="display compact pg-glass-table",
-                            border=0,
-                            table_id=tbl2_id,
-                        )
-
-                        table1_csv_b64 = base64.b64encode(
-                            best_model_data.to_csv(index=False).encode("utf-8")
-                        ).decode("utf-8")
-                        table2_csv_b64 = base64.b64encode(
-                            summary_pivot_table.to_csv(index=False).encode("utf-8")
-                        ).decode("utf-8")
-
-                        palette = {
-                            "bg": "#0b1224" if st.session_state.get("pg_dark_mode", False) else "#f8fafc",
-                            "panel": "#0f172a" if st.session_state.get("pg_dark_mode", False) else "#ffffff",
-                            "glass": "rgba(255,255,255,0.08)" if st.session_state.get("pg_dark_mode", False) else "rgba(255,255,255,0.65)",
-                            "stroke": "#1f2937" if st.session_state.get("pg_dark_mode", False) else "#e2e8f0",
-                            "text": "#e2e8f0" if st.session_state.get("pg_dark_mode", False) else "#0f172a",
-                            "muted": "#94a3b8" if st.session_state.get("pg_dark_mode", False) else "#475569",
-                            "primary": "#60a5fa" if st.session_state.get("pg_dark_mode", False) else "#2563eb",
-                            "primary2": "#22d3ee",
-                            "neon": "#bfff3b",
-                            "shadow": "0 20px 60px rgba(0,0,0,0.35)" if st.session_state.get("pg_dark_mode", False) else "0 20px 60px rgba(0,0,0,0.12)",
-                        }
-
-                        
-                        best_panel_tpl = Template(
+                        st.markdown(
                             """
-                            <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-                            <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css" />
-                            <style>
-                              :root {
-                                --bg: ${bg};
-                                --panel: ${panel};
-                                --glass: ${glass};
-                                --stroke: ${stroke};
-                                --text: ${text};
-                                --muted: ${muted};
-                                --primary: ${primary};
-                                --primary-2: ${primary2};
-                                --neon: ${neon};
-                                --shadow: ${shadow};
-                                --accent: ${primary};
-                                --white: #ffffff;
-                                --text-strong: ${text};
-                              }
-                              body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system,sans-serif; }
-                              .pg-eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; font-size: 11px; color: var(--muted); margin: 0 0 4px 0; }
-                              .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
-                              .pg-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text); font-weight:700; font-size:12px; }
-                              .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 75%, transparent); color: var(--muted); }
-                              .pg-stats-panel { border:1px solid var(--stroke); border-radius:16px; padding:16px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
-                              .pg-best-panel { padding: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 86%, transparent)); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: 0 12px 60px color-mix(in srgb, var(--shadow) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent) inset; }
-                              .pg-best-panel .pg-stats-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
-                              .pg-best-panel .pg-table-stack { display:flex; flex-direction:column; gap:16px; }
-                              .pg-best-panel .pg-table-block { padding:12px; background: color-mix(in srgb, var(--panel) 94%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius:14px; box-shadow: 0 6px 36px color-mix(in srgb, var(--shadow) 14%, transparent), 0 1px 0 color-mix(in srgb, var(--white) 12%, transparent) inset; }
-                              .pg-best-panel .pg-table-block h5 { color: var(--text); }
-                              /* Base table styling even if DataTables fails */
-                              .pg-best-panel table { width:100%; border-collapse:separate; border-spacing:0; background: color-mix(in srgb, var(--panel) 97%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent); border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
-                              .pg-best-panel thead th { background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 78%, transparent)); color: var(--text-strong); font-weight:700; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent); cursor:pointer; padding:10px 12px; }
-                              .pg-best-panel tbody td { padding:10px 12px; color: var(--text); border:none; }
-                              .pg-best-panel tbody tr:nth-child(odd) { background: color-mix(in srgb, var(--panel) 96%, transparent); }
-                              .pg-best-panel tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 92%, transparent); }
-                              .pg-best-panel tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)); box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
-                              /* DataTables overrides */
-                              .pg-best-panel .dataTables_wrapper { background: color-mix(in srgb, var(--panel) 94%, transparent); padding: 10px 10px 14px; border-radius: 14px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent); }
-                              .pg-best-panel table.dataTable { width:100% !important; border-collapse:separate !important; border-spacing:0 !important; background: color-mix(in srgb, var(--panel) 97%, transparent) !important; border:1px solid color-mix(in srgb, var(--stroke) 82%, transparent) !important; border-radius: 12px; overflow:hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 14%, transparent); }
-                              .pg-best-panel table.dataTable thead th { background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 78%, transparent)) !important; color: var(--text-strong) !important; font-weight:700 !important; border-bottom:1px solid color-mix(in srgb, var(--stroke) 85%, transparent) !important; cursor:pointer; }
-                              .pg-best-panel table.dataTable tbody tr.pg-row-odd { background: color-mix(in srgb, var(--panel) 96%, transparent) !important; }
-                              .pg-best-panel table.dataTable tbody tr.pg-row-even { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; }
-                              .pg-best-panel table.dataTable tbody tr:hover { background: color-mix(in srgb, var(--accent) 10%,var(--panel)) !important; box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 18%, transparent); }
-                              .pg-best-panel table.dataTable tbody td, .pg-best-panel table.dataTable thead th { padding:10px 12px !important; color: var(--text) !important; border:none !important; }
-                              .pg-best-panel .dataTables_scroll { border-radius: 12px; overflow:hidden; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white) 12%,transparent); }
-                              .pg-best-panel .dataTables_wrapper .dataTables_filter, .pg-best-panel .dataTables_wrapper .dataTables_info, .pg-best-panel .dataTables_wrapper .dataTables_paginate { display:none; }
-                              .pg-best-panel .dt-buttons { display:flex; flex-wrap:wrap; gap:8px; margin: 4px 0 10px; }
-                              .pg-best-panel .dt-button { background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text); border:1px solid color-mix(in srgb, var(--stroke) 78%, transparent); border-radius: 10px; padding: 6px 10px; font-weight:700; box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow) 16%, transparent); transition: transform 150ms ease, box-shadow 150ms ease; }
-                              .pg-best-panel .dt-button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow) 22%, transparent); color: var(--accent); }
-                              .pg-best-panel .pg-dt-fallback { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
-                              .pg-best-panel .pg-dt-fallback a { text-decoration:none; color: var(--accent); font-weight:700; padding:6px 10px; border-radius:10px; background: color-mix(in srgb, var(--panel) 86%, transparent); border:1px solid color-mix(in srgb, var(--stroke) 78%, transparent); }
-                              .pg-best-panel .pg-dt-active thead th { color: var(--accent) !important; }
-                              .pg-best-panel table.dataTable.pg-glass-table { width:100% !important; }
-                              table.dataTable.display > tbody > tr:nth-child(odd) > * { background: transparent !important; }
-                              table.dataTable.display > tbody > tr:nth-child(even) > * { background: transparent !important; }
-                            </style>
-                            <div class='pg-stats-panel pg-best-panel'>
+                            <div class='pg-stats-panel'>
                               <div class="pg-stats-header">
                                 <div>
                                   <p class="pg-eyebrow">Modelos vencedores</p>
                                   <h4 style="margin:0;">Sessão de Melhor Modelo</h4>
-                                  <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado com tabelas ordenáveis no visual glassy.</p>
-                                </div>
-                                <div class="pg-stats-tags">
-                                  <span class="pg-chip ghost">Interativo</span>
-                                  <span class="pg-chip ghost">Ordenável</span>
-                                </div>
-                              </div>
-                              <div class="pg-table-stack">
-                                <div class="pg-table-block">
-                                  <p class="pg-eyebrow">Visão detalhada</p>
-                                  <h5 style="margin:0;">Melhor Modelo por Campeonato e Mercado</h5>
-                                  ${table1}
-                                  <div class="pg-dt-fallback">
-                                    <a href="data:text/csv;base64,${t1csv}" download="melhor-modelo-campeonato.csv">⬇ Exportar CSV</a>
-                                  </div>
-                                </div>
-                                <div class="pg-table-block">
-                                  <p class="pg-eyebrow">Resumo</p>
-                                  <h5 style="margin:0;">Resumo do Melhor Modelo por Mercado</h5>
-                                  ${table2}
-                                  <div class="pg-dt-fallback">
-                                    <a href="data:text/csv;base64,${t2csv}" download="resumo-melhor-modelo-mercado.csv">⬇ Exportar CSV</a>
-                                  </div>
+                                  <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado no mesmo layout das demais tabelas glassy.</p>
                                 </div>
                               </div>
                             </div>
-                            <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-                            <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-                            <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-                            <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
-                            <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-                            <script>
-                              const pgFallbackSort = (tblId) => {
-                                const el = document.getElementById(tblId);
-                                if (!el) return;
-                                const getCell = (row, idx) => row.children[idx]?.innerText?.toLowerCase?.() || '';
-                                Array.from(el.querySelectorAll('th')).forEach((th, idx) => {
-                                  th.addEventListener('click', () => {
-                                    const rows = Array.from(el.querySelectorAll('tbody tr'));
-                                    const asc = !th.classList.contains('pg-sort-asc');
-                                    el.querySelectorAll('th').forEach(h => h.classList.remove('pg-sort-asc','pg-sort-desc'));
-                                    th.classList.add(asc ? 'pg-sort-asc' : 'pg-sort-desc');
-                                    rows.sort((a,b)=>{
-                                      const va = getCell(asc ? a : b, idx);
-                                      const vb = getCell(asc ? b : a, idx);
-                                      return va.localeCompare(vb, 'pt', {numeric:true});
-                                    }).forEach(r => el.querySelector('tbody').appendChild(r));
-                                  });
-                                });
-                              };
-                              const pgInitDt = (tblId) => {
-                                const el = document.getElementById(tblId);
-                                if (!el || !window.jQuery) { pgFallbackSort(tblId); return; }
-                                const $tbl = window.jQuery(el);
-                                if ($tbl.length === 0 || !window.jQuery.fn?.dataTable) { pgFallbackSort(tblId); return; }
-                                if (window.jQuery.fn.dataTable.isDataTable($tbl)) {
-                                  $tbl.DataTable().destroy();
-                                }
-                                $tbl.DataTable({
-                                  paging:false,
-                                  searching:false,
-                                  info:false,
-                                  ordering:true,
-                                  order: [],
-                                  scrollX:true,
-                                  autoWidth:false,
-                                  stripeClasses: ['pg-row-odd','pg-row-even'],
-                                  dom: '<"pg-dt-top"B>t',
-                                  buttons: [
-                                    { extend:'copyHtml5', text:'📋 Copiar', className:'pg-dt-btn'},
-                                    { extend:'csvHtml5', text:'⬇ CSV', className:'pg-dt-btn'},
-                                    { extend:'excelHtml5', text:'⬇ Excel', className:'pg-dt-btn'}
-                                  ]
-                                });
-                                $tbl.on('click', 'th', () => $tbl.addClass('pg-dt-active'));
-                              };
-                              (function ensureReady(){
-                                const ready = window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable && window.jQuery.fn.dataTable.Buttons;
-                                if (!ready) { setTimeout(ensureReady, 120); return; }
-                                pgInitDt('${tbl1_id}');
-                                pgInitDt('${tbl2_id}');
-                              })();
-                            </script>
-                            """
-                        )
-                        panel_html = best_panel_tpl.safe_substitute(
-                            bg=palette["bg"],
-                            panel=palette["panel"],
-                            glass=palette["glass"],
-                            stroke=palette["stroke"],
-                            text=palette["text"],
-                            muted=palette["muted"],
-                            primary=palette["primary"],
-                            primary2=palette["primary2"],
-                            neon=palette["neon"],
-                            shadow=palette["shadow"],
-                            table1=table1_html,
-                            table2=table2_html,
-                            t1csv=table1_csv_b64,
-                            t2csv=table2_csv_b64,
+                            """,
+                            unsafe_allow_html=True,
                         )
 
-                        est_height = 420 + (len(best_model_data) + len(summary_pivot_table)) * 24
-                        est_height = max(520, min(est_height, 1400))
-                        est_width = 1200 if modo_mobile else 1500
-
-                        components.html(panel_html, height=est_height, width=est_width, scrolling=True)
+                        render_glassy_table(
+                            best_model_data,
+                            caption="Melhor Modelo por Campeonato e Mercado",
+                        )
+                        render_glassy_table(
+                            summary_pivot_table,
+                            caption="Resumo do Melhor Modelo por Mercado",
+                        )
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
