@@ -419,7 +419,6 @@ def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    st.session_state.setdefault("pg_filters_open", True)
     defaults, opts = build_filter_defaults(df, modo_mobile)
     state = get_filter_state(defaults)
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
@@ -461,7 +460,7 @@ def filtros_ui(
             st.toggle(
                 "Exibir filtros",
                 key="pg_filters_open",
-                value=st.session_state.get("pg_filters_open", False),
+                value=st.session_state.get("pg_filters_open", True),
                 help="Mostre ou esconda os controles principais.",
             )
         if state.active_count:
