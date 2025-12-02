@@ -223,6 +223,7 @@ from ui_components import (
     filtros_ui,
     display_list_view,
     is_guru_highlight,
+    guru_highlight_flags,
     guru_highlight_summary,
     render_glassy_table,
     render_app_header,
@@ -310,30 +311,24 @@ try:
         flt = filtros_ui(df, modo_mobile)
         tournaments_sel, models_sel, teams_sel = flt["tournaments_sel"], flt["models_sel"], flt["teams_sel"]
         bet_sel, goal_sel = flt["bet_sel"], flt["goal_sel"]
+        guru_only = flt.get("guru_only", False)
         selected_date_range, sel_h, sel_d, sel_a = flt["selected_date_range"], flt["sel_h"], flt["sel_d"], flt["sel_a"]
         q_team = flt.get("search_query", "")
         tournament_opts = flt.get("tournament_opts", [])
         min_date, max_date = flt.get("min_date"), flt.get("max_date")
 
-        st.session_state.setdefault("pg_list_view_pref", modo_mobile)
+        st.session_state.setdefault("pg_list_view_pref", True)
         if modo_mobile:
             st.session_state["pg_list_view_pref"] = True
         else:
             st.session_state["pg_list_view_pref"] = st.checkbox(
                 "Usar visualização em lista (mobile)",
-                value=bool(st.session_state.get("pg_list_view_pref", False)),
+                value=bool(st.session_state.get("pg_list_view_pref", True)),
                 help="Mantém a listagem em cards mesmo no desktop quando preferir.",
             )
 
-        st.session_state.setdefault("pg_table_density", DEFAULT_TABLE_DENSITY)
-        density_toggle = st.toggle(
-            "Compactar linhas da tabela",
-            key="pg_density_toggle",
-            value=st.session_state.get("pg_table_density") == "compact",
-            help="Alterne para reduzir altura das linhas e ver mais jogos por tela.",
-        )
-        table_density = "compact" if density_toggle else "comfortable"
-        st.session_state["pg_table_density"] = table_density
+        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
+        table_density = DEFAULT_TABLE_DENSITY
 
         use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
 
@@ -426,6 +421,12 @@ try:
             q_team = q_team_input
             set_filter_state(shared_state)
 
+        guru_scope_all = df.apply(guru_highlight_summary, axis=1)
+        guru_flags_all = pd.DataFrame(
+            df.apply(guru_highlight_flags, axis=1).tolist(), index=df.index
+        )
+        guru_flag_all = guru_scope_all.apply(bool)
+
         active_filters = 0
         if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
             active_filters += 1
@@ -439,6 +440,8 @@ try:
         if bet_sel or goal_sel:
             active_filters += 1
         if selected_date_range:
+            active_filters += 1
+        if guru_only:
             active_filters += 1
 
         # Máscara combinada (sem status)
@@ -480,11 +483,25 @@ try:
         if "odds_A" in df.columns:
             final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
 
-        df_filtered = df[final_mask]
-        df_filtered = df_filtered.assign(
-            guru_highlight_scope=df_filtered.apply(guru_highlight_summary, axis=1)
+        if guru_only:
+            final_mask &= guru_flag_all
+
+        df_filtered = df[final_mask].assign(
+            guru_highlight_scope=guru_scope_all[final_mask],
+            guru_highlight=guru_flag_all[final_mask],
         )
-        df_filtered["guru_highlight"] = df_filtered["guru_highlight_scope"].apply(bool)
+
+        if guru_only and not df_filtered.empty and not guru_flags_all.empty:
+            filtered_flags = guru_flags_all.loc[df_filtered.index]
+            col_map = {
+                "Resultado": "result_predicted",
+                "Sugestão": "bet_suggestion",
+                "Gols": "goal_bet_suggestion",
+                "Ambos Marcam": "btts_suggestion",
+            }
+            for label, col in col_map.items():
+                if col in df_filtered.columns and label in filtered_flags.columns:
+                    df_filtered.loc[~filtered_flags[label], col] = pd.NA
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -574,7 +591,7 @@ try:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
                     if use_list_view:
-                        display_list_view(df_ag)
+                        display_list_view(df_ag, hide_missing=guru_only)
                     else:
                         preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
                         cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
@@ -625,7 +642,7 @@ try:
                         )
                     else:
                         if use_list_view:
-                            display_list_view(df_fin)
+                            display_list_view(df_fin, hide_missing=guru_only)
                         else:
                             preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
                             cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])

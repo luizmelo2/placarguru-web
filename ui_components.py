@@ -305,8 +305,19 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
         format_func=market_label,
         placeholder="Ex.: Over/Under, Ambos Marcam, gols por time...",
     )
+    guru_only = wrapper.toggle(
+        "Sugestão Guru ativada",
+        key="pg_guru_only",
+        value=bool(defaults.get("guru_only", False)),
+        help="Mostra apenas os jogos que estão com Sugestão Guru ativa (probabilidade ≥ 80%).",
+    )
+    if guru_only:
+        wrapper.markdown(
+            "<div class='pg-chip success' aria-live='polite'>Filtrando apenas jogos com Sugestão Guru ativa.</div>",
+            unsafe_allow_html=True,
+        )
     wrapper.markdown("</div>", unsafe_allow_html=True)
-    return bet_sel, goal_sel
+    return bet_sel, goal_sel, guru_only
 
 def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optional[date], current_range: tuple = ()):  # type: ignore[call-arg]
     """Renderiza o filtro de período com botões de atalho."""
@@ -413,7 +424,6 @@ def filtros_ui(
     df: pd.DataFrame, modo_mobile: bool,
 ) -> dict:
     """Renderiza a interface de filtros principal e retorna as seleções do usuário."""
-    st.session_state.setdefault("pg_filters_open", True)
     defaults, opts = build_filter_defaults(df, modo_mobile)
     state = get_filter_state(defaults)
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
@@ -455,7 +465,7 @@ def filtros_ui(
             st.toggle(
                 "Exibir filtros",
                 key="pg_filters_open",
-                value=st.session_state.get("pg_filters_open", False),
+                value=st.session_state.get("pg_filters_open", True),
                 help="Mostre ou esconda os controles principais.",
             )
         if state.active_count:
@@ -494,7 +504,7 @@ def filtros_ui(
             state.teams_sel, state.search_query = _render_filtros_equipes(
                 st, opts["team_opts"], modo_mobile, tournaments_sel, state.search_query, default_teams=defaults.get("teams_sel")
             )
-            state.bet_sel, state.goal_sel = _render_filtros_sugestoes(
+            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
                 st, opts["bet_opts"], opts["goal_opts"], defaults
             )
             state.selected_date_range = _render_filtros_periodo(
@@ -524,7 +534,7 @@ def filtros_ui(
     }
 
 
-def _prepare_display_data(row: pd.Series) -> dict:
+def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
     """Prepara todos os dados necessários para a exibição de uma linha."""
     dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in row.index and pd.notna(row["date"])) else "N/A"
 
@@ -549,12 +559,14 @@ def _prepare_display_data(row: pd.Series) -> dict:
     def _get_badge(hit_status):
         return "✅" if hit_status is True else ("❌" if hit_status is False else "")
 
+    missing_label = "—" if hide_missing else "Sem previsão calculada"
+
     # Textos e odds
-    result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
-    score_txt = fmt_score_pred_text(row.get('score_predicted'))
-    aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
-    gols_txt = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
-    btts_pred_txt = f"{market_label(btts_pred, default='-')} {get_prob_and_odd_for_market(row, btts_pred)}"
+    result_txt = f"{market_label(row.get('result_predicted'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
+    score_txt = fmt_score_pred_text(row.get('score_predicted'), default=missing_label)
+    aposta_txt = f"{market_label(row.get('bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
+    gols_txt = f"{market_label(row.get('goal_bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
+    btts_pred_txt = f"{market_label(btts_pred, default=missing_label)} {get_prob_and_odd_for_market(row, btts_pred)}"
 
     return {
         "title": f"{dt_txt} • {row.get('home', '?')} vs {row.get('away', '?')}",
@@ -665,10 +677,10 @@ def _build_details_html(row: pd.Series, data: dict, df: pd.DataFrame) -> str:
 
     return _compact_html(details_html)
 
-def display_list_view(df: pd.DataFrame):
+def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
     """Renderiza uma lista de jogos em formato de cards para visualização mobile."""
     for _, row in df.iterrows():
-        data = _prepare_display_data(row)
+        data = _prepare_display_data(row, hide_missing=hide_missing)
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"

@@ -14,7 +14,7 @@ import streamlit.components.v1 as components
 
 # Breakpoint único compartilhado entre Python e CSS (mobile < 1024px)
 MOBILE_BREAKPOINT = 1024
-DEFAULT_TABLE_DENSITY = "comfortable"
+DEFAULT_TABLE_DENSITY = "compact"
 
 
 @dataclass
@@ -31,6 +31,7 @@ class FilterState:
     sel_d: tuple[float, float] | None = None
     sel_a: tuple[float, float] | None = None
     search_query: str = ""
+    guru_only: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -49,6 +50,8 @@ class FilterState:
         if self.bet_sel or self.goal_sel:
             count += 1
         if self.selected_date_range:
+            count += 1
+        if self.guru_only:
             count += 1
         return count
 
@@ -134,6 +137,7 @@ def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, di
         "sel_d": _odds_default(df, "odds_D"),
         "sel_a": _odds_default(df, "odds_A"),
         "search_query": persisted.get("search_query", st.session_state.get("pg_q_team_shared", "")),
+        "guru_only": False,
     }
 
     defaults.update({k: v for k, v in persisted.items() if v})
