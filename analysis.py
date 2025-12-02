@@ -4,9 +4,16 @@ from typing import Optional, List, Tuple
 import numpy as np
 
 from utils import (
-    eval_result_pred_row, eval_bet_row, eval_goal_row,
-    eval_btts_suggestion_row, evaluate_market, eval_sugestao_combo_row,
-    eval_score_pred_row, tournament_label, MARKET_TO_ODDS_COLS, parse_score_pred
+    eval_result_pred_row,
+    eval_bet_row,
+    eval_goal_row,
+    eval_btts_suggestion_row,
+    evaluate_market,
+    eval_sugestao_combo_row,
+    eval_score_pred_row,
+    tournament_label,
+    MARKET_TO_ODDS_COLS,
+    parse_score_pred,
 )
 
 
@@ -183,57 +190,83 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calcula o melhor modelo por campeonato e mercado de aposta com base na taxa de acerto.
     """
-    if df.empty or 'model' not in df.columns or 'tournament_id' not in df.columns:
+    if df.empty or "model" not in df.columns or "tournament_id" not in df.columns:
         return pd.DataFrame()
 
-    # 1. Calcula o acerto para cada mercado de interesse
-    df['hit_result'] = df.apply(eval_result_pred_row, axis=1)
-    df['hit_bet'] = df.apply(eval_bet_row, axis=1)
-    df['hit_goal'] = df.apply(eval_goal_row, axis=1)
-    df['hit_btts'] = df.apply(eval_btts_suggestion_row, axis=1)
+    df_eval = df.copy()
 
-    # Converte True/False para 1/0 para agregação, mantendo None como NaN
-    for col in ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts']:
-        df[col] = df[col].apply(lambda x: 1 if x is True else (0 if x is False else np.nan))
+    # 1) Avalia acerto por mercado (somente partidas finalizadas retornam True/False)
+    eval_map = {
+        "hit_result": eval_result_pred_row,
+        "hit_bet": eval_bet_row,
+        "hit_goal": eval_goal_row,
+        "hit_btts": eval_btts_suggestion_row,
+    }
+    for col, func in eval_map.items():
+        df_eval[col] = df_eval.apply(func, axis=1)
 
-    # 2. Reestrutura os dados para formato longo (tidy)
-    id_vars = ['tournament_id', 'model']
-    value_vars = ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts']
-    df_melted = df.melt(id_vars=id_vars, value_vars=value_vars, var_name='mercado', value_name='acerto')
-    df_melted.dropna(subset=['acerto'], inplace=True)
+    value_vars = [c for c in eval_map.keys() if c in df_eval.columns]
+    if not value_vars:
+        return pd.DataFrame()
 
-    # 3. Agrupa para calcular acertos e totais
-    agg = df_melted.groupby(['tournament_id', 'model', 'mercado']).agg(
-        total_acertos=('acerto', 'sum'),
-        total_jogos=('acerto', 'count')
-    ).reset_index()
+    # Converte True/False para 1/0 para agregação, preservando NaN para não avaliados
+    df_eval[value_vars] = df_eval[value_vars].applymap(
+        lambda x: 1 if x is True else (0 if x is False else np.nan)
+    )
 
-    # 4. Calcula a taxa de acerto
-    agg['taxa_acerto'] = (agg['total_acertos'] / agg['total_jogos'] * 100).round(2)
+    # 2) Reestrutura e descarta mercados sem avaliação
+    df_melted = df_eval.melt(
+        id_vars=["tournament_id", "model"],
+        value_vars=value_vars,
+        var_name="mercado",
+        value_name="acerto",
+    ).dropna(subset=["acerto"])
 
-    # 5. Encontra o melhor modelo para cada campeonato e mercado
-    best_model_idx = agg.groupby(['tournament_id', 'mercado'])['taxa_acerto'].idxmax()
-    df_best = agg.loc[best_model_idx].copy()
+    if df_melted.empty:
+        return pd.DataFrame()
 
-    # 6. Formata o DataFrame final
-    df_best['mercado'] = df_best['mercado'].map({
-        'hit_result': 'Resultado Final',
-        'hit_bet': 'Sugestão de Aposta',
-        'hit_goal': 'Sugestão de Gols',
-        'hit_btts': 'Ambos Marcam'
-    })
-    df_best['tournament_id'] = df_best['tournament_id'].apply(tournament_label)
+    # 3) Agrupa para calcular acertos e volume
+    agg = df_melted.groupby(["tournament_id", "model", "mercado"], as_index=False).agg(
+        total_acertos=("acerto", "sum"),
+        total_jogos=("acerto", "count"),
+    )
+    agg = agg[agg["total_jogos"] > 0]
+    if agg.empty:
+        return pd.DataFrame()
 
-    df_final = df_best[['tournament_id', 'mercado', 'model', 'taxa_acerto', 'total_jogos']]
-    df_final = df_final.rename(columns={
-        'tournament_id': 'Campeonato',
-        'mercado': 'Mercado de Aposta',
-        'model': 'Melhor Modelo',
-        'taxa_acerto': 'Taxa de Acerto (%)',
-        'total_jogos': 'Total de Jogos Avaliados'
-    })
+    agg["taxa_acerto"] = (agg["total_acertos"] / agg["total_jogos"] * 100).round(2)
 
-    return df_final.sort_values(by=['Campeonato', 'Mercado de Aposta']).reset_index(drop=True)
+    # 4) Define o campeão por mercado e campeonato (maior taxa, depois volume)
+    ordered = agg.sort_values(
+        by=["tournament_id", "mercado", "taxa_acerto", "total_jogos"],
+        ascending=[True, True, False, False],
+    )
+    df_best = ordered.drop_duplicates(subset=["tournament_id", "mercado"], keep="first")
+
+    # 5) Formata o DataFrame final
+    df_best["mercado"] = df_best["mercado"].map(
+        {
+            "hit_result": "Resultado Final",
+            "hit_bet": "Sugestão de Aposta",
+            "hit_goal": "Sugestão de Gols",
+            "hit_btts": "Ambos Marcam",
+        }
+    )
+    df_best["tournament_id"] = df_best["tournament_id"].apply(tournament_label)
+
+    df_final = df_best[
+        ["tournament_id", "mercado", "model", "taxa_acerto", "total_jogos"]
+    ].rename(
+        columns={
+            "tournament_id": "Campeonato",
+            "mercado": "Mercado de Aposta",
+            "model": "Melhor Modelo",
+            "taxa_acerto": "Taxa de Acerto (%)",
+            "total_jogos": "Total de Jogos Avaliados",
+        }
+    )
+
+    return df_final.sort_values(by=["Campeonato", "Mercado de Aposta"]).reset_index(drop=True)
 
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
     """Agrupa o resumo por **campeonato e modelo**, mantendo o recorte de mercado.
