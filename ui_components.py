@@ -534,7 +534,7 @@ def filtros_ui(
     }
 
 
-def _prepare_display_data(row: pd.Series) -> dict:
+def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
     """Prepara todos os dados necessários para a exibição de uma linha."""
     dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in row.index and pd.notna(row["date"])) else "N/A"
 
@@ -559,12 +559,14 @@ def _prepare_display_data(row: pd.Series) -> dict:
     def _get_badge(hit_status):
         return "✅" if hit_status is True else ("❌" if hit_status is False else "")
 
+    missing_label = "—" if hide_missing else "Sem previsão calculada"
+
     # Textos e odds
-    result_txt = f"{market_label(row.get('result_predicted'))} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
-    score_txt = fmt_score_pred_text(row.get('score_predicted'))
-    aposta_txt = f"{market_label(row.get('bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
-    gols_txt = f"{market_label(row.get('goal_bet_suggestion'))} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
-    btts_pred_txt = f"{market_label(btts_pred, default='-')} {get_prob_and_odd_for_market(row, btts_pred)}"
+    result_txt = f"{market_label(row.get('result_predicted'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('result_predicted'))}"
+    score_txt = fmt_score_pred_text(row.get('score_predicted'), default=missing_label)
+    aposta_txt = f"{market_label(row.get('bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('bet_suggestion'))}"
+    gols_txt = f"{market_label(row.get('goal_bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
+    btts_pred_txt = f"{market_label(btts_pred, default=missing_label)} {get_prob_and_odd_for_market(row, btts_pred)}"
 
     return {
         "title": f"{dt_txt} • {row.get('home', '?')} vs {row.get('away', '?')}",
@@ -675,10 +677,10 @@ def _build_details_html(row: pd.Series, data: dict, df: pd.DataFrame) -> str:
 
     return _compact_html(details_html)
 
-def display_list_view(df: pd.DataFrame):
+def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
     """Renderiza uma lista de jogos em formato de cards para visualização mobile."""
     for _, row in df.iterrows():
-        data = _prepare_display_data(row)
+        data = _prepare_display_data(row, hide_missing=hide_missing)
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"

@@ -223,6 +223,7 @@ from ui_components import (
     filtros_ui,
     display_list_view,
     is_guru_highlight,
+    guru_highlight_flags,
     guru_highlight_summary,
     render_glassy_table,
     render_app_header,
@@ -421,6 +422,9 @@ try:
             set_filter_state(shared_state)
 
         guru_scope_all = df.apply(guru_highlight_summary, axis=1)
+        guru_flags_all = pd.DataFrame(
+            df.apply(guru_highlight_flags, axis=1).tolist(), index=df.index
+        )
         guru_flag_all = guru_scope_all.apply(bool)
 
         active_filters = 0
@@ -486,6 +490,18 @@ try:
             guru_highlight_scope=guru_scope_all[final_mask],
             guru_highlight=guru_flag_all[final_mask],
         )
+
+        if guru_only and not df_filtered.empty and not guru_flags_all.empty:
+            filtered_flags = guru_flags_all.loc[df_filtered.index]
+            col_map = {
+                "Resultado": "result_predicted",
+                "Sugestão": "bet_suggestion",
+                "Gols": "goal_bet_suggestion",
+                "Ambos Marcam": "btts_suggestion",
+            }
+            for label, col in col_map.items():
+                if col in df_filtered.columns and label in filtered_flags.columns:
+                    df_filtered.loc[~filtered_flags[label], col] = pd.NA
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -575,7 +591,7 @@ try:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
                     if use_list_view:
-                        display_list_view(df_ag)
+                        display_list_view(df_ag, hide_missing=guru_only)
                     else:
                         preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
                         cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
@@ -626,7 +642,7 @@ try:
                         )
                     else:
                         if use_list_view:
-                            display_list_view(df_fin)
+                            display_list_view(df_fin, hide_missing=guru_only)
                         else:
                             preset_key = "compact" if table_density == "compact" and modo_mobile else ("mobile" if modo_mobile else "desktop")
                             cols_to_show = TABLE_COLUMN_PRESETS.get(preset_key, TABLE_COLUMN_PRESETS["desktop"])
