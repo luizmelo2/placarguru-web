@@ -5,6 +5,7 @@ import re
 from typing import Any, Tuple, Optional
 import requests
 import streamlit as st
+import base64
 
 # ============================
 # Dicionários Amigáveis
@@ -99,6 +100,12 @@ PRED_NORMALIZER = {
 # ============================
 BTTS_PROB_THRESHOLD = 0.65
 GOAL_MARKET_THRESHOLDS = ["0.5", "1.5", "2.5", "3.5"]
+
+# ============================
+# Imagens e Logos
+# ============================
+DEFAULT_BADGE = "assets/default_badge.png"
+
 
 # ============================
 # Helpers
@@ -459,3 +466,42 @@ def load_data(_file_bytes: bytes) -> pd.DataFrame:
             df[col] = df[col].apply(_only_market)
 
     return df
+
+
+@st.cache_data
+def get_default_badge_data_uri():
+    """Lê a imagem padrão e a retorna como uma data URI em Base64."""
+    try:
+        with open(DEFAULT_BADGE, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode()
+        return f"data:image/png;base64,{encoded}"
+    except FileNotFoundError:
+        return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+
+
+@st.cache_data(show_spinner=False)
+def get_team_badge(team_name: str) -> str:
+    """
+    Busca o escudo de um time pelo nome usando a API do TheSportsDB.
+    Usa cache para evitar buscas repetidas.
+    Retorna a URL do escudo ou uma data URI da imagem padrão.
+    """
+    if not team_name or pd.isna(team_name):
+        return get_default_badge_data_uri()
+    try:
+        url = f"https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t={team_name}"
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        if data and "teams" in data and data["teams"]:
+            badge_url = data["teams"][0].get("strTeamBadge")
+            if badge_url:
+                return badge_url
+    except requests.exceptions.RequestException:
+        # Em caso de erro de rede, falha de DNS, etc., retorna o padrão.
+        return get_default_badge_data_uri()
+    except (KeyError, IndexError, TypeError):
+        # Em caso de JSON malformado ou time não encontrado.
+        return get_default_badge_data_uri()
+    return get_default_badge_data_uri()

@@ -389,6 +389,9 @@ def inject_custom_css(dark_mode: bool = False):
   }
   @keyframes pg-pulse { 0% {opacity:0;} 50% {opacity:1;} 100% {opacity:0;} }
 
+  .pg-badge { width: 24px; height: 24px; object-fit: contain; }
+  .pg-match-title { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+
   .pg-meta { color: var(--muted); font-size: 13px; margin-top: -2px; margin-bottom: 8px; }
   .pg-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px; }
   .pg-pill {

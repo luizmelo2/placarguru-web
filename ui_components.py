@@ -19,7 +19,7 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
+    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS, get_team_badge
 )
 
 
@@ -568,8 +568,13 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
     gols_txt = f"{market_label(row.get('goal_bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
     btts_pred_txt = f"{market_label(btts_pred, default=missing_label)} {get_prob_and_odd_for_market(row, btts_pred)}"
 
+    home_badge_url = get_team_badge(row.get("home"))
+    away_badge_url = get_team_badge(row.get("away"))
+
     return {
         "title": f"{dt_txt} • {row.get('home', '?')} vs {row.get('away', '?')}",
+        "home_badge": home_badge_url,
+        "away_badge": away_badge_url,
         "status_txt": status_label(row.get("status", "N/A")),
         "badge_res": _get_badge(hit_res),
         "badge_score": _get_badge(hit_score),
@@ -589,6 +594,8 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
         "suggested_prob": prob_val,
         "suggested_odd": odd_val,
         "match_title": f"{row.get('home','?')} vs {row.get('away','?')}",
+        "home_team": row.get('home', '?'),
+        "away_team": row.get('away', '?'),
         "kickoff": dt_txt,
     }
 
@@ -719,8 +726,14 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
                   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                     <div>
                       <div class="pg-meta">{data['cap_line']}</div>
-                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
+                      <div class="pg-match-title">
+                        <img src="{data['home_badge']}" class="pg-badge" alt="Escudo do {data['home_team']}" />
+                        <span style="font-weight:700; font-size:1.05rem;">{data['home_team']}</span>
+                        <span class="text-muted" style="font-weight: 700;">vs</span>
+                        <img src="{data['away_badge']}" class="pg-badge" alt="Escudo do {data['away_team']}" />
+                        <span style="font-weight:700; font-size:1.05rem;">{data['away_team']}</span>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top: 4px;">
                         <span class="badge">{data['kickoff']}</span>
                         {highlight_label}
                       </div>
