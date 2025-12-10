@@ -5,6 +5,7 @@ import re
 from typing import Any, Tuple, Optional
 import requests
 import streamlit as st
+import base64
 
 # ============================
 # Dicionários Amigáveis
@@ -99,6 +100,12 @@ PRED_NORMALIZER = {
 # ============================
 BTTS_PROB_THRESHOLD = 0.65
 GOAL_MARKET_THRESHOLDS = ["0.5", "1.5", "2.5", "3.5"]
+
+# ============================
+# Imagens e Logos
+# ============================
+DEFAULT_BADGE = "assets/default_badge.png"
+
 
 # ============================
 # Helpers
@@ -459,3 +466,87 @@ def load_data(_file_bytes: bytes) -> pd.DataFrame:
             df[col] = df[col].apply(_only_market)
 
     return df
+
+
+@st.cache_data
+def get_default_badge_data_uri():
+    """Lê a imagem padrão e a retorna como uma data URI em Base64."""
+    try:
+        with open(DEFAULT_BADGE, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode()
+        return f"data:image/png;base64,{encoded}"
+    except FileNotFoundError:
+        return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+
+
+def _clean_team_name(name: str) -> str:
+    """Simplifica o nome de um time removendo termos genéricos para melhorar a busca na API."""
+    if not isinstance(name, str):
+        return ""
+
+    # Lista de termos a serem removidos (case-insensitive), garantindo que são palavras inteiras
+    # e tratando casos comuns no Brasil e no exterior.
+    terms_to_remove = [
+        r'\bFC\b', r'\bCF\b', r'\bFK\b', r'\bSC\b', r'\bAC\b', r'\bSK\b',
+        r'\bUnited\b', r'\bCity\b', r'\bRovers\b', r'\bWanderers\b', r'\bAlbion\b',
+        r'\bAthletic\b', r'\bCounty\b', r'\bTown\b', r'\bHotspur\b',
+        r'\bspor\b', r'\bgücü\b', r'\b[0-9]+\b',  # Remove números como em 'Bayer 04'
+        r'\bEsporte Clube\b', r'\bClube\b', r'\bEC\b', r'\bCR\b', r'\bCA\b',
+        r'\bde\b', r'\bdo\b', r'\bda\b' # Remove preposições comuns
+    ]
+
+    clean_name = name
+    for term in terms_to_remove:
+        clean_name = re.sub(term, '', clean_name, flags=re.IGNORECASE)
+
+    # Remove espaços duplos e espaços no início/fim
+    clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+
+    return clean_name
+
+
+def _fetch_badge_from_api(team_name: str) -> Optional[str]:
+    """Tenta buscar o escudo de um time na API. Retorna a URL ou None em caso de falha."""
+    if not team_name:
+        return None
+    try:
+        url = f"https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t={team_name}"
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        if data and "teams" in data and data["teams"] and data["teams"][0]:
+            badge_url = data["teams"][0].get("strTeamBadge")
+            if badge_url:
+                return badge_url
+    except requests.exceptions.RequestException:
+        return None  # Erro de rede/DNS
+    except (KeyError, IndexError, TypeError):
+        return None  # JSON malformado ou time não encontrado
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def get_team_badge(team_name: str) -> str:
+    """
+    Busca o escudo de um time pelo nome, com fallback para um nome "limpo".
+    Usa cache para evitar buscas repetidas.
+    Retorna a URL do escudo ou uma data URI da imagem padrão.
+    """
+    if not team_name or pd.isna(team_name):
+        return get_default_badge_data_uri()
+
+    # Tentativa 1: Nome original
+    badge_url = _fetch_badge_from_api(team_name)
+    if badge_url:
+        return badge_url
+
+    # Tentativa 2: Nome "limpo"
+    cleaned_name = _clean_team_name(team_name)
+    if cleaned_name and cleaned_name.lower() != team_name.lower():
+        badge_url = _fetch_badge_from_api(cleaned_name)
+        if badge_url:
+            return badge_url
+
+    # Fallback final
+    return get_default_badge_data_uri()
