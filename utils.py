@@ -511,7 +511,7 @@ def _fetch_badge_from_api(team_name: str) -> Optional[str]:
     if not team_name:
         return None
     try:
-        url = f"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t={team_name}"
+        url = f"https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t={team_name}"
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         data = response.json()
