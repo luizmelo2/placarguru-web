@@ -506,24 +506,41 @@ def _clean_team_name(name: str) -> str:
     return clean_name
 
 
+import requests
+from urllib.parse import quote
+from typing import Optional
+
+
+# api_badge.py (por exemplo)
+import requests
+from urllib.parse import quote
+from typing import Optional
+
 def _fetch_badge_from_api(team_name: str) -> Optional[str]:
-    """Tenta buscar o escudo de um time na API. Retorna a URL ou None em caso de falha."""
+    """
+    Busca o escudo (strBadge) de um time na API TheSportsDB.
+    Lança exceções em caso de erro (não captura nada aqui).
+    """
     if not team_name:
+        raise ValueError("team_name está vazio")
+
+    encoded_name = quote(team_name)
+    url = f"https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t={encoded_name}"
+
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()  # se der 4xx/5xx, lança HTTPError
+
+    data = response.json()
+
+    teams = data.get("teams")
+    if not teams:
+        # aqui não é erro de sistema, só “não encontrado”
         return None
-    try:
-        url = f"https://www.thesportsdb.com/api/v1/json/123/searchteams.php?t={team_name}"
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        if data and "teams" in data and data["teams"] and data["teams"][0]:
-            badge_url = data["teams"][0].get("strTeamBadge")
-            if badge_url:
-                return badge_url
-    except requests.exceptions.RequestException:
-        return None  # Erro de rede/DNS
-    except (KeyError, IndexError, TypeError):
-        return None  # JSON malformado ou time não encontrado
-    return None
+
+    team = teams[0]
+    badge_url = team.get("strBadge")
+    return badge_url or None
+
 
 
 @st.cache_data(show_spinner=False)
@@ -533,20 +550,20 @@ def get_team_badge(team_name: str) -> str:
     Usa cache para evitar buscas repetidas.
     Retorna a URL do escudo ou uma data URI da imagem padrão.
     """
-    if not team_name or pd.isna(team_name):
-        return get_default_badge_data_uri()
+    #if not team_name or pd.isna(team_name):
+    #    return get_default_badge_data_uri()
 
     # Tentativa 1: Nome original
     badge_url = _fetch_badge_from_api(team_name)
-    if badge_url:
-        return badge_url
+    #if badge_url:
+    return badge_url
 
     # Tentativa 2: Nome "limpo"
-    cleaned_name = _clean_team_name(team_name)
-    if cleaned_name and cleaned_name.lower() != team_name.lower():
-        badge_url = _fetch_badge_from_api(cleaned_name)
-        if badge_url:
-            return badge_url
+    #cleaned_name = _clean_team_name(team_name)
+    #if cleaned_name and cleaned_name.lower() != team_name.lower():
+    #    badge_url = _fetch_badge_from_api(cleaned_name)
+    #    if badge_url:
+    #        return badge_url
 
     # Fallback final
-    return get_default_badge_data_uri()
+    #return get_default_badge_data_uri()
