@@ -58,6 +58,7 @@ FRIENDLY_TOURNAMENTS = {
     8: "La Liga (Espanhol)", "8": "La Liga (Espanhol)",
     23: "Italiano (Séria A)", "23": "Italiano (Séria A)",
     35: "Bundesliga (Alemão)", "35": "Bundesliga (Alemão)",
+    7: "Liga dos Campeões da UEFA", "7": "Liga dos Campeões da UEFA",
 }
 
 MARKET_TO_ODDS_COLS = {
