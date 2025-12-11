@@ -390,6 +390,11 @@ def inject_custom_css(dark_mode: bool = False):
   @keyframes pg-pulse { 0% {opacity:0;} 50% {opacity:1;} 100% {opacity:0;} }
 
   .pg-meta { color: var(--muted); font-size: 13px; margin-top: -2px; margin-bottom: 8px; }
+  .pg-matchup { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:800; font-size:1.05rem; }
+  .pg-team { display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border-radius:12px; border:1px solid color-mix(in srgb, var(--stroke) 80%, transparent); background: color-mix(in srgb, var(--panel) 90%, var(--glass-strong)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+  .pg-team__logo { width:28px; height:28px; object-fit: contain; border-radius:10px; background: color-mix(in srgb, var(--panel) 80%, var(--glass-strong)); border: 1px solid color-mix(in srgb, var(--stroke) 80%, transparent); padding: 2px; }
+  .pg-team__name { font-weight:800; letter-spacing:-0.01em; }
+  .pg-vs { color: var(--muted); font-weight:700; }
   .pg-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px; }
   .pg-pill {
     border: 1px solid var(--stroke);

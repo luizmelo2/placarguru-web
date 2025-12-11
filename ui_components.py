@@ -1,9 +1,16 @@
 """Módulo para componentes de UI reutilizáveis."""
+import base64
+import html
+import mimetypes
+import re
 import textwrap
-import streamlit as st
-import pandas as pd
+import unicodedata
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional, List
 from datetime import date, timedelta
+import streamlit as st
+import pandas as pd
 
 from state import (
     get_filter_state,
@@ -22,8 +29,64 @@ from utils import (
     GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
 )
 
+LOGO_DIR = Path(__file__).parent / "images"
+DEFAULT_LOGO_PATH = LOGO_DIR / "default_team.svg"
 
 HIGHLIGHT_PROB_THRESHOLD = 0.80
+LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+
+
+def _slugify_team(name: str) -> str:
+    """Normaliza nomes de equipes para facilitar o match com o arquivo do escudo."""
+
+    if not name:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(name))
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    safe = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_only).strip("_").lower()
+    return re.sub(r"_+", "_", safe)
+
+
+@lru_cache(maxsize=1)
+def _team_logo_index() -> dict[str, Path]:
+    """Indexa os arquivos de escudo disponíveis na pasta images/ por nome da equipe."""
+
+    mapping: dict[str, Path] = {}
+    if LOGO_DIR.exists():
+        for path in LOGO_DIR.iterdir():
+            if path.suffix.lower() not in LOGO_EXTENSIONS:
+                continue
+            stem = path.stem.split("_", 1)[-1]
+            mapping[_slugify_team(stem)] = path
+    return mapping
+
+
+@lru_cache(maxsize=512)
+def team_logo_data_uri(team_name: str) -> str:
+    """Retorna um data URI base64 do escudo ou da imagem padrão."""
+
+    logo_path = _team_logo_index().get(_slugify_team(team_name))
+    if not logo_path or not logo_path.exists():
+        logo_path = DEFAULT_LOGO_PATH if DEFAULT_LOGO_PATH.exists() else None
+    if not logo_path:
+        return ""
+
+    mime = mimetypes.guess_type(logo_path.name)[0] or "image/png"
+    encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _team_badge_html(team_name: str) -> str:
+    """Monta o HTML acessível com escudo + nome da equipe."""
+
+    safe_name = html.escape(team_name or "?")
+    logo_src = team_logo_data_uri(team_name)
+    logo_img = (
+        f"<img src='{logo_src}' alt='Escudo de {safe_name}' class='pg-team__logo' loading='lazy' />"
+        if logo_src
+        else ""
+    )
+    return f"<span class='pg-team'>{logo_img}<span class='pg-team__name'>{safe_name}</span></span>"
 
 
 def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None) -> str:
@@ -538,6 +601,12 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
     """Prepara todos os dados necessários para a exibição de uma linha."""
     dt_txt = row["date"].strftime("%d/%m %H:%M") if ("date" in row.index and pd.notna(row["date"])) else "N/A"
 
+    home_name = str(row.get("home", "?"))
+    away_name = str(row.get("away", "?"))
+    home_badge = _team_badge_html(home_name)
+    away_badge = _team_badge_html(away_name)
+    match_title_html = f"{home_badge}<span class='pg-vs'>vs</span>{away_badge}"
+
     market_code = row.get("bet_suggestion")
     prob_val = odd_val = None
     if pd.notna(market_code):
@@ -588,7 +657,8 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
         "highlight_scope": highlight_scope,
         "suggested_prob": prob_val,
         "suggested_odd": odd_val,
-        "match_title": f"{row.get('home','?')} vs {row.get('away','?')}",
+        "match_title": f"{home_name} vs {away_name}",
+        "match_title_html": match_title_html,
         "kickoff": dt_txt,
     }
 
@@ -720,7 +790,7 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
                     <div>
                       <div class="pg-meta">{data['cap_line']}</div>
                       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <div style="font-weight:700; font-size:1.05rem;">{data['match_title']}</div>
+                        <div class="pg-matchup">{data['match_title_html']}</div>
                         <span class="badge">{data['kickoff']}</span>
                         {highlight_label}
                       </div>
