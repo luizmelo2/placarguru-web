@@ -89,7 +89,10 @@ try:
         })
 
         # 4. Sugestão de "Ambos Marcam"
-        btts_sugg_df = df_filtered.apply(suggest_btts, axis=1)
+        btts_sugg_df = df_filtered.apply(
+            lambda row: suggest_btts(row, flt["prob_min"], flt["odd_min"]),
+            axis=1
+        )
 
         # Junta os resultados das buscas ao dataframe principal
         df_analysis = df_filtered.join(best_1x2_df).join(best_goals_df).join(best_overall_df).join(btts_sugg_df)

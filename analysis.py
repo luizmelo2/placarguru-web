@@ -338,19 +338,14 @@ def find_best_bet(row, prob_min: float, odd_min: float, markets_to_search: Optio
 
     return pd.Series({"market": np.nan, "prob": np.nan, "odd": np.nan})
 
-def suggest_btts(row) -> pd.Series:
-    """Sugere a melhor aposta 'Ambos Marcam' com base na maior probabilidade."""
+def suggest_btts(row, prob_min: float, odd_min: float) -> pd.Series:
+    """
+    Sugere a melhor aposta 'Ambos Marcam' se ela atender aos critérios de probabilidade e odd.
+    """
     prob_yes = row.get("prob_btts_yes", -1)
     prob_no = row.get("prob_btts_no", -1)
 
-    # Retorna NaN se as probabilidades não estiverem disponíveis
-    if pd.isna(prob_yes) or pd.isna(prob_no):
-        return pd.Series({
-            "btts_sugg_market": np.nan,
-            "btts_sugg_prob": np.nan,
-            "btts_sugg_odd": np.nan
-        })
-
+    # Define a aposta com maior probabilidade
     if prob_yes > prob_no:
         market = "btts_yes"
         prob = prob_yes
@@ -359,6 +354,14 @@ def suggest_btts(row) -> pd.Series:
         market = "btts_no"
         prob = prob_no
         odd = row.get("odds_btts_no")
+
+    # Retorna NaN se a melhor opção não atender aos critérios
+    if pd.isna(prob) or pd.isna(odd) or not (prob >= prob_min and odd >= odd_min):
+        return pd.Series({
+            "btts_sugg_market": np.nan,
+            "btts_sugg_prob": np.nan,
+            "btts_sugg_odd": np.nan
+        })
 
     return pd.Series({
         "btts_sugg_market": market,
