@@ -631,6 +631,32 @@ def inject_custom_css(dark_mode: bool = False):
   button:hover, .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(37,99,235,0.28); }
 
   div[data-testid="stExpander"] summary { padding: 10px 12px; font-size: 1.02rem; font-weight: 700; }
+
+  .pg-sofascore-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--panel) 90%, var(--glass-strong));
+    border: 1px solid var(--stroke);
+    transition: all 160ms ease;
+  }
+  .pg-sofascore-link:hover {
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 8px 24px rgba(37,99,235,0.12);
+    border-color: var(--primary);
+  }
+  .pg-sofascore-link svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--muted);
+    transition: fill 160ms ease;
+  }
+  .pg-sofascore-link:hover svg {
+    fill: var(--primary);
+  }
 </style>
   <script>
     (function() {

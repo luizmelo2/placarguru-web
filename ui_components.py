@@ -26,10 +26,11 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS
+    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS, generate_sofascore_link
 )
 
 LOGO_DIR = Path(__file__).parent / "images"
+SOFASCORE_ICON_PATH = LOGO_DIR / "sofascore_icon.svg"
 DEFAULT_LOGO_PATH = LOGO_DIR / "default_team.svg"
 
 HIGHLIGHT_PROB_THRESHOLD = 0.80
@@ -74,6 +75,15 @@ def team_logo_data_uri(team_name: str) -> str:
     mime = mimetypes.guess_type(logo_path.name)[0] or "image/png"
     encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
+
+
+@lru_cache(maxsize=1)
+def _get_sofascore_icon_svg() -> str:
+    """Carrega o conteúdo do SVG do ícone do Sofascore."""
+    try:
+        return SOFASCORE_ICON_PATH.read_text()
+    except Exception:
+        return ""
 
 
 def _team_badge_html(team_name: str) -> str:
@@ -660,6 +670,7 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
         "match_title": f"{home_name} vs {away_name}",
         "match_title_html": match_title_html,
         "kickoff": dt_txt,
+        "sofascore_link": generate_sofascore_link(home_name, away_name),
     }
 
 
@@ -783,6 +794,15 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
 
             details_html = _build_details_html(row, data, df)
 
+            sofascore_icon_svg = _get_sofascore_icon_svg()
+            sofascore_html = ""
+            if sofascore_icon_svg and data.get("sofascore_link"):
+                sofascore_html = f"""
+                    <a href="{data['sofascore_link']}" target="_blank" rel="noopener noreferrer" class="pg-sofascore-link" aria-label="Ver no Sofascore">
+                        {sofascore_icon_svg}
+                    </a>
+                """
+
             card_html = _compact_html(
                 f"""
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
@@ -791,6 +811,7 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
                       <div class="pg-meta">{data['cap_line']}</div>
                       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <div class="pg-matchup">{data['match_title_html']}</div>
+                        {sofascore_html}
                         <span class="badge">{data['kickoff']}</span>
                         {highlight_label}
                       </div>
