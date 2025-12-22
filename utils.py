@@ -5,36 +5,15 @@ import re
 from typing import Any, Tuple, Optional
 import requests
 import streamlit as st
-import unicodedata
+from urllib.parse import quote_plus
 
 def generate_sofascore_link(home_team: str, away_team: str) -> str:
-    """Gera um link de busca do Sofascore para o jogo."""
-
-    def _slugify_for_url(name: str) -> str:
-        """Normaliza nomes de equipes para URLs (e.g., 'São Paulo' -> 'sao-paulo')."""
-        if not name:
-            return ""
-        # Normalize accentuation and special characters to their base ASCII representation
-        normalized = unicodedata.normalize("NFKD", str(name).lower()).encode("ascii", "ignore").decode("ascii")
-        # Replace common abbreviations (might not be needed but safe)
-        normalized = re.sub(r'\s+fc\b|\s+sc\b|\s+ec\b', '', normalized, flags=re.IGNORECASE)
-        # Replace any character that is not a letter, number, or hyphen with a space
-        safe_chars = re.sub(r'[^a-z0-9-]+', ' ', normalized)
-        # Replace multiple spaces with a single hyphen
-        slug = re.sub(r'\s+', '-', safe_chars).strip('-')
-        return slug
-
+    """Gera um link de busca do Google para a partida no Sofascore."""
     if not home_team or not away_team:
         return ""
 
-    home_slug = _slugify_for_url(home_team)
-    away_slug = _slugify_for_url(away_team)
-
-    if not home_slug or not away_slug:
-        return ""
-
-    # Sofascore uses teamA-teamB format
-    return f"https://www.sofascore.com/{home_slug}-{away_slug}"
+    query = f'site:sofascore.com "{home_team}" vs "{away_team}"'
+    return f"https://www.google.com/search?q={quote_plus(query)}"
 
 # ============================
 # Dicionários Amigáveis
