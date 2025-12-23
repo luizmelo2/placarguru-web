@@ -1,10 +1,9 @@
+
 """Página de Análise de Desempenho do Placar Guru."""
 import streamlit as st
 import pandas as pd
 import altair as alt
-from typing import Optional, List
 
-# Importa funções e constantes do utils.py
 from utils import (
     RELEASE_URL, fetch_release_file, load_data,
     tournament_label, norm_status_key, evaluate_market
@@ -12,187 +11,92 @@ from utils import (
 from ui_components import filtros_analise_ui
 from analysis import find_best_bet, suggest_btts
 
-# ============================
-# Configuração da página
-# ============================
-st.set_page_config(
-    layout="wide",
-    page_title="Análise de Desempenho",
-)
-
+st.set_page_config(layout="wide", page_title="Análise de Desempenho")
 st.title("Análise de Desempenho")
 
-# ============================
-# App principal
-# ============================
 try:
-    # Carrega dados da release
     content, _, _ = fetch_release_file(RELEASE_URL)
     df = load_data(content)
 
     if df.empty:
-        st.error("O arquivo `PrevisaoJogos.xlsx` está vazio ou não pôde ser lido.")
+        st.error("O arquivo `PrevisaoJogos.xlsx` não pôde ser lido.")
     else:
         flt = filtros_analise_ui(df)
-
-        # Filtros
         mask = pd.Series(True, index=df.index)
-        if flt["tournaments_sel"] and "tournament_id" in df.columns:
+        if flt["tournaments_sel"]:
             mask &= df["tournament_id"].isin(flt["tournaments_sel"])
-        if flt["models_sel"] and "model" in df.columns:
+        if flt["models_sel"]:
             mask &= df["model"].isin(flt["models_sel"])
-        if flt["selected_date_range"] and len(flt["selected_date_range"]) == 2 and "date" in df.columns:
+        if flt["selected_date_range"] and len(flt["selected_date_range"]) == 2:
             start, end = flt["selected_date_range"]
             mask &= (df["date"].dt.date.between(start, end)) | (df["date"].isna())
 
         df_filtered = df[mask].copy()
 
-        # --- Lógica das Três Buscas Dinâmicas ---
+        bet_finders = {
+            "1x2": (find_best_bet, {"markets_to_search": ["H", "D", "A"]}),
+            "goals": (find_best_bet, {"markets_to_search": [
+                "over_0_5", "over_1_5", "over_2_5", "over_3_5",
+                "under_0_5", "under_1_5", "under_2_5", "under_3_5",
+                "btts_yes", "btts_no"
+            ]}),
+            "overall": (find_best_bet, {}),
+            "btts": (suggest_btts, {}),
+        }
 
-        # 1. Melhor Resultado (1x2)
-        markets_1x2 = ["H", "D", "A"]
-        best_1x2_df = df_filtered.apply(
-            lambda row: find_best_bet(
-                row, flt["prob_min"], flt["odd_min"],
-                markets_to_search=markets_1x2
-            ),
-            axis=1
-        ).rename(columns={
-            "market": "bet_1x2_market", "prob": "bet_1x2_prob",
-            "odd": "bet_1x2_odd"
-        })
+        for name, (func, kwargs) in bet_finders.items():
+            res = df_filtered.apply(lambda row: func(row, flt["prob_min"], flt["odd_min"], **kwargs), axis=1)
+            res.columns = [f"bet_{name}_{c}" for c in res.columns]
+            df_filtered = df_filtered.join(res)
 
-        # 2. Melhor Aposta de Gols
-        markets_goals = [
-            "over_0_5", "over_1_5", "over_2_5", "over_3_5",
-            "under_0_5", "under_1_5", "under_2_5", "under_3_5",
-            "btts_yes", "btts_no"
-        ]
-        best_goals_df = df_filtered.apply(
-            lambda row: find_best_bet(
-                row, flt["prob_min"], flt["odd_min"],
-                markets_to_search=markets_goals
-            ),
-            axis=1
-        ).rename(columns={
-            "market": "bet_goals_market", "prob": "bet_goals_prob",
-            "odd": "bet_goals_odd"
-        })
-
-        # 3. Melhor Aposta (Geral)
-        best_overall_df = df_filtered.apply(
-            lambda row: find_best_bet(row, flt["prob_min"], flt["odd_min"]),
-            axis=1
-        ).rename(columns={
-            "market": "bet_overall_market", "prob": "bet_overall_prob",
-            "odd": "bet_overall_odd"
-        })
-
-        # 4. Sugestão de "Ambos Marcam"
-        btts_sugg_df = df_filtered.apply(
-            lambda row: suggest_btts(row, flt["prob_min"], flt["odd_min"]),
-            axis=1
-        )
-
-        # Junta os resultados das buscas ao dataframe principal
-        df_analysis = df_filtered.join(best_1x2_df).join(best_goals_df).join(best_overall_df).join(btts_sugg_df)
-
-        # Remove jogos onde nenhuma aposta foi encontrada em nenhuma das categorias
-        df_analysis.dropna(
-            subset=["bet_1x2_market", "bet_goals_market", "bet_overall_market", "btts_sugg_market"],
-            how='all',
-            inplace=True
+        df_analysis = df_filtered.dropna(
+            subset=[f"bet_{name}_market" for name in bet_finders],
+            how='all'
         )
 
         st.subheader("Análise de Acurácia Comparativa")
-        st.info(f"Analisando {len(df_analysis)} jogos que atendem aos critérios de Prob. >= {flt['prob_min']:.0%} e Odd >= {flt['odd_min']:.2f}.")
+        st.info(f"Analisando {len(df_analysis)} jogos com Prob. >= {flt['prob_min']:.0%} e Odd >= {flt['odd_min']:.2f}.")
 
-        # Considere apenas finalizados com placar válido
         df_finished = df_analysis[df_analysis['status'].apply(norm_status_key) == 'finished'].copy()
         df_finished = df_finished.dropna(subset=['result_home', 'result_away'])
 
         if df_finished.empty:
-            st.warning("Nenhum jogo finalizado encontrado para os critérios e filtros selecionados.")
+            st.warning("Nenhum jogo finalizado encontrado para os critérios.")
         else:
-            # Avaliações para cada tipo de aposta
-            df_finished['res_bet_1x2'] = df_finished.apply(
-                lambda row: evaluate_market(row['bet_1x2_market'], row['result_home'], row['result_away']), axis=1
-            )
-            df_finished['res_bet_goals'] = df_finished.apply(
-                lambda row: evaluate_market(row['bet_goals_market'], row['result_home'], row['result_away']), axis=1
-            )
-            df_finished['res_bet_overall'] = df_finished.apply(
-                lambda row: evaluate_market(row['bet_overall_market'], row['result_home'], row['result_away']), axis=1
-            )
-            df_finished['res_btts_sugg'] = df_finished.apply(
-                lambda row: evaluate_market(row['btts_sugg_market'], row['result_home'], row['result_away']), axis=1
-            )
+            for name in bet_finders:
+                df_finished[f'res_bet_{name}'] = df_finished.apply(
+                    lambda r: evaluate_market(r[f'bet_{name}_market'], r['result_home'], r['result_away']), axis=1
+                )
 
-            accuracy_data = []
-            if not df_finished.empty:
-                # Dicionário para mapear colunas de resultado para nomes de métricas amigáveis
-                metric_map = {
-                    'res_bet_1x2': 'Melhor Resultado (1x2)',
-                    'res_bet_goals': 'Melhor Aposta de Gols',
-                    'res_bet_overall': 'Melhor Aposta (Geral)',
-                    'res_btts_sugg': 'Sugestão "Ambos Marcam"'
+            metric_map = {
+                'res_bet_1x2': 'Melhor 1x2', 'res_bet_goals': 'Melhor Gols',
+                'res_bet_overall': 'Melhor Geral', 'res_bet_btts': 'Sugestão BTTS'
+            }
+
+            accuracy_data = [
+                {
+                    "Campeonato": tournament_label(tournament), "Modelo": model, "Métrica": metric_name,
+                    "Acerto (%)": (group[res_col].sum() / len(group[res_col].dropna())) * 100,
+                    "Acertos": int(group[res_col].sum()), "Total": len(group[res_col].dropna())
                 }
-
-                grouped = df_finished.groupby(['tournament_id', 'model'])
-                for (tournament, model), group in grouped:
-                    for res_col, metric_name in metric_map.items():
-                        # Filtra o grupo para as apostas que foram realmente feitas (não NaN)
-                        valid_bets = group[res_col].dropna()
-                        total = len(valid_bets)
-
-                        if total > 0:
-                            # Booleans (True=1, False=0) -> soma = acertos
-                            hits = int(valid_bets.sum())
-                            accuracy = (hits / total) * 100
-
-                            accuracy_data.append({
-                                "Campeonato": tournament_label(tournament),
-                                "Modelo": model,
-                                "Métrica": metric_name,
-                                "Acerto (%)": accuracy,
-                                "Acertos": hits,
-                                "Total": total
-                            })
+                for (tournament, model), group in df_finished.groupby(['tournament_id', 'model'])
+                for res_col, metric_name in metric_map.items() if not group[res_col].dropna().empty
+            ]
 
             if not accuracy_data:
                 st.warning("Não há dados de acurácia para exibir.")
             else:
                 metrics_df = pd.DataFrame(accuracy_data)
+                st.dataframe(metrics_df.sort_values(by=["Campeonato", "Modelo", "Acerto (%)"], ascending=[True, True, False]), use_container_width=True, hide_index=True)
 
-                st.dataframe(
-                    metrics_df.sort_values(by=["Campeonato", "Modelo", "Acerto (%)"], ascending=[True, True, False]),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-                # ----------------------------
-                # Gráfico de barras agrupadas e facetado por campeonato
-                # (forma correta: facet via método, não no alt.Facet)
-                # ----------------------------
-                base = alt.Chart(metrics_df).mark_bar().encode(
+                chart = alt.Chart(metrics_df).mark_bar().encode(
                     x=alt.X('Modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
                     y=alt.Y('Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Acurácia (%)'),
-                    color=alt.Color('Métrica:N', title='Métrica'),
-                    xOffset='Métrica:N',
-                    tooltip=[
-                        'Campeonato', 'Modelo', 'Métrica', 'Acertos', 'Total',
-                        alt.Tooltip('Acerto (%):Q', format='.1f')
-                    ]
-                ).properties(height=300)
-
-                chart = base.facet(
-                    facet='Campeonato:N',   # apenas o field/canal
-                    columns=2,              # aqui sim, no método facet
-                    title='Desempenho por Campeonato'
-                ).resolve_scale(y='shared')  # deixe 'independent' se preferir escalas separadas
-
+                    color='Métrica:N', xOffset='Métrica:N',
+                    tooltip=['Campeonato', 'Modelo', 'Métrica', 'Acertos', 'Total', alt.Tooltip('Acerto (%):Q', format='.1f')]
+                ).properties(height=300).facet(facet='Campeonato:N', columns=2)
                 st.altair_chart(chart, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Erro inesperado durante a análise: {e}")
+    st.error(f"Erro inesperado: {e}")
     st.exception(e)
