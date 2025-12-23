@@ -1,6 +1,5 @@
 """Módulo de utilitários com funções e constantes compartilhadas."""
 import pandas as pd
-import numpy as np
 import re
 from typing import Any, Tuple, Optional
 import requests
@@ -118,7 +117,7 @@ def is_na_like(x: Any) -> bool:
     """Verifica se um valor é 'NA-like' (None, NaN, ou string vazia/nula)."""
     if x is None:
         return True
-    if isinstance(x, float) and np.isnan(x):
+    if isinstance(x, float) and pd.isna(x):
         return True
     if isinstance(x, str) and x.strip().lower() in {"", "nan", "none", "null"}:
         return True
@@ -132,9 +131,9 @@ def market_label(v: Any, default: str = "Sem previsão calculada") -> str:
 
 def _canon_tourn_key(x: Any) -> Optional[Any]:
     """Converte a chave de um torneio para um tipo canônico (int ou str)."""
-    if x is None or (isinstance(x, float) and np.isnan(x)):
+    if x is None or (isinstance(x, float) and pd.isna(x)):
         return None
-    if isinstance(x, (np.integer,)):
+    if isinstance(x, (int,)):
         return int(x)
     if isinstance(x, float):
         return int(x) if float(x).is_integer() else x
@@ -168,7 +167,7 @@ def normalize_pred_code(series: pd.Series) -> pd.Series:
     if series is None:
         return pd.Series(dtype="object")
     s = series.astype(str).str.strip().str.upper()
-    return s.map(lambda x: PRED_NORMALIZER.get(x, np.nan))
+    return s.map(lambda x: PRED_NORMALIZER.get(x, pd.NA))
 
 
 def _parse_threshold(token: str) -> Optional[float]:
@@ -253,7 +252,7 @@ def evaluate_market(code: Any, rh: Any, ra: Any) -> Optional[bool]:
 
 def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
     """Extrai um placar (casa, visitante) de vários formatos de entrada (dict, lista, tupla, str)."""
-    if x is None or (isinstance(x, float) and np.isnan(x)):
+    if x is None or (isinstance(x, float) and pd.isna(x)):
         return (None, None)
     if isinstance(x, dict):
         for hk, ak in (("home", "away"), ("h", "a")):
@@ -292,7 +291,7 @@ def eval_result_pred_row(row: pd.Series) -> Optional[bool]:
         return None
     real = "H" if rh > ra else ("D" if rh == ra else "A")
     pred = PRED_NORMALIZER.get(
-        str(row.get("result_predicted")).strip().upper(), np.nan
+        str(row.get("result_predicted")).strip().upper(), pd.NA
     )
     if pd.isna(pred):
         return None
@@ -429,7 +428,7 @@ def _calculate_single_dc(df: pd.DataFrame, prob_col: str, odd_col: str, prob1_co
 
     if odd_col not in df.columns or df[odd_col].isnull().all():
         if prob_col in df.columns:
-            df[odd_col] = df[prob_col].apply(lambda p: 1 / p if p > 0 else np.nan)
+            df[odd_col] = df[prob_col].apply(lambda p: 1 / p if p > 0 else pd.NA)
     return df
 
 def calculate_double_chance(df: pd.DataFrame) -> pd.DataFrame:
