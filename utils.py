@@ -252,7 +252,7 @@ def evaluate_market(code: Any, rh: Any, ra: Any) -> Optional[bool]:
 
 def parse_score_pred(x: Any) -> Tuple[Optional[int], Optional[int]]:
     """Extrai um placar (casa, visitante) de vários formatos de entrada (dict, lista, tupla, str)."""
-    if x is None or (isinstance(x, float) and np.isnan(x)):
+    if x is None or (isinstance(x, float) and pd.isna(x)):
         return (None, None)
     if isinstance(x, dict):
         for hk, ak in (("home", "away"), ("h", "a")):
