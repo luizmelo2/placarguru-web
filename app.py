@@ -419,6 +419,19 @@ try:
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
+                    st.markdown(
+                        f"""
+                        <div class="pg-hide-copy">
+                          <p class="pg-eyebrow">Lista de jogos agendados</p>
+                          <div class="pg-hide-title">Jogos futuros no recorte</div>
+                          <div class="pg-hide-chips">
+                            <span class="pg-chip ghost">{len(df_ag)} jogos</span>
+                            <span class="pg-chip ghost">{'Visão lista' if use_list_view else 'Visão tabela'}</span>
+                          </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                     if use_list_view:
                         display_list_view(df_ag, hide_missing=guru_only)
                     else:
