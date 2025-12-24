@@ -753,6 +753,10 @@ def filtros_ui(
             )
 
         if st.session_state.get("pg_filters_open", False):
+            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
+                st, opts["bet_opts"], opts["goal_opts"], defaults
+            )
+
             st.markdown("<div class='pg-filter-section'><p class='pg-eyebrow'>Campeonatos</p>", unsafe_allow_html=True)
             csel_all, cclear = st.columns(2)
             with csel_all:
@@ -775,9 +779,6 @@ def filtros_ui(
             state.models_sel = _render_filtros_modelos(st, opts["model_opts"], defaults.get("models_sel", []), modo_mobile)
             state.teams_sel, state.search_query = _render_filtros_equipes(
                 st, opts["team_opts"], modo_mobile, tournaments_sel, state.search_query, default_teams=defaults.get("teams_sel")
-            )
-            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
-                st, opts["bet_opts"], opts["goal_opts"], defaults
             )
             state.selected_date_range = _render_filtros_periodo(
                 st, opts["min_date"], opts["max_date"], state.selected_date_range
