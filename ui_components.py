@@ -716,11 +716,6 @@ def filtros_ui(
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
     state.tournaments_sel = tournaments_sel
 
-    def _sync_sidebar_theme():
-        st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_sidebar", False))
-        st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
-        st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
-
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
         st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
@@ -739,14 +734,7 @@ def filtros_ui(
             """,
             unsafe_allow_html=True,
         )
-        top_left, top_right = st.columns([1, 1])
-        with top_left:
-            st.toggle(
-                "Tema escuro",
-                key="pg_dark_mode_sidebar",
-                on_change=_sync_sidebar_theme,
-                help="Altere rapidamente entre tema claro e escuro.",
-            )
+        _, top_right = st.columns([1, 1])
         with top_right:
             st.toggle(
                 "Exibir filtros",

@@ -72,26 +72,13 @@ inject_header_fix_css(force_header_patch)
 
 
 def init_theme_state() -> None:
-    """Garante o estado inicial do tema e sincroniza chaves derivadas."""
+    """Garante o estado inicial do tema."""
 
     st.session_state.setdefault("pg_dark_mode", False)
-    st.session_state.setdefault("pg_theme_announce", "")
-    dark_mode = bool(st.session_state.get("pg_dark_mode", False))
-    st.session_state.setdefault("pg_dark_mode_header", dark_mode)
-    st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
-    st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
-    st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
-
-
-def _sync_theme_toggle(source_key: str) -> None:
-    st.session_state["pg_dark_mode"] = bool(st.session_state.get(source_key, False))
-    st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
-    st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
-    st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 
 init_theme_state()
-dark_mode = bool(st.session_state.get("pg_dark_mode", False))
+dark_mode = False
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -379,9 +366,6 @@ try:
                 f"{active_filters} filtros ativos",
                 auto_view_label,
             ]
-            if st.session_state.get("pg_theme_announce"):
-                live_messages.append(st.session_state.get("pg_theme_announce"))
-                st.session_state["pg_theme_announce"] = ""
             header_html = render_app_header(live_messages=live_messages)
             with topbar_placeholder.container():
                 brand_col, action_col = st.columns([4, 1.4])
@@ -1005,13 +989,7 @@ try:
                 unsafe_allow_html=True,
             )
         with fcol2:
-            st.toggle(
-                "🌗 Modo escuro",
-                key="pg_dark_mode",
-                on_change=_sync_theme_toggle,
-                args=("pg_dark_mode",),
-                help="Alterne para ver o tema escuro premium. Modo padrão: Light.",
-            )
+            st.empty()
 
         # Botão para forçar atualização (limpa o cache de dados e re-executa o app)
         if st.button("🔄 Atualizar agora"):
