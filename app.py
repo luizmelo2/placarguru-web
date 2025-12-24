@@ -1008,7 +1008,6 @@ try:
             st.toggle(
                 "🌗 Modo escuro",
                 key="pg_dark_mode",
-                value=st.session_state.get("pg_dark_mode", False),
                 on_change=_sync_theme_toggle,
                 args=("pg_dark_mode",),
                 help="Alterne para ver o tema escuro premium. Modo padrão: Light.",

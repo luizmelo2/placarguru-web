@@ -744,7 +744,6 @@ def filtros_ui(
             st.toggle(
                 "Tema escuro",
                 key="pg_dark_mode_sidebar",
-                value=bool(st.session_state.get("pg_dark_mode_sidebar", False)),
                 on_change=_sync_sidebar_theme,
                 help="Altere rapidamente entre tema claro e escuro.",
             )
