@@ -11,6 +11,7 @@ from typing import Optional, List
 from datetime import date, timedelta
 import streamlit as st
 import pandas as pd
+import streamlit.components.v1 as components
 
 from state import (
     get_filter_state,
@@ -190,6 +191,219 @@ def render_app_header(
       <div class="pg-sr" aria-live="polite">{live_text}</div>
     </div>
     """
+
+
+def render_custom_navigation() -> None:
+    """Renderiza uma navegação customizada para renomear a página principal."""
+
+    if not hasattr(st.sidebar, "page_link"):
+        return
+
+    st.markdown(
+        """
+        <style>
+        /* Esconde a navegação padrão para evitar duplicação de links */
+        [data-testid="stSidebarNav"] { display: none; }
+        /* Reduz o espaçamento superior quando a nav padrão está oculta */
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child { padding-top: 0.25rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.sidebar:
+        st.markdown("#### Navegação")
+        st.page_link("app.py", label="Previsões", icon="🔮")
+        st.page_link(
+            "pages/2_Analise_de_Desempenho.py",
+            label="Análise de Desempenho",
+            icon="📊",
+        )
+        st.divider()
+
+
+def inject_topbar_branding() -> None:
+    """Oculta botão Deploy e adiciona o nome/slogan no header nativo."""
+
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"] .pg-topbar-brand {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--stroke) 80%, var(--primary) 12%);
+            background: color-mix(in srgb, var(--panel) 92%, var(--glass-strong));
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+            color: var(--text);
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        header[data-testid="stHeader"] .pg-topbar-brand span { color: var(--muted); font-weight: 700; }
+        header[data-testid="stHeader"] .pg-topbar-brand strong { font-weight: 800; }
+
+        /* Oculta apenas ações de deploy/compartilhamento nativas do Streamlit */
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] .stDeployButton { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    components.html(
+        """
+        <script>
+        const pgTopbarInterval = setInterval(() => {
+          const doc = window.parent?.document;
+          if (!doc) { return; }
+          const header = doc.querySelector('header[data-testid="stHeader"]');
+          if (!header) { return; }
+          const toolbar = header.querySelector('[data-testid="stToolbar"]') || header;
+          const actions = header.querySelector('[data-testid="stToolbarActions"]');
+          if (actions) {
+            actions.querySelectorAll('button').forEach(btn => {
+              const label = (btn.innerText || '').toLowerCase();
+              const title = (btn.title || '').toLowerCase();
+              if (label.includes('deploy') || label.includes('share') || title.includes('deploy') || title.includes('share')) {
+                btn.style.display = 'none';
+              }
+            });
+          }
+
+          if (!header.querySelector('.pg-topbar-brand')) {
+            const brand = doc.createElement('div');
+            brand.className = 'pg-topbar-brand';
+            brand.innerHTML = '<strong>Placar Guru</strong><span>/ Futebol + Data Science</span>';
+            toolbar.appendChild(brand);
+          } else {
+            clearInterval(pgTopbarInterval);
+          }
+        }, 350);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def inject_header_fix_css(force_header_patch: bool) -> None:
+    """Aplica correções no header/sidebar quando habilitado."""
+
+    if not force_header_patch:
+        return
+
+    fix_header_and_sidebar_css = """
+    <style>
+    /* Garante que o header do Streamlit esteja sempre visível */
+    header[data-testid="stHeader"] {
+        visibility: visible !important;
+        display: flex !important;
+        align-items: center;
+        background: transparent !important;
+        box-shadow: none !important;
+        z-index: 1000 !important;
+    }
+
+    /* Garante que o ícone do menu (toggle do sidebar) apareça */
+    header [data-testid="baseButton-headerNoPadding"],
+    header [data-testid="stSidebarNavToggle"] {
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Se em algum lugar antigo tiver escondido o sidebar, força mostrar */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+    }
+    </style>
+    """
+    st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
+
+
+def render_mobile_quick_filters(
+    tournaments_sel: list,
+    tournament_opts: list,
+    selected_date_range: tuple,
+    min_date: Optional[date],
+    max_date: Optional[date],
+    shared_state,
+) -> tuple[list, tuple, str]:
+    """Renderiza os filtros rápidos mobile e devolve seleções atualizadas."""
+
+    quick_summary = []
+    if tournaments_sel:
+        quick_summary.append(tournament_label(tournaments_sel[0]))
+    if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+        quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
+    quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+
+    with st.expander("Filtros rápidos (mobile)", expanded=True):
+        st.markdown(
+            f"<p class='pg-mobile-toolbar__hint'>Concentre torneios, período e busca em um único bloco. Ativos: {quick_summary_txt}</p>",
+            unsafe_allow_html=True,
+        )
+
+        c1, c2 = st.columns(2)
+        base_opts = ["Todos"] + tournament_opts
+        quick_idx = 0
+        if tournaments_sel and tournaments_sel[0] in tournament_opts:
+            quick_idx = base_opts.index(tournaments_sel[0])
+        quick_tourn = c1.selectbox(
+            "Torneio (atalho)",
+            options=base_opts,
+            index=quick_idx,
+            label_visibility="collapsed",
+        )
+        range_opts = ["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"]
+        quick_range_idx = 0
+        if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+            today = date.today()
+            if selected_date_range == (today, today):
+                quick_range_idx = 1
+            elif selected_date_range == (today, today + timedelta(days=3)):
+                quick_range_idx = 2
+            elif selected_date_range == (today - timedelta(days=3), today):
+                quick_range_idx = 3
+        quick_range = c2.selectbox(
+            "Período (atalho)",
+            options=range_opts,
+            index=quick_range_idx,
+            label_visibility="collapsed",
+        )
+        q_team_input = st.text_input(
+            "Busca rápida por equipe",
+            key="pg_q_team_shared",
+            value=shared_state.search_query or "",
+            placeholder="Digite nome do time...",
+            label_visibility="collapsed",
+        )
+
+        if quick_tourn != "Todos":
+            tournaments_sel = [quick_tourn]
+            shared_state.tournaments_sel = tournaments_sel
+        if quick_range != "Todos" and min_date and max_date:
+            today = date.today()
+            if quick_range == "Hoje":
+                selected_date_range = (today, today)
+            elif quick_range == "Próx. 3 dias":
+                selected_date_range = (today, today + timedelta(days=3))
+            elif quick_range == "Últimos 3 dias":
+                selected_date_range = (today - timedelta(days=3), today)
+            shared_state.selected_date_range = selected_date_range
+
+        shared_state.search_query = q_team_input
+
+    return tournaments_sel, selected_date_range, q_team_input
 
 
 def render_glassy_table(

@@ -2,7 +2,6 @@
 import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
-import streamlit.components.v1 as components
 import json
 import uuid
 import base64
@@ -44,153 +43,44 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-
-def render_custom_navigation():
-    """Renderiza uma navegação customizada para renomear a página principal para 'Previsões'."""
-
-    # `page_link` está disponível nas versões mais novas do Streamlit; evitamos quebrar builds antigas.
-    if not hasattr(st.sidebar, "page_link"):
-        return
-
-    st.markdown(
-        """
-        <style>
-        /* Esconde a navegação padrão para evitar duplicação de links */
-        [data-testid="stSidebarNav"] { display: none; }
-        /* Reduz o espaçamento superior quando a nav padrão está oculta */
-        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child { padding-top: 0.25rem; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.sidebar:
-        st.markdown("#### Navegação")
-        st.page_link("app.py", label="Previsões", icon="🔮")
-        st.page_link(
-            "pages/2_Analise_de_Desempenho.py",
-            label="Análise de Desempenho",
-            icon="📊",
-        )
-        st.divider()
-
-
-def inject_topbar_branding():
-    """Oculta o botão Deploy do Streamlit e adiciona o nome/slogan no header nativo."""
-
-    st.markdown(
-        """
-        <style>
-        header[data-testid="stHeader"] .pg-topbar-brand {
-            display: inline-flex;
-            align-items: baseline;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 14px;
-            border: 1px solid color-mix(in srgb, var(--stroke) 80%, var(--primary) 12%);
-            background: color-mix(in srgb, var(--panel) 92%, var(--glass-strong));
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
-            font-weight: 800;
-            font-size: 13px;
-            letter-spacing: -0.01em;
-            color: var(--text);
-            margin-left: 8px;
-            white-space: nowrap;
-        }
-        header[data-testid="stHeader"] .pg-topbar-brand span { color: var(--muted); font-weight: 700; }
-        header[data-testid="stHeader"] .pg-topbar-brand strong { font-weight: 800; }
-
-        /* Oculta apenas ações de deploy/compartilhamento nativas do Streamlit */
-        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Deploy"],
-        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="deploy"],
-        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Share"],
-        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="share"],
-        header[data-testid="stHeader"] [data-testid="stToolbarActions"] .stDeployButton { display: none !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    components.html(
-        """
-        <script>
-        const pgTopbarInterval = setInterval(() => {
-          const doc = window.parent?.document;
-          if (!doc) { return; }
-          const header = doc.querySelector('header[data-testid="stHeader"]');
-          if (!header) { return; }
-          const toolbar = header.querySelector('[data-testid="stToolbar"]') || header;
-          const actions = header.querySelector('[data-testid="stToolbarActions"]');
-          if (actions) {
-            actions.querySelectorAll('button').forEach(btn => {
-              const label = (btn.innerText || '').toLowerCase();
-              const title = (btn.title || '').toLowerCase();
-              if (label.includes('deploy') || label.includes('share') || title.includes('deploy') || title.includes('share')) {
-                btn.style.display = 'none';
-              }
-            });
-          }
-
-          if (!header.querySelector('.pg-topbar-brand')) {
-            const brand = doc.createElement('div');
-            brand.className = 'pg-topbar-brand';
-            brand.innerHTML = '<strong>Placar Guru</strong><span>/ Futebol + Data Science</span>';
-            toolbar.appendChild(brand);
-          } else {
-            clearInterval(pgTopbarInterval);
-          }
-        }, 350);
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
+from ui_components import (
+    filtros_ui,
+    display_list_view,
+    is_guru_highlight,
+    guru_highlight_flags,
+    guru_highlight_summary,
+    render_glassy_table,
+    render_app_header,
+    render_chip,
+    render_custom_navigation,
+    inject_topbar_branding,
+    inject_header_fix_css,
+    render_mobile_quick_filters,
+)
+import streamlit.components.v1 as components
 
 # Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
 render_custom_navigation()
 
-# CSS para garantir que o header e o botão do menu (hambúrguer) apareçam
-fix_header_and_sidebar_css = """
-<style>
-/* Garante que o header do Streamlit esteja sempre visível */
-header[data-testid="stHeader"] {
-    visibility: visible !important;
-    display: flex !important;
-    align-items: center;
-    background: transparent !important;
-    box-shadow: none !important;
-    z-index: 1000 !important;
-}
-
-/* Garante que o ícone do menu (toggle do sidebar) apareça */
-header [data-testid="baseButton-headerNoPadding"],
-header [data-testid="stSidebarNavToggle"] {
-    display: inline-flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-}
-
-/* Se em algum lugar antigo tiver escondido o sidebar, força mostrar */
-section[data-testid="stSidebar"] {
-    display: block !important;
-}
-</style>
-"""
 # Aplica correção do header somente se estiver habilitada em secrets ou query string
 try:
     force_header_patch = bool(st.secrets.get("force_header_patch", False))
 except StreamlitSecretNotFoundError:
     force_header_patch = False
 force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
-if force_header_patch:
-    st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
+inject_header_fix_css(force_header_patch)
 
 
-# Estado inicial: Light por padrão com anúncio único
-st.session_state.setdefault("pg_dark_mode", False)
-st.session_state.setdefault("pg_theme_announce", "")
+def init_theme_state() -> None:
+    """Garante o estado inicial do tema e sincroniza chaves derivadas."""
+
+    st.session_state.setdefault("pg_dark_mode", False)
+    st.session_state.setdefault("pg_theme_announce", "")
+    dark_mode = bool(st.session_state.get("pg_dark_mode", False))
+    st.session_state.setdefault("pg_dark_mode_header", dark_mode)
+    st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
+    st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
+    st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 
 def _sync_theme_toggle(source_key: str) -> None:
@@ -200,11 +90,8 @@ def _sync_theme_toggle(source_key: str) -> None:
     st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 
+init_theme_state()
 dark_mode = bool(st.session_state.get("pg_dark_mode", False))
-st.session_state.setdefault("pg_dark_mode_header", dark_mode)
-st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
-st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
-st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -219,16 +106,6 @@ st.session_state["pg_mobile_auto"] = modo_mobile
 auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
-from ui_components import (
-    filtros_ui,
-    display_list_view,
-    is_guru_highlight,
-    guru_highlight_flags,
-    guru_highlight_summary,
-    render_glassy_table,
-    render_app_header,
-    render_chip,
-)
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 
 # ============================
@@ -238,44 +115,65 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
     """Aplica formatações e traduções em um DataFrame para exibição amigável."""
     out = df.copy()
 
-    # Tradução de mercados + fallback amigável
-    for col in ["bet_suggestion", "goal_bet_suggestion", "result_predicted"]:
-        if col in out.columns:
-            out[col] = out[col].apply(lambda v: market_label(v))
+    def _translate_markets(frame: pd.DataFrame) -> pd.DataFrame:
+        for col in ["bet_suggestion", "goal_bet_suggestion", "result_predicted"]:
+            if col in frame.columns:
+                frame[col] = frame[col].apply(market_label)
+        return frame
 
-    # Resultado Final (só quando finished)
-    def _fmt_score(row):
-        if norm_status_key(row.get("status","")) in FINISHED_TOKENS:
-            rh, ra = row.get("result_home"), row.get("result_away")
-            if pd.notna(rh) and pd.notna(ra):
-                try:
-                    return f"{int(rh)}-{int(ra)}"
-                except Exception:
-                    return f"{rh}-{ra}"
-            return "N/A"
-        return ""
-    if {"status", "result_home", "result_away"}.issubset(out.columns):
-        out["final_score"] = out.apply(_fmt_score, axis=1)
+    def _compute_final_score(frame: pd.DataFrame) -> pd.DataFrame:
+        def _fmt_score(row):
+            if norm_status_key(row.get("status", "")) in FINISHED_TOKENS:
+                rh, ra = row.get("result_home"), row.get("result_away")
+                if pd.notna(rh) and pd.notna(ra):
+                    try:
+                        return f"{int(rh)}-{int(ra)}"
+                    except Exception:
+                        return f"{rh}-{ra}"
+                return "N/A"
+            return ""
 
-    if "status" in out.columns:
-        out["status"] = out["status"].apply(status_label)
-    if "tournament_id" in out.columns:
-        out["tournament_id"] = out["tournament_id"].apply(tournament_label)
+        if {"status", "result_home", "result_away"}.issubset(frame.columns):
+            frame["final_score"] = frame.apply(_fmt_score, axis=1)
+        return frame
 
-    # Placar Previsto com fallback amigável
-    if "score_predicted" in out.columns:
-        out["score_predicted"] = out["score_predicted"].apply(lambda x: fmt_score_pred_text(x))
+    def _apply_status_labels(frame: pd.DataFrame) -> pd.DataFrame:
+        if "status" in frame.columns:
+            frame["status"] = frame["status"].apply(status_label)
+        if "tournament_id" in frame.columns:
+            frame["tournament_id"] = frame["tournament_id"].apply(tournament_label)
+        return frame
 
-    # Nova Previsão BTTS
-    if "btts_suggestion" in out.columns:
-        out["btts_prediction"] = out["btts_suggestion"].apply(market_label, default="-")
+    def _apply_score_prediction(frame: pd.DataFrame) -> pd.DataFrame:
+        if "score_predicted" in frame.columns:
+            frame["score_predicted"] = frame["score_predicted"].apply(fmt_score_pred_text)
+        return frame
 
-    if "guru_highlight" in out.columns:
-        scope_series = out["guru_highlight_scope"] if "guru_highlight_scope" in out.columns else pd.Series("", index=out.index)
-        out["guru_highlight"] = [
-            f"⭐ {scope}".strip() if bool(flag) else ""
-            for flag, scope in zip(out["guru_highlight"], scope_series)
-        ]
+    def _apply_btts_prediction(frame: pd.DataFrame) -> pd.DataFrame:
+        if "btts_suggestion" in frame.columns:
+            frame["btts_prediction"] = frame["btts_suggestion"].apply(market_label, default="-")
+        return frame
+
+    def _apply_guru_highlight(frame: pd.DataFrame) -> pd.DataFrame:
+        if "guru_highlight" in frame.columns:
+            scope_series = (
+                frame["guru_highlight_scope"] if "guru_highlight_scope" in frame.columns else pd.Series("", index=frame.index)
+            )
+            frame["guru_highlight"] = [
+                f"⭐ {scope}".strip() if bool(flag) else ""
+                for flag, scope in zip(frame["guru_highlight"], scope_series)
+            ]
+        return frame
+
+    for step in (
+        _translate_markets,
+        _compute_final_score,
+        _apply_status_labels,
+        _apply_score_prediction,
+        _apply_btts_prediction,
+        _apply_guru_highlight,
+    ):
+        out = step(out)
 
     return out.rename(columns=FRIENDLY_COLS)
 
@@ -335,88 +233,35 @@ try:
         shared_state = get_filter_state()
         defaults = flt.get("defaults", {})
         if modo_mobile:
-            quick_summary = []
-            if tournaments_sel:
-                quick_summary.append(tournament_label(tournaments_sel[0]))
-            if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
-                quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
-            quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+            tournaments_sel, selected_date_range, q_team_input = render_mobile_quick_filters(
+                tournaments_sel=tournaments_sel,
+                tournament_opts=tournament_opts,
+                selected_date_range=selected_date_range,
+                min_date=min_date,
+                max_date=max_date,
+                shared_state=shared_state,
+            )
+            q_team_input = q_team_input or ""
 
-            with st.expander("Filtros rápidos (mobile)", expanded=True):
+            clear_col, chips_col = st.columns([1, 2])
+            with clear_col:
+                if st.button("Limpar recorte", use_container_width=True):
+                    cleared = reset_filters(defaults)
+                    st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
+                    tournaments_sel = cleared.tournaments_sel or []
+                    models_sel = cleared.models_sel or []
+                    teams_sel = cleared.teams_sel or []
+                    bet_sel = cleared.bet_sel or []
+                    goal_sel = cleared.goal_sel or []
+                    selected_date_range = cleared.selected_date_range
+                    sel_h, sel_d, sel_a = cleared.sel_h, cleared.sel_d, cleared.sel_a
+                    q_team_input = cleared.search_query
+                    shared_state = cleared
+            with chips_col:
                 st.markdown(
-                    f"<p class='pg-mobile-toolbar__hint'>Concentre torneios, período e busca em um único bloco. Ativos: {quick_summary_txt}</p>",
+                    f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {shared_state.active_count}</div>",
                     unsafe_allow_html=True,
                 )
-
-                c1, c2 = st.columns(2)
-                base_opts = ["Todos"] + tournament_opts
-                quick_idx = 0
-                if tournaments_sel and tournaments_sel[0] in tournament_opts:
-                    quick_idx = base_opts.index(tournaments_sel[0])
-                quick_tourn = c1.selectbox(
-                    "Torneio (atalho)",
-                    options=base_opts,
-                    index=quick_idx,
-                    label_visibility="collapsed",
-                )
-                range_opts = ["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"]
-                quick_range_idx = 0
-                if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
-                    today = date.today()
-                    if selected_date_range == (today, today):
-                        quick_range_idx = 1
-                    elif selected_date_range == (today, today + timedelta(days=3)):
-                        quick_range_idx = 2
-                    elif selected_date_range == (today - timedelta(days=3), today):
-                        quick_range_idx = 3
-                quick_range = c2.selectbox(
-                    "Período (atalho)",
-                    options=range_opts,
-                    index=quick_range_idx,
-                    label_visibility="collapsed",
-                )
-                q_team_input = st.text_input(
-                    "Busca rápida por equipe",
-                    key="pg_q_team_shared",
-                    value=shared_state.search_query or "",
-                    placeholder="Digite nome do time...",
-                    label_visibility="collapsed",
-                )
-
-                if quick_tourn != "Todos":
-                    tournaments_sel = [quick_tourn]
-                    shared_state.tournaments_sel = tournaments_sel
-                if quick_range != "Todos" and min_date and max_date:
-                    today = date.today()
-                    if quick_range == "Hoje":
-                        selected_date_range = (today, today)
-                    elif quick_range == "Próx. 3 dias":
-                        selected_date_range = (today, today + timedelta(days=3))
-                    elif quick_range == "Últimos 3 dias":
-                        selected_date_range = (today - timedelta(days=3), today)
-                    shared_state.selected_date_range = selected_date_range
-
-                shared_state.search_query = q_team_input
-
-                clear_col, chips_col = st.columns([1, 2])
-                with clear_col:
-                    if st.button("Limpar recorte", use_container_width=True):
-                        cleared = reset_filters(defaults)
-                        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
-                        tournaments_sel = cleared.tournaments_sel or []
-                        models_sel = cleared.models_sel or []
-                        teams_sel = cleared.teams_sel or []
-                        bet_sel = cleared.bet_sel or []
-                        goal_sel = cleared.goal_sel or []
-                        selected_date_range = cleared.selected_date_range
-                        sel_h, sel_d, sel_a = cleared.sel_h, cleared.sel_d, cleared.sel_a
-                        q_team_input = cleared.search_query
-                        shared_state = cleared
-                with chips_col:
-                    st.markdown(
-                        f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {shared_state.active_count}</div>",
-                        unsafe_allow_html=True,
-                    )
 
             q_team = q_team_input
             set_filter_state(shared_state)
