@@ -643,17 +643,21 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
     )
 
     btn_cols = wrapper.columns(5)
+    preset_value: tuple[date, date] | tuple | None = None
     if btn_cols[0].button("Hoje", use_container_width=True, key="btn_period_today"):
-        selected_date_range = (today, today)
+        preset_value = (today, today)
     if btn_cols[1].button("Próx. 3 dias", use_container_width=True, key="btn_period_next3"):
-        selected_date_range = (today, today + timedelta(days=3))
+        preset_value = (today, today + timedelta(days=3))
     if btn_cols[2].button("Últimos 3 dias", use_container_width=True, key="btn_period_prev3"):
-        selected_date_range = (today - timedelta(days=3), today)
+        preset_value = (today - timedelta(days=3), today)
     if btn_cols[3].button("Semana", use_container_width=True, key="btn_period_week"):
         start = today - timedelta(days=today.weekday())
-        selected_date_range = (start, start + timedelta(days=6))
+        preset_value = (start, start + timedelta(days=6))
     if btn_cols[4].button("Limpar", use_container_width=True, key="btn_period_clear"):
-        selected_date_range = ()
+        preset_value = ()
+
+    if preset_value is not None:
+        selected_date_range = preset_value
 
     def _clamp_range(range_value: tuple[date, date] | tuple) -> tuple[date, date] | tuple:
         normed = _normalize_range(range_value)
@@ -667,6 +671,9 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
         return (start, end)
 
     selected_date_range = _clamp_range(selected_date_range)
+
+    if preset_value is not None:
+        st.session_state["pg_period_range"] = selected_date_range or (min_date, max_date)
 
     selected_date_range = wrapper.date_input(
         "Período (intervalo)",
