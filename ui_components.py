@@ -734,14 +734,7 @@ def filtros_ui(
             """,
             unsafe_allow_html=True,
         )
-        _, top_right = st.columns([1, 1])
-        with top_right:
-            st.toggle(
-                "Exibir filtros",
-                key="pg_filters_open",
-                value=st.session_state.get("pg_filters_open", True),
-                help="Mostre ou esconda os controles principais.",
-            )
+        st.session_state["pg_filters_open"] = True
         if state.active_count:
             st.button(
                 f"Limpar filtros ({state.active_count})",
