@@ -372,18 +372,6 @@ try:
                 brand_col.markdown(header_html, unsafe_allow_html=True)
 
 
-            export_data = generate_pdf_report(curr_df) if not export_disabled else b""
-            st.download_button(
-                label="Exportar recorte para PDF",
-                data=export_data,
-                file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
-                disabled=export_disabled,
-            )
-            if export_disabled:
-                st.caption("O botão é habilitado ao aplicar filtros que retornem jogos neste recorte.")
-
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
             if has_date_col:
@@ -987,6 +975,18 @@ try:
                         )
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
+
+        export_data = generate_pdf_report(curr_df) if not export_disabled else b""
+        st.download_button(
+            label="Exportar recorte para PDF",
+            data=export_data,
+            file_name=f"placar_guru_{curr_label.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            help="Gere um PDF com o recorte atual. Habilita ao aplicar filtros que retornem jogos.",
+            disabled=export_disabled,
+        )
+        if export_disabled:
+            st.caption("O botão é habilitado ao aplicar filtros que retornem jogos neste recorte.")
 
         # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
         st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
