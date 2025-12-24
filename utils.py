@@ -124,11 +124,28 @@ def is_na_like(x: Any) -> bool:
         return True
     return False
 
+def label_from_map(
+    value: Any,
+    mapping: dict,
+    normalize: Optional[callable] = None,
+    default: Optional[Any] = None,
+) -> Optional[str]:
+    """Obtém um rótulo de um dicionário com normalização e fallback opcional."""
+    try:
+        key = normalize(value) if normalize else value
+    except Exception:
+        key = value
+    if key in mapping:
+        return mapping[key]
+    if default is None:
+        return None
+    return default(value) if callable(default) else default
+
 def market_label(v: Any, default: str = "Sem previsão calculada") -> str:
     """Mapa amigável com fallback caso venha NaN/None/vazio."""
     if is_na_like(v):
         return default
-    return FRIENDLY_MARKETS.get(v, str(v))
+    return label_from_map(v, FRIENDLY_MARKETS, default=str)
 
 def _canon_tourn_key(x: Any) -> Optional[Any]:
     """Converte a chave de um torneio para um tipo canônico (int ou str)."""
@@ -147,11 +164,13 @@ def _canon_tourn_key(x: Any) -> Optional[Any]:
 def tournament_label(x: Any) -> str:
     """Retorna o nome amigável de um torneio a partir de sua chave."""
     k = _canon_tourn_key(x)
-    if k in FRIENDLY_TOURNAMENTS:
-        return FRIENDLY_TOURNAMENTS[k]
+    label = label_from_map(k, FRIENDLY_TOURNAMENTS)
+    if label is not None:
+        return label
     ks = str(k) if k is not None else None
-    if ks in FRIENDLY_TOURNAMENTS:
-        return FRIENDLY_TOURNAMENTS[ks]
+    label = label_from_map(ks, FRIENDLY_TOURNAMENTS)
+    if label is not None:
+        return label
     return f"Torneio {x}"
 
 
@@ -161,7 +180,7 @@ def norm_status_key(s: Any) -> str:
 
 def status_label(s: Any) -> str:
     """Retorna o rótulo amigável para um status de jogo."""
-    return FRIENDLY_STATUS_MAP.get(norm_status_key(s), str(s))
+    return label_from_map(s, FRIENDLY_STATUS_MAP, normalize=norm_status_key, default=str)
 
 def normalize_pred_code(series: pd.Series) -> pd.Series:
     """Normaliza uma série de códigos de previsão para um formato padrão (H, D, A, etc.)."""

@@ -11,6 +11,7 @@ from typing import Optional, List
 from datetime import date, timedelta
 import streamlit as st
 import pandas as pd
+import streamlit.components.v1 as components
 
 from state import (
     get_filter_state,
@@ -192,6 +193,219 @@ def render_app_header(
     """
 
 
+def render_custom_navigation() -> None:
+    """Renderiza uma navegação customizada para renomear a página principal."""
+
+    if not hasattr(st.sidebar, "page_link"):
+        return
+
+    st.markdown(
+        """
+        <style>
+        /* Esconde a navegação padrão para evitar duplicação de links */
+        [data-testid="stSidebarNav"] { display: none; }
+        /* Reduz o espaçamento superior quando a nav padrão está oculta */
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child { padding-top: 0.25rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.sidebar:
+        st.markdown("#### Navegação")
+        st.page_link("app.py", label="Previsões", icon="🔮")
+        st.page_link(
+            "pages/2_Analise_de_Desempenho.py",
+            label="Análise de Desempenho",
+            icon="📊",
+        )
+        st.divider()
+
+
+def inject_topbar_branding() -> None:
+    """Oculta botão Deploy e adiciona o nome/slogan no header nativo."""
+
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"] .pg-topbar-brand {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--stroke) 80%, var(--primary) 12%);
+            background: color-mix(in srgb, var(--panel) 92%, var(--glass-strong));
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: -0.01em;
+            color: var(--text);
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        header[data-testid="stHeader"] .pg-topbar-brand span { color: var(--muted); font-weight: 700; }
+        header[data-testid="stHeader"] .pg-topbar-brand strong { font-weight: 800; }
+
+        /* Oculta apenas ações de deploy/compartilhamento nativas do Streamlit */
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="deploy"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="Share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] button[title*="share"],
+        header[data-testid="stHeader"] [data-testid="stToolbarActions"] .stDeployButton { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    components.html(
+        """
+        <script>
+        const pgTopbarInterval = setInterval(() => {
+          const doc = window.parent?.document;
+          if (!doc) { return; }
+          const header = doc.querySelector('header[data-testid="stHeader"]');
+          if (!header) { return; }
+          const toolbar = header.querySelector('[data-testid="stToolbar"]') || header;
+          const actions = header.querySelector('[data-testid="stToolbarActions"]');
+          if (actions) {
+            actions.querySelectorAll('button').forEach(btn => {
+              const label = (btn.innerText || '').toLowerCase();
+              const title = (btn.title || '').toLowerCase();
+              if (label.includes('deploy') || label.includes('share') || title.includes('deploy') || title.includes('share')) {
+                btn.style.display = 'none';
+              }
+            });
+          }
+
+          if (!header.querySelector('.pg-topbar-brand')) {
+            const brand = doc.createElement('div');
+            brand.className = 'pg-topbar-brand';
+            brand.innerHTML = '<strong>Placar Guru</strong><span>/ Futebol + Data Science</span>';
+            toolbar.appendChild(brand);
+          } else {
+            clearInterval(pgTopbarInterval);
+          }
+        }, 350);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def inject_header_fix_css(force_header_patch: bool) -> None:
+    """Aplica correções no header/sidebar quando habilitado."""
+
+    if not force_header_patch:
+        return
+
+    fix_header_and_sidebar_css = """
+    <style>
+    /* Garante que o header do Streamlit esteja sempre visível */
+    header[data-testid="stHeader"] {
+        visibility: visible !important;
+        display: flex !important;
+        align-items: center;
+        background: transparent !important;
+        box-shadow: none !important;
+        z-index: 1000 !important;
+    }
+
+    /* Garante que o ícone do menu (toggle do sidebar) apareça */
+    header [data-testid="baseButton-headerNoPadding"],
+    header [data-testid="stSidebarNavToggle"] {
+        display: inline-flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Se em algum lugar antigo tiver escondido o sidebar, força mostrar */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+    }
+    </style>
+    """
+    st.markdown(fix_header_and_sidebar_css, unsafe_allow_html=True)
+
+
+def render_mobile_quick_filters(
+    tournaments_sel: list,
+    tournament_opts: list,
+    selected_date_range: tuple,
+    min_date: Optional[date],
+    max_date: Optional[date],
+    shared_state,
+) -> tuple[list, tuple, str]:
+    """Renderiza os filtros rápidos mobile e devolve seleções atualizadas."""
+
+    quick_summary = []
+    if tournaments_sel:
+        quick_summary.append(tournament_label(tournaments_sel[0]))
+    if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+        quick_summary.append(f"{selected_date_range[0].strftime('%d/%m')}–{selected_date_range[1].strftime('%d/%m')}")
+    quick_summary_txt = " · ".join(quick_summary) if quick_summary else "Sem filtros rápidos"
+
+    with st.expander("Filtros rápidos (mobile)", expanded=True):
+        st.markdown(
+            f"<p class='pg-mobile-toolbar__hint'>Ativos: {quick_summary_txt}</p>",
+            unsafe_allow_html=True,
+        )
+
+        c1, c2 = st.columns(2)
+        base_opts = ["Todos"] + tournament_opts
+        quick_idx = 0
+        if tournaments_sel and tournaments_sel[0] in tournament_opts:
+            quick_idx = base_opts.index(tournaments_sel[0])
+        quick_tourn = c1.selectbox(
+            "Torneio (atalho)",
+            options=base_opts,
+            index=quick_idx,
+            label_visibility="collapsed",
+        )
+        range_opts = ["Todos", "Hoje", "Próx. 3 dias", "Últimos 3 dias"]
+        quick_range_idx = 0
+        if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2:
+            today = date.today()
+            if selected_date_range == (today, today):
+                quick_range_idx = 1
+            elif selected_date_range == (today, today + timedelta(days=3)):
+                quick_range_idx = 2
+            elif selected_date_range == (today - timedelta(days=3), today):
+                quick_range_idx = 3
+        quick_range = c2.selectbox(
+            "Período (atalho)",
+            options=range_opts,
+            index=quick_range_idx,
+            label_visibility="collapsed",
+        )
+        q_team_input = st.text_input(
+            "Busca rápida por equipe",
+            key="pg_q_team_shared",
+            value=shared_state.search_query or "",
+            placeholder="Digite nome do time...",
+            label_visibility="collapsed",
+        )
+
+        if quick_tourn != "Todos":
+            tournaments_sel = [quick_tourn]
+            shared_state.tournaments_sel = tournaments_sel
+        if quick_range != "Todos" and min_date and max_date:
+            today = date.today()
+            if quick_range == "Hoje":
+                selected_date_range = (today, today)
+            elif quick_range == "Próx. 3 dias":
+                selected_date_range = (today, today + timedelta(days=3))
+            elif quick_range == "Últimos 3 dias":
+                selected_date_range = (today - timedelta(days=3), today)
+            shared_state.selected_date_range = selected_date_range
+
+        shared_state.search_query = q_team_input
+
+    return tournaments_sel, selected_date_range, q_team_input
+
+
 def render_glassy_table(
     df: pd.DataFrame,
     caption: Optional[str] = None,
@@ -289,7 +503,6 @@ def _render_filtros_modelos(container, model_opts: list, default_models: list, m
             <div>
               <p class="pg-eyebrow">Modelos</p>
               <h5 class="pg-filter-section__title">Combine previsões por modelo</h5>
-              <p class="pg-filter-section__hint">Escolha apenas os modelos favoritos ou deixe em branco para ver todos.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">Comparar</span>
           </div>
@@ -322,7 +535,6 @@ def _render_filtros_equipes(
             <div>
               <p class="pg-eyebrow">Equipes</p>
               <h5 class="pg-filter-section__title">Encontre times rapidamente</h5>
-              <p class="pg-filter-section__hint">Filtre por equipes mandantes ou visitantes e use a busca para atalhos.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">Busca rápida</span>
           </div>
@@ -356,7 +568,6 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
             <div>
               <p class="pg-eyebrow">Sugestões</p>
               <h5 class="pg-filter-section__title">Refine as previsões sugeridas</h5>
-              <p class="pg-filter-section__hint">Escolha mercados de aposta e gols para focar apenas nas sugestões desejadas.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">⭐ Destaque Guru</span>
           </div>
@@ -420,7 +631,6 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
             <div>
               <p class="pg-eyebrow">Período</p>
               <h5 class="pg-filter-section__title">Filtre por datas rapidamente</h5>
-              <p class="pg-filter-section__hint">Use atalhos rápidos ou escolha um intervalo personalizado.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">Calendário</span>
           </div>
@@ -429,17 +639,21 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
     )
 
     btn_cols = wrapper.columns(5)
+    preset_value: tuple[date, date] | tuple | None = None
     if btn_cols[0].button("Hoje", use_container_width=True, key="btn_period_today"):
-        selected_date_range = (today, today)
+        preset_value = (today, today)
     if btn_cols[1].button("Próx. 3 dias", use_container_width=True, key="btn_period_next3"):
-        selected_date_range = (today, today + timedelta(days=3))
+        preset_value = (today, today + timedelta(days=3))
     if btn_cols[2].button("Últimos 3 dias", use_container_width=True, key="btn_period_prev3"):
-        selected_date_range = (today - timedelta(days=3), today)
+        preset_value = (today - timedelta(days=3), today)
     if btn_cols[3].button("Semana", use_container_width=True, key="btn_period_week"):
         start = today - timedelta(days=today.weekday())
-        selected_date_range = (start, start + timedelta(days=6))
+        preset_value = (start, start + timedelta(days=6))
     if btn_cols[4].button("Limpar", use_container_width=True, key="btn_period_clear"):
-        selected_date_range = ()
+        preset_value = ()
+
+    if preset_value is not None:
+        selected_date_range = preset_value
 
     def _clamp_range(range_value: tuple[date, date] | tuple) -> tuple[date, date] | tuple:
         normed = _normalize_range(range_value)
@@ -453,6 +667,9 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
         return (start, end)
 
     selected_date_range = _clamp_range(selected_date_range)
+
+    if preset_value is not None:
+        st.session_state["pg_period_range"] = selected_date_range or (min_date, max_date)
 
     selected_date_range = wrapper.date_input(
         "Período (intervalo)",
@@ -502,11 +719,6 @@ def filtros_ui(
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
     state.tournaments_sel = tournaments_sel
 
-    def _sync_sidebar_theme():
-        st.session_state["pg_dark_mode"] = bool(st.session_state.get("pg_dark_mode_sidebar", False))
-        st.session_state["pg_theme_announce"] = f"Tema {'escuro' if st.session_state['pg_dark_mode'] else 'claro'} ativado"
-        st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
-
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
         st.markdown("<div class='pg-filter-shell'>", unsafe_allow_html=True)
@@ -516,31 +728,13 @@ def filtros_ui(
               <div>
                 <p class="pg-eyebrow">Filtros principais</p>
                 <h4 class="pg-filter-title">Refine torneios, modelos e odds</h4>
-                <p class="pg-filter-sub">Combine torneios, período e sugestões com atalhos mais claros.</p>
               </div>
-              <div class="pg-filter-actions">
-                <span class="pg-chip ghost">Visual refinado</span>
-              </div>
+              <div class="pg-filter-actions"></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        top_left, top_right = st.columns([1, 1])
-        with top_left:
-            st.toggle(
-                "Tema escuro",
-                key="pg_dark_mode_sidebar",
-                value=bool(st.session_state.get("pg_dark_mode_sidebar", False)),
-                on_change=_sync_sidebar_theme,
-                help="Altere rapidamente entre tema claro e escuro.",
-            )
-        with top_right:
-            st.toggle(
-                "Exibir filtros",
-                key="pg_filters_open",
-                value=st.session_state.get("pg_filters_open", True),
-                help="Mostre ou esconda os controles principais.",
-            )
+        st.session_state["pg_filters_open"] = True
         if state.active_count:
             st.button(
                 f"Limpar filtros ({state.active_count})",
@@ -554,6 +748,10 @@ def filtros_ui(
             )
 
         if st.session_state.get("pg_filters_open", False):
+            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
+                st, opts["bet_opts"], opts["goal_opts"], defaults
+            )
+
             st.markdown("<div class='pg-filter-section'><p class='pg-eyebrow'>Campeonatos</p>", unsafe_allow_html=True)
             csel_all, cclear = st.columns(2)
             with csel_all:
@@ -576,9 +774,6 @@ def filtros_ui(
             state.models_sel = _render_filtros_modelos(st, opts["model_opts"], defaults.get("models_sel", []), modo_mobile)
             state.teams_sel, state.search_query = _render_filtros_equipes(
                 st, opts["team_opts"], modo_mobile, tournaments_sel, state.search_query, default_teams=defaults.get("teams_sel")
-            )
-            state.bet_sel, state.goal_sel, state.guru_only = _render_filtros_sugestoes(
-                st, opts["bet_opts"], opts["goal_opts"], defaults
             )
             state.selected_date_range = _render_filtros_periodo(
                 st, opts["min_date"], opts["max_date"], state.selected_date_range

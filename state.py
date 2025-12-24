@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import date
 from typing import List, Optional, Tuple
 
@@ -21,12 +21,12 @@ DEFAULT_TABLE_DENSITY = "compact"
 class FilterState:
     """Representa o estado completo dos filtros da página."""
 
-    tournaments_sel: List = None
-    models_sel: List = None
-    teams_sel: List = None
-    bet_sel: List = None
-    goal_sel: List = None
-    selected_date_range: Tuple[date, date] | tuple = ()
+    tournaments_sel: List = field(default_factory=list)
+    models_sel: List = field(default_factory=list)
+    teams_sel: List = field(default_factory=list)
+    bet_sel: List = field(default_factory=list)
+    goal_sel: List = field(default_factory=list)
+    selected_date_range: Tuple[date, date] | tuple = field(default_factory=tuple)
     sel_h: tuple[float, float] | None = None
     sel_d: tuple[float, float] | None = None
     sel_a: tuple[float, float] | None = None
@@ -97,8 +97,8 @@ def _odds_default(df: pd.DataFrame, col: str, fallback: tuple[float, float] = (0
     return fallback
 
 
-def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, dict]:
-    """Centraliza a montagem dos defaults e opções disponíveis para os filtros."""
+def get_filter_options(df: pd.DataFrame) -> dict:
+    """Coleta as opções disponíveis para cada filtro baseado no DataFrame."""
 
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
     tourn_opts = sorted(df["tournament_id"].dropna().unique()) if "tournament_id" in df.columns else []
@@ -113,6 +113,29 @@ def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, di
         if "goal_bet_suggestion" in df.columns
         else []
     )
+    min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
+    max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
+
+    return {
+        "model_opts": model_opts,
+        "tourn_opts": tourn_opts,
+        "team_opts": team_opts,
+        "bet_opts": bet_opts,
+        "goal_opts": goal_opts,
+        "min_date": min_date,
+        "max_date": max_date,
+    }
+
+
+def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, dict]:
+    """Centraliza a montagem dos defaults e opções disponíveis para os filtros."""
+
+    options = get_filter_options(df)
+    model_opts = options["model_opts"]
+    tourn_opts = options["tourn_opts"]
+    team_opts = options["team_opts"]
+    bet_opts = options["bet_opts"]
+    goal_opts = options["goal_opts"]
 
     default_models = []
     if model_opts:
@@ -122,8 +145,8 @@ def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, di
             wanted = [m for m in model_opts if str(m).strip().lower() == "combo"]
         default_models = wanted or model_opts
 
-    min_date = df["date"].min().date() if "date" in df and df["date"].notna().any() else None
-    max_date = df["date"].max().date() if "date" in df and df["date"].notna().any() else None
+    min_date = options["min_date"]
+    max_date = options["max_date"]
     persisted = load_persisted_filters()
 
     defaults = {
@@ -142,15 +165,6 @@ def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, di
 
     defaults.update({k: v for k, v in persisted.items() if v})
 
-    options = {
-        "model_opts": model_opts,
-        "tourn_opts": tourn_opts,
-        "team_opts": team_opts,
-        "bet_opts": bet_opts,
-        "goal_opts": goal_opts,
-        "min_date": min_date,
-        "max_date": max_date,
-    }
     return defaults, options
 
 
@@ -230,4 +244,3 @@ TABLE_COLUMN_PRESETS = {
         "status", "bet_suggestion", "result_predicted", "final_score",
     ],
 }
-
