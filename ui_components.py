@@ -979,6 +979,7 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
                 ("Resultado", "badge_res"),
                 ("Sugestão", "badge_bet"),
                 ("Gols", "badge_goal"),
+                ("BTTS", "badge_btts_pred"),
                 ("Placar Previsto", "badge_score"),
             ]:
                 icon = data.get(key)
