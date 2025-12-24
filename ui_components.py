@@ -503,7 +503,6 @@ def _render_filtros_modelos(container, model_opts: list, default_models: list, m
             <div>
               <p class="pg-eyebrow">Modelos</p>
               <h5 class="pg-filter-section__title">Combine previsões por modelo</h5>
-              <p class="pg-filter-section__hint">Escolha apenas os modelos favoritos ou deixe em branco para ver todos.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">Comparar</span>
           </div>
@@ -536,7 +535,6 @@ def _render_filtros_equipes(
             <div>
               <p class="pg-eyebrow">Equipes</p>
               <h5 class="pg-filter-section__title">Encontre times rapidamente</h5>
-              <p class="pg-filter-section__hint">Filtre por equipes mandantes ou visitantes e use a busca para atalhos.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">Busca rápida</span>
           </div>
@@ -570,7 +568,6 @@ def _render_filtros_sugestoes(container, bet_opts: list, goal_opts: list, defaul
             <div>
               <p class="pg-eyebrow">Sugestões</p>
               <h5 class="pg-filter-section__title">Refine as previsões sugeridas</h5>
-              <p class="pg-filter-section__hint">Escolha mercados de aposta e gols para focar apenas nas sugestões desejadas.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">⭐ Destaque Guru</span>
           </div>
@@ -634,7 +631,6 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
             <div>
               <p class="pg-eyebrow">Período</p>
               <h5 class="pg-filter-section__title">Filtre por datas rapidamente</h5>
-              <p class="pg-filter-section__hint">Use atalhos rápidos ou escolha um intervalo personalizado.</p>
             </div>
             <span class="pg-chip ghost pg-filter-chip">Calendário</span>
           </div>
