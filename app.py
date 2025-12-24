@@ -189,8 +189,16 @@ if force_header_patch:
 
 
 # Estado inicial: Light por padrão com anúncio único
-st.session_state.setdefault("pg_dark_mode", False)
 st.session_state.setdefault("pg_theme_announce", "")
+
+
+def init_theme_state() -> None:
+    st.session_state.setdefault("pg_dark_mode", False)
+    dark_mode = bool(st.session_state.get("pg_dark_mode", False))
+    st.session_state.setdefault("pg_dark_mode_header", dark_mode)
+    st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
+    st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
+    st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 
 def _sync_theme_toggle(source_key: str) -> None:
@@ -200,11 +208,8 @@ def _sync_theme_toggle(source_key: str) -> None:
     st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 
+init_theme_state()
 dark_mode = bool(st.session_state.get("pg_dark_mode", False))
-st.session_state.setdefault("pg_dark_mode_header", dark_mode)
-st.session_state.setdefault("pg_dark_mode_sidebar", dark_mode)
-st.session_state["pg_dark_mode_header"] = st.session_state["pg_dark_mode"]
-st.session_state["pg_dark_mode_sidebar"] = st.session_state["pg_dark_mode"]
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
