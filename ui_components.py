@@ -727,9 +727,7 @@ def filtros_ui(
                 <h4 class="pg-filter-title">Refine torneios, modelos e odds</h4>
                 <p class="pg-filter-sub">Combine torneios, período e sugestões com atalhos mais claros.</p>
               </div>
-              <div class="pg-filter-actions">
-                <span class="pg-chip ghost">Visual refinado</span>
-              </div>
+              <div class="pg-filter-actions"></div>
             </div>
             """,
             unsafe_allow_html=True,
