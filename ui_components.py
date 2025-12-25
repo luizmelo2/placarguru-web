@@ -27,7 +27,8 @@ from utils import (
     eval_goal_row, eval_btts_suggestion_row, evaluate_market,
     get_prob_and_odd_for_market, fmt_score_pred_text,
     green_html, norm_status_key, FINISHED_TOKENS, _exists, _po, fmt_odd, fmt_prob,
-    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS, generate_sofascore_link
+    GOAL_MARKET_THRESHOLDS, MARKET_TO_ODDS_COLS, generate_sofascore_link,
+    prob_from_market,
 )
 
 LOGO_DIR = Path(__file__).parent / "images"
@@ -118,25 +119,6 @@ def render_status_badge(status: str) -> str:
     return f"{prefix} {label}"
 
 
-def _prob_from_market(row: pd.Series, market_code: Optional[str]) -> Optional[float]:
-    """Retorna a probabilidade associada a um mercado, se existir."""
-
-    if pd.isna(market_code):
-        return None
-
-    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
-    if not cols:
-        return None
-
-    prob = row.get(cols[0])
-    try:
-        prob_val = float(prob)
-    except Exception:
-        return None
-
-    return prob_val if not pd.isna(prob_val) else None
-
-
 def guru_highlight_flags(row: pd.Series) -> dict[str, bool]:
     """Retorna flags de destaque Guru por tipo de previsão (prob >= 80%)."""
 
@@ -149,7 +131,7 @@ def guru_highlight_flags(row: pd.Series) -> dict[str, bool]:
 
     flags: dict[str, bool] = {}
     for label, market_code in mapping.items():
-        prob_val = _prob_from_market(row, market_code)
+        prob_val = prob_from_market(row, market_code)
         flags[label] = bool(prob_val is not None and prob_val >= HIGHLIGHT_PROB_THRESHOLD)
     return flags
 
@@ -160,6 +142,20 @@ def guru_highlight_summary(row: pd.Series, sep: str = " · ") -> str:
     flags = guru_highlight_flags(row)
     active = [label for label, is_on in flags.items() if is_on]
     return sep.join(active)
+
+
+def build_guru_highlight_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """Calcula flags e resumo de destaque Guru em uma única passagem."""
+    flags_df = pd.DataFrame(
+        df.apply(guru_highlight_flags, axis=1).tolist(),
+        index=df.index,
+    )
+    summary = flags_df.apply(
+        lambda row: " · ".join([label for label, is_on in row.items() if is_on]),
+        axis=1,
+    )
+    flags_any = flags_df.any(axis=1)
+    return flags_df, summary, flags_any
 
 
 def render_app_header(
