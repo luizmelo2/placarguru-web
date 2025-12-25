@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict, field
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
 import pandas as pd
@@ -125,6 +125,11 @@ def get_filter_options(df: pd.DataFrame) -> dict:
         "min_date": min_date,
         "max_date": max_date,
     }
+
+def recent_date_window(days: int = 3, today: Optional[date] = None) -> tuple[date, date]:
+    """Retorna um intervalo recente de datas com base em hoje."""
+    base = today or date.today()
+    return (base - timedelta(days=days), base)
 
 
 def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, dict]:

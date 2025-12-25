@@ -7,7 +7,7 @@ import uuid
 import base64
 import pandas as pd
 import altair as alt
-from datetime import timedelta, date, datetime
+from datetime import datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
 from string import Template
 
@@ -17,9 +17,8 @@ from email.utils import parsedate_to_datetime
 
 # Importa funções e constantes do utils.py
 from utils import (
-    fetch_release_file, RELEASE_URL, load_data, FRIENDLY_COLS,
-    tournament_label, market_label, norm_status_key, fmt_score_pred_text,
-    status_label, FINISHED_TOKENS,
+    fetch_release_file, RELEASE_URL, load_data,
+    tournament_label, norm_status_key, apply_friendly_for_display,
 )
 from styles import inject_custom_css, apply_altair_theme, chart_tokens
 from state import (
@@ -30,6 +29,8 @@ from state import (
     TABLE_COLUMN_PRESETS,
     DEFAULT_TABLE_DENSITY,
     reset_filters,
+    FilterState,
+    recent_date_window,
 )
 
 # ============================
@@ -47,8 +48,7 @@ from ui_components import (
     filtros_ui,
     display_list_view,
     is_guru_highlight,
-    guru_highlight_flags,
-    guru_highlight_summary,
+    build_guru_highlight_data,
     render_glassy_table,
     render_app_header,
     render_chip,
@@ -95,74 +95,68 @@ auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_
 from reporting import generate_pdf_report
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
 
-# ============================
-# Exibição amigável
-# ============================
-def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
-    """Aplica formatações e traduções em um DataFrame para exibição amigável."""
-    out = df.copy()
+def _apply_filters(
+    df: pd.DataFrame,
+    tournaments_sel: list,
+    models_sel: list,
+    teams_sel: list,
+    q_team: str,
+    bet_sel: list,
+    goal_sel: list,
+    selected_date_range: tuple,
+    sel_h: tuple,
+    sel_d: tuple,
+    sel_a: tuple,
+    guru_only: bool,
+    guru_flag_all: pd.Series,
+) -> pd.DataFrame:
+    """Aplica filtros de seleção e retorna o DataFrame filtrado."""
+    final_mask = pd.Series(True, index=df.index)
 
-    def _translate_markets(frame: pd.DataFrame) -> pd.DataFrame:
-        for col in ["bet_suggestion", "goal_bet_suggestion", "result_predicted"]:
-            if col in frame.columns:
-                frame[col] = frame[col].apply(market_label)
-        return frame
+    if tournaments_sel and "tournament_id" in df.columns:
+        final_mask &= df["tournament_id"].isin(tournaments_sel)
 
-    def _compute_final_score(frame: pd.DataFrame) -> pd.DataFrame:
-        def _fmt_score(row):
-            if norm_status_key(row.get("status", "")) in FINISHED_TOKENS:
-                rh, ra = row.get("result_home"), row.get("result_away")
-                if pd.notna(rh) and pd.notna(ra):
-                    try:
-                        return f"{int(rh)}-{int(ra)}"
-                    except Exception:
-                        return f"{rh}-{ra}"
-                return "N/A"
-            return ""
+    if models_sel and "model" in df.columns:
+        final_mask &= df["model"].isin(models_sel)
 
-        if {"status", "result_home", "result_away"}.issubset(frame.columns):
-            frame["final_score"] = frame.apply(_fmt_score, axis=1)
-        return frame
+    if teams_sel and {"home", "away"}.issubset(df.columns):
+        home_ser = df["home"].astype(str)
+        away_ser = df["away"].astype(str)
+        final_mask &= (home_ser.isin(teams_sel) | away_ser.isin(teams_sel))
 
-    def _apply_status_labels(frame: pd.DataFrame) -> pd.DataFrame:
-        if "status" in frame.columns:
-            frame["status"] = frame["status"].apply(status_label)
-        if "tournament_id" in frame.columns:
-            frame["tournament_id"] = frame["tournament_id"].apply(tournament_label)
-        return frame
+    if q_team and {"home", "away"}.issubset(df.columns):
+        q = str(q_team).strip()
+        if q:
+            home_contains = df["home"].astype(str).str.contains(q, case=False, na=False)
+            away_contains = df["away"].astype(str).str.contains(q, case=False, na=False)
+            final_mask &= (home_contains | away_contains)
 
-    def _apply_score_prediction(frame: pd.DataFrame) -> pd.DataFrame:
-        if "score_predicted" in frame.columns:
-            frame["score_predicted"] = frame["score_predicted"].apply(fmt_score_pred_text)
-        return frame
+    if bet_sel and "bet_suggestion" in df.columns:
+        final_mask &= df["bet_suggestion"].astype(str).isin([str(x) for x in bet_sel])
 
-    def _apply_btts_prediction(frame: pd.DataFrame) -> pd.DataFrame:
-        if "btts_suggestion" in frame.columns:
-            frame["btts_prediction"] = frame["btts_suggestion"].apply(market_label, default="-")
-        return frame
+    if goal_sel and "goal_bet_suggestion" in df.columns:
+        final_mask &= df["goal_bet_suggestion"].astype(str).isin([str(x) for x in goal_sel])
 
-    def _apply_guru_highlight(frame: pd.DataFrame) -> pd.DataFrame:
-        if "guru_highlight" in frame.columns:
-            scope_series = (
-                frame["guru_highlight_scope"] if "guru_highlight_scope" in frame.columns else pd.Series("", index=frame.index)
-            )
-            frame["guru_highlight"] = [
-                f"⭐ {scope}".strip() if bool(flag) else ""
-                for flag, scope in zip(frame["guru_highlight"], scope_series)
-            ]
-        return frame
-
-    for step in (
-        _translate_markets,
-        _compute_final_score,
-        _apply_status_labels,
-        _apply_score_prediction,
-        _apply_btts_prediction,
-        _apply_guru_highlight,
+    if (
+        selected_date_range
+        and isinstance(selected_date_range, (list, tuple))
+        and len(selected_date_range) == 2
+        and "date" in df.columns
     ):
-        out = step(out)
+        start_date, end_date = selected_date_range
+        final_mask &= (df["date"].dt.date.between(start_date, end_date)) | (df["date"].isna())
 
-    return out.rename(columns=FRIENDLY_COLS)
+    if "odds_H" in df.columns:
+        final_mask &= ((df["odds_H"] >= sel_h[0]) & (df["odds_H"] <= sel_h[1])) | (df["odds_H"].isna())
+    if "odds_D" in df.columns:
+        final_mask &= ((df["odds_D"] >= sel_d[0]) & (df["odds_D"] <= sel_d[1])) | (df["odds_D"].isna())
+    if "odds_A" in df.columns:
+        final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
+
+    if guru_only:
+        final_mask &= guru_flag_all
+
+    return df[final_mask]
 
 
 # ============================
@@ -253,74 +247,49 @@ try:
             q_team = q_team_input
             set_filter_state(shared_state)
 
-        guru_scope_all = df.apply(guru_highlight_summary, axis=1)
-        guru_flags_all = pd.DataFrame(
-            df.apply(guru_highlight_flags, axis=1).tolist(), index=df.index
-        )
-        guru_flag_all = guru_scope_all.apply(bool)
+        guru_flags_all, guru_scope_all, guru_flag_all = build_guru_highlight_data(df)
 
-        active_filters = 0
-        if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
-            active_filters += 1
         model_unique = df["model"].nunique() if "model" in df.columns else 0
-        if models_sel and (model_unique and len(models_sel) != model_unique):
-            active_filters += 1
-        if teams_sel:
-            active_filters += 1
-        if q_team:
-            active_filters += 1
-        if bet_sel or goal_sel:
-            active_filters += 1
-        if selected_date_range:
-            active_filters += 1
-        if guru_only:
-            active_filters += 1
+        tournaments_sel_count = (
+            [] if (tournaments_sel and len(tournaments_sel) == len(tournament_opts)) else tournaments_sel
+        )
+        models_sel_count = (
+            [] if (models_sel and model_unique and len(models_sel) == model_unique) else models_sel
+        )
 
-        # Máscara combinada (sem status)
-        final_mask = pd.Series(True, index=df.index)
+        current_state = FilterState(
+            tournaments_sel=tournaments_sel_count,
+            models_sel=models_sel_count,
+            teams_sel=teams_sel,
+            bet_sel=bet_sel,
+            goal_sel=goal_sel,
+            selected_date_range=selected_date_range,
+            sel_h=sel_h,
+            sel_d=sel_d,
+            sel_a=sel_a,
+            search_query=q_team or "",
+            guru_only=guru_only,
+        )
+        active_filters = current_state.active_count
 
-        # ▶️ Aplicar filtro global de campeonatos
-        if tournaments_sel and "tournament_id" in df.columns:
-            final_mask &= df["tournament_id"].isin(tournaments_sel)
-
-        if models_sel and "model" in df.columns:
-            final_mask &= df["model"].isin(models_sel)
-
-        if teams_sel and {"home", "away"}.issubset(df.columns):
-            home_ser = df["home"].astype(str)
-            away_ser = df["away"].astype(str)
-            final_mask &= (home_ser.isin(teams_sel) | away_ser.isin(teams_sel))
-
-        if q_team and {"home", "away"}.issubset(df.columns):
-            q = str(q_team).strip()
-            if q:
-                home_contains = df["home"].astype(str).str.contains(q, case=False, na=False)
-                away_contains = df["away"].astype(str).str.contains(q, case=False, na=False)
-                final_mask &= (home_contains | away_contains)
-
-        if bet_sel and "bet_suggestion" in df.columns:
-            final_mask &= df["bet_suggestion"].astype(str).isin([str(x) for x in bet_sel])
-
-        if goal_sel and "goal_bet_suggestion" in df.columns:
-            final_mask &= df["goal_bet_suggestion"].astype(str).isin([str(x) for x in goal_sel])
-
-        if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2 and "date" in df.columns:
-            start_date, end_date = selected_date_range
-            final_mask &= (df["date"].dt.date.between(start_date, end_date)) | (df["date"].isna())
-
-        if "odds_H" in df.columns:
-            final_mask &= ((df["odds_H"] >= sel_h[0]) & (df["odds_H"] <= sel_h[1])) | (df["odds_H"].isna())
-        if "odds_D" in df.columns:
-            final_mask &= ((df["odds_D"] >= sel_d[0]) & (df["odds_D"] <= sel_d[1])) | (df["odds_D"].isna())
-        if "odds_A" in df.columns:
-            final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
-
-        if guru_only:
-            final_mask &= guru_flag_all
-
-        df_filtered = df[final_mask].assign(
-            guru_highlight_scope=guru_scope_all[final_mask],
-            guru_highlight=guru_flag_all[final_mask],
+        df_filtered = _apply_filters(
+            df=df,
+            tournaments_sel=tournaments_sel,
+            models_sel=models_sel,
+            teams_sel=teams_sel,
+            q_team=q_team,
+            bet_sel=bet_sel,
+            goal_sel=goal_sel,
+            selected_date_range=selected_date_range,
+            sel_h=sel_h,
+            sel_d=sel_d,
+            sel_a=sel_a,
+            guru_only=guru_only,
+            guru_flag_all=guru_flag_all,
+        )
+        df_filtered = df_filtered.assign(
+            guru_highlight_scope=guru_scope_all.loc[df_filtered.index],
+            guru_highlight=guru_flag_all.loc[df_filtered.index],
         )
 
         if guru_only and not df_filtered.empty and not guru_flags_all.empty:
@@ -388,9 +357,7 @@ try:
             )
 
             if not user_gave_range and ("date" in df_fin.columns) and df_fin["date"].notna().any():
-                _today = date.today()
-                _start = _today - timedelta(days=3)
-                _end   = _today
+                _start, _end = recent_date_window(days=3)
                 df_fin_recent = df_fin[df_fin["date"].dt.date.between(_start, _end) | df_fin["date"].isna()]
                 # Se o recorte automático de 3 dias zerar a lista, volta para o conjunto completo
                 if not df_fin_recent.empty:
