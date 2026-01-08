@@ -1062,7 +1062,23 @@ def filtros_analise_ui(df: pd.DataFrame) -> dict:
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
 
     models_sel = st.sidebar.multiselect(FRIENDLY_COLS["model"], model_opts, default=model_opts)
-    tournaments_sel = st.sidebar.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
+    tournament_key = "analysis_tournaments_sel"
+    if tournament_key not in st.session_state:
+        st.session_state[tournament_key] = list(tourn_opts)
+    tournament_actions = st.sidebar.columns(2)
+    with tournament_actions[0]:
+        if st.button("Selecionar todos", use_container_width=True, key="analysis_tournament_select_all"):
+            st.session_state[tournament_key] = list(tourn_opts)
+    with tournament_actions[1]:
+        if st.button("Limpar", use_container_width=True, key="analysis_tournament_clear"):
+            st.session_state[tournament_key] = []
+    tournaments_sel = st.sidebar.multiselect(
+        FRIENDLY_COLS["tournament_id"],
+        tourn_opts,
+        default=st.session_state[tournament_key],
+        format_func=tournament_label,
+        key=tournament_key,
+    )
 
     selected_date_range = ()
     if "date" in df.columns and df["date"].notna().any():

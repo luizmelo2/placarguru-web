@@ -129,6 +129,7 @@ try:
             )
 
             accuracy_data = []
+            consolidated_accuracy_data = []
             if not df_finished.empty:
                 # Dicionário para mapear colunas de resultado para nomes de métricas amigáveis
                 metric_map = {
@@ -138,31 +139,56 @@ try:
                     'res_btts_sugg': 'Sugestão "Ambos Marcam"'
                 }
 
-                grouped = df_finished.groupby(['tournament_id', 'model'])
-                for (tournament, model), group in grouped:
+                def compute_accuracy_rows(group_df, model, tournament=None):
+                    rows = []
                     for res_col, metric_name in metric_map.items():
                         # Filtra o grupo para as apostas que foram realmente feitas (não NaN)
-                        valid_bets = group[res_col].dropna()
+                        valid_bets = group_df[res_col].dropna()
                         total = len(valid_bets)
 
                         if total > 0:
                             # Booleans (True=1, False=0) -> soma = acertos
                             hits = int(valid_bets.sum())
+                            errors = total - hits
                             accuracy = (hits / total) * 100
 
-                            accuracy_data.append({
-                                "Campeonato": tournament_label(tournament),
+                            row = {
                                 "Modelo": model,
                                 "Métrica": metric_name,
                                 "Acerto (%)": accuracy,
                                 "Acertos": hits,
+                                "Erros": errors,
                                 "Total": total
-                            })
+                            }
+                            if tournament is not None:
+                                row["Campeonato"] = tournament_label(tournament)
+                            rows.append(row)
+                    return rows
+
+                grouped = df_finished.groupby(['tournament_id', 'model'])
+                for (tournament, model), group in grouped:
+                    accuracy_data.extend(compute_accuracy_rows(group, model, tournament))
+
+                consolidated_grouped = df_finished.groupby(['model'])
+                for model, group in consolidated_grouped:
+                    consolidated_accuracy_data.extend(compute_accuracy_rows(group, model))
 
             if not accuracy_data:
                 st.warning("Não há dados de acurácia para exibir.")
             else:
                 metrics_df = pd.DataFrame(accuracy_data)
+                consolidated_metrics_df = pd.DataFrame(consolidated_accuracy_data)
+
+                if not consolidated_metrics_df.empty:
+                    st.subheader("Tabela Consolidada (Todos os Campeonatos)")
+                    st.dataframe(
+                        consolidated_metrics_df.sort_values(
+                            by=["Modelo", "Acerto (%)"],
+                            ascending=[True, False]
+                        ),
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
                 st.dataframe(
                     metrics_df.sort_values(by=["Campeonato", "Modelo", "Acerto (%)"], ascending=[True, True, False]),
