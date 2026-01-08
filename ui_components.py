@@ -1056,6 +1056,13 @@ def filtros_analise_ui(df: pd.DataFrame) -> dict:
     st.sidebar.header("Parâmetros da Análise")
     prob_min = st.sidebar.slider("Probabilidade Mínima (%)", 0, 100, 65, 1, "%d%%") / 100.0
     odd_min = st.sidebar.slider("Odd Mínima", 1.0, 5.0, 1.3, 0.01)
+    metric_opts = [
+        "Melhor Resultado (1x2)",
+        "Melhor Aposta de Gols",
+        "Melhor Aposta (Geral)",
+        "Sugestão \"Ambos Marcam\"",
+    ]
+    metrics_sel = st.sidebar.multiselect("Métricas", metric_opts, default=metric_opts)
 
     st.sidebar.header("Filtros de Jogos")
     tourn_opts = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
@@ -1085,4 +1092,11 @@ def filtros_analise_ui(df: pd.DataFrame) -> dict:
         min_date, max_date = df["date"].dropna().min().date(), df["date"].dropna().max().date()
         selected_date_range = st.sidebar.date_input("Período (intervalo)", value=(min_date, max_date), min_value=min_date, max_value=max_date)
 
-    return dict(prob_min=prob_min, odd_min=odd_min, tournaments_sel=tournaments_sel, models_sel=models_sel, selected_date_range=selected_date_range)
+    return dict(
+        prob_min=prob_min,
+        odd_min=odd_min,
+        metrics_sel=metrics_sel,
+        tournaments_sel=tournaments_sel,
+        models_sel=models_sel,
+        selected_date_range=selected_date_range,
+    )

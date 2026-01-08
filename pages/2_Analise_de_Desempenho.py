@@ -179,6 +179,16 @@ try:
                 metrics_df = pd.DataFrame(accuracy_data)
                 consolidated_metrics_df = pd.DataFrame(consolidated_accuracy_data)
 
+                if flt.get("metrics_sel"):
+                    metrics_df = metrics_df[metrics_df["Métrica"].isin(flt["metrics_sel"])]
+                    consolidated_metrics_df = consolidated_metrics_df[
+                        consolidated_metrics_df["Métrica"].isin(flt["metrics_sel"])
+                    ]
+
+                if metrics_df.empty:
+                    st.warning("Não há dados de acurácia para os filtros de métricas selecionados.")
+                    st.stop()
+
                 if not consolidated_metrics_df.empty:
                     st.subheader("Tabela Consolidada (Todos os Campeonatos)")
                     st.dataframe(
