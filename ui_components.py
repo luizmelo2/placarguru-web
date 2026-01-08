@@ -1056,17 +1056,47 @@ def filtros_analise_ui(df: pd.DataFrame) -> dict:
     st.sidebar.header("Parâmetros da Análise")
     prob_min = st.sidebar.slider("Probabilidade Mínima (%)", 0, 100, 65, 1, "%d%%") / 100.0
     odd_min = st.sidebar.slider("Odd Mínima", 1.0, 5.0, 1.3, 0.01)
+    metric_opts = [
+        "Melhor Resultado (1x2)",
+        "Melhor Aposta de Gols",
+        "Melhor Aposta (Geral)",
+        "Sugestão \"Ambos Marcam\"",
+    ]
+    metrics_sel = st.sidebar.multiselect("Métricas", metric_opts, default=metric_opts)
 
     st.sidebar.header("Filtros de Jogos")
     tourn_opts = sorted(df["tournament_id"].dropna().unique().tolist()) if "tournament_id" in df.columns else []
     model_opts = sorted(df["model"].dropna().unique()) if "model" in df.columns else []
 
     models_sel = st.sidebar.multiselect(FRIENDLY_COLS["model"], model_opts, default=model_opts)
-    tournaments_sel = st.sidebar.multiselect(FRIENDLY_COLS["tournament_id"], tourn_opts, default=tourn_opts, format_func=tournament_label)
+    tournament_key = "analysis_tournaments_sel"
+    if tournament_key not in st.session_state:
+        st.session_state[tournament_key] = list(tourn_opts)
+    tournament_actions = st.sidebar.columns(2)
+    with tournament_actions[0]:
+        if st.button("Selecionar todos", use_container_width=True, key="analysis_tournament_select_all"):
+            st.session_state[tournament_key] = list(tourn_opts)
+    with tournament_actions[1]:
+        if st.button("Limpar", use_container_width=True, key="analysis_tournament_clear"):
+            st.session_state[tournament_key] = []
+    tournaments_sel = st.sidebar.multiselect(
+        FRIENDLY_COLS["tournament_id"],
+        tourn_opts,
+        default=st.session_state[tournament_key],
+        format_func=tournament_label,
+        key=tournament_key,
+    )
 
     selected_date_range = ()
     if "date" in df.columns and df["date"].notna().any():
         min_date, max_date = df["date"].dropna().min().date(), df["date"].dropna().max().date()
         selected_date_range = st.sidebar.date_input("Período (intervalo)", value=(min_date, max_date), min_value=min_date, max_value=max_date)
 
-    return dict(prob_min=prob_min, odd_min=odd_min, tournaments_sel=tournaments_sel, models_sel=models_sel, selected_date_range=selected_date_range)
+    return dict(
+        prob_min=prob_min,
+        odd_min=odd_min,
+        metrics_sel=metrics_sel,
+        tournaments_sel=tournaments_sel,
+        models_sel=models_sel,
+        selected_date_range=selected_date_range,
+    )
