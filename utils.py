@@ -416,7 +416,7 @@ def fetch_release_file(url: str):
     Baixa o arquivo da Release pública do GitHub.
     Retorna: (bytes, etag, last_modified)
     """
-    r = requests.get(url, timeout=60, verify=False)
+    r = requests.get(url, timeout=60)
     r.raise_for_status()
     etag = r.headers.get("ETag", "")
     last_mod = r.headers.get("Last-Modified", "")
