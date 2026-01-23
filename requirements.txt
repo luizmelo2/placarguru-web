@@ -1,15 +1,11 @@
 pandas
 numpy
-xgboost
 scikit-learn
 scipy
-statsmodels
 matplotlib
 joblib
 urllib3
 optuna
-lightgbm
-openpyxl
 fpdf2
 streamlit
 altair
