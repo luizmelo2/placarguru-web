@@ -12,3 +12,4 @@ lightgbm
 openpyxl
 fpdf2
 streamlit
+altair
