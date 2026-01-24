@@ -1,6 +1,6 @@
 """Módulo principal da aplicação Placar Guru."""
 import streamlit as st
-from streamlit.errors import StreamlitSecretNotFoundError
+import streamlit.errors as st_errors
 
 import json
 import uuid
@@ -43,6 +43,16 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+_SECRET_ERROR_CLASSES = tuple(
+    err
+    for err in (
+        getattr(st_errors, "StreamlitSecretNotFoundError", None),
+        FileNotFoundError,
+        KeyError,
+    )
+    if err is not None
+)
+
 from ui_components import (
     filtros_ui,
     display_list_view,
@@ -65,7 +75,7 @@ render_custom_navigation()
 # Aplica correção do header somente se estiver habilitada em secrets ou query string
 try:
     force_header_patch = bool(st.secrets.get("force_header_patch", False))
-except StreamlitSecretNotFoundError:
+except _SECRET_ERROR_CLASSES:
     force_header_patch = False
 force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
 inject_header_fix_css(force_header_patch)
