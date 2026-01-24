@@ -9,4 +9,4 @@ optuna
 fpdf2
 streamlit
 altair<5
-imghdr
+
