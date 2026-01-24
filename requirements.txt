@@ -8,4 +8,4 @@ urllib3
 optuna
 fpdf2
 streamlit
-altair
+altair<5
