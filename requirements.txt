@@ -7,6 +7,6 @@ joblib
 urllib3
 optuna
 fpdf2
-streamlit
+streamlit>=1.32.0
 altair<5
 
