@@ -182,6 +182,23 @@ def status_label(s: Any) -> str:
     """Retorna o rótulo amigável para um status de jogo."""
     return label_from_map(s, FRIENDLY_STATUS_MAP, normalize=norm_status_key, default=str)
 
+def prob_from_market(row: pd.Series, market_code: Optional[str]) -> Optional[float]:
+    """Retorna a probabilidade associada a um mercado, se existir."""
+    if pd.isna(market_code):
+        return None
+
+    cols = MARKET_TO_ODDS_COLS.get(str(market_code).strip())
+    if not cols:
+        return None
+
+    prob = row.get(cols[0])
+    try:
+        prob_val = float(prob)
+    except Exception:
+        return None
+
+    return prob_val if not pd.isna(prob_val) else None
+
 def normalize_pred_code(series: pd.Series) -> pd.Series:
     """Normaliza uma série de códigos de previsão para um formato padrão (H, D, A, etc.)."""
     if series is None:
@@ -302,6 +319,14 @@ def fmt_score_pred_text(x: Any, default: str = "Sem previsão calculada") -> str
         return default
     return f"{ph}-{pa}"
 
+def eval_market_row(row: pd.Series, column: str) -> Optional[bool]:
+    """Avalia se a sugestão de um mercado específico está correta."""
+    if not _row_is_finished(row):
+        return None
+    return evaluate_market(
+        row.get(column), row.get("result_home"), row.get("result_away")
+    )
+
 def eval_result_pred_row(row: pd.Series) -> Optional[bool]:
     """Avalia se a previsão do resultado (1x2) está correta para uma linha de dados."""
     if norm_status_key(row.get("status", "")) not in FINISHED_TOKENS:
@@ -348,29 +373,86 @@ def _row_is_finished(row: pd.Series) -> bool:
 
 def eval_bet_row(row: pd.Series) -> Optional[bool]:
     """Avalia se a sugestão de aposta principal ('bet_suggestion') está correta."""
-    if not _row_is_finished(row):
-        return None
-    return evaluate_market(
-        row.get("bet_suggestion"), row.get("result_home"), row.get("result_away")
-    )
+    return eval_market_row(row, "bet_suggestion")
 
 
 def eval_goal_row(row: pd.Series) -> Optional[bool]:
     """Avalia se a sugestão de aposta de gols ('goal_bet_suggestion') está correta."""
-    if not _row_is_finished(row):
-        return None
-    return evaluate_market(
-        row.get("goal_bet_suggestion"), row.get("result_home"), row.get("result_away")
-    )
+    return eval_market_row(row, "goal_bet_suggestion")
 
 
 def eval_btts_suggestion_row(row: pd.Series) -> Optional[bool]:
     """Avalia se a sugestão de aposta de BTTS ('btts_suggestion') está correta."""
-    if not _row_is_finished(row):
-        return None
-    return evaluate_market(
-        row.get("btts_suggestion"), row.get("result_home"), row.get("result_away")
-    )
+    return eval_market_row(row, "btts_suggestion")
+
+
+def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica formatações e traduções em um DataFrame para exibição amigável."""
+    out = df.copy()
+
+    def _translate_markets(frame: pd.DataFrame) -> pd.DataFrame:
+        for col in ["bet_suggestion", "goal_bet_suggestion", "result_predicted"]:
+            if col in frame.columns:
+                frame[col] = frame[col].apply(market_label)
+        return frame
+
+    def _compute_final_score(frame: pd.DataFrame) -> pd.DataFrame:
+        def _fmt_score(row):
+            if norm_status_key(row.get("status", "")) in FINISHED_TOKENS:
+                rh, ra = row.get("result_home"), row.get("result_away")
+                if pd.notna(rh) and pd.notna(ra):
+                    try:
+                        return f"{int(rh)}-{int(ra)}"
+                    except Exception:
+                        return f"{rh}-{ra}"
+                return "N/A"
+            return ""
+
+        if {"status", "result_home", "result_away"}.issubset(frame.columns):
+            frame["final_score"] = frame.apply(_fmt_score, axis=1)
+        return frame
+
+    def _apply_status_labels(frame: pd.DataFrame) -> pd.DataFrame:
+        if "status" in frame.columns:
+            frame["status"] = frame["status"].apply(status_label)
+        if "tournament_id" in frame.columns:
+            frame["tournament_id"] = frame["tournament_id"].apply(tournament_label)
+        return frame
+
+    def _apply_score_prediction(frame: pd.DataFrame) -> pd.DataFrame:
+        if "score_predicted" in frame.columns:
+            frame["score_predicted"] = frame["score_predicted"].apply(fmt_score_pred_text)
+        return frame
+
+    def _apply_btts_prediction(frame: pd.DataFrame) -> pd.DataFrame:
+        if "btts_suggestion" in frame.columns:
+            frame["btts_prediction"] = frame["btts_suggestion"].apply(market_label, default="-")
+        return frame
+
+    def _apply_guru_highlight(frame: pd.DataFrame) -> pd.DataFrame:
+        if "guru_highlight" in frame.columns:
+            scope_series = (
+                frame["guru_highlight_scope"]
+                if "guru_highlight_scope" in frame.columns
+                else pd.Series("", index=frame.index)
+            )
+            frame["guru_highlight"] = [
+                f"⭐ {scope}".strip() if bool(flag) else ""
+                for flag, scope in zip(frame["guru_highlight"], scope_series)
+            ]
+        return frame
+
+    for step in (
+        _translate_markets,
+        _compute_final_score,
+        _apply_status_labels,
+        _apply_score_prediction,
+        _apply_btts_prediction,
+        _apply_guru_highlight,
+    ):
+        out = step(out)
+
+    return out.rename(columns=FRIENDLY_COLS)
 
 
 def eval_sugestao_combo_row(row: pd.Series) -> Optional[bool]:
