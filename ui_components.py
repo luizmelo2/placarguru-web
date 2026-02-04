@@ -760,7 +760,7 @@ def filtros_ui(
             csel_all, cclear = st.columns(2)
             with csel_all:
                 if st.button("Selecionar Todos", use_container_width=True, key="btn_sel_all_tourn"):
-                    tournaments_sel = list(tourn_opts)
+                    tournaments_sel = list(opts["tourn_opts"])
             with cclear:
                 if st.button("Limpar", use_container_width=True, key="btn_clear_tourn"):
                     tournaments_sel = []
