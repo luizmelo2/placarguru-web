@@ -380,10 +380,11 @@ def render_mobile_quick_filters(
             index=quick_range_idx,
             label_visibility="collapsed",
         )
+        if "pg_q_team_shared" not in st.session_state:
+            st.session_state["pg_q_team_shared"] = shared_state.search_query or ""
         q_team_input = st.text_input(
             "Busca rápida por equipe",
             key="pg_q_team_shared",
-            value=shared_state.search_query or "",
             placeholder="Digite nome do time...",
             label_visibility="collapsed",
         )
@@ -548,11 +549,12 @@ def _render_filtros_equipes(
         default=default_teams if default_teams is not None else ([] if modo_mobile else team_opts),
         placeholder="Escolha uma ou mais equipes...",
     )
+    if "pg_q_team_shared" not in st.session_state:
+        st.session_state["pg_q_team_shared"] = search_query
     q_team = col_input.text_input(
         "🔍 Buscar equipe (Casa/Visitante)",
         placeholder="Digite parte do nome da equipe...",
         key="pg_q_team_shared",
-        value=search_query,
     )
     wrapper.markdown("</div>", unsafe_allow_html=True)
     return teams_sel, q_team
@@ -668,12 +670,14 @@ def _render_filtros_periodo(container, min_date: Optional[date], max_date: Optio
 
     selected_date_range = _clamp_range(selected_date_range)
 
+    if "pg_period_range" not in st.session_state:
+        st.session_state["pg_period_range"] = selected_date_range or (min_date, max_date)
+
     if preset_value is not None:
         st.session_state["pg_period_range"] = selected_date_range or (min_date, max_date)
 
     selected_date_range = wrapper.date_input(
         "Período (intervalo)",
-        value=selected_date_range or (min_date, max_date),
         min_value=min_date,
         max_value=max_date,
         key="pg_period_range",
