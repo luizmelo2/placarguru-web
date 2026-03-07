@@ -218,6 +218,11 @@ def render_custom_navigation() -> None:
             label="Análise de Desempenho",
             icon="📊",
         )
+        st.page_link(
+            "pages/3_Ranking_por_Mercado.py",
+            label="Ranking por Mercado",
+            icon="🏆",
+        )
         st.divider()
 
 
