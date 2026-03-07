@@ -101,3 +101,26 @@ def test_state_persistence_cross_session_file(tmp_path, monkeypatch):
 
     assert loaded == payload
     assert persisted_file.exists()
+
+
+def test_state_load_legacy_payload_file(tmp_path, monkeypatch):
+    persisted_file = tmp_path / "legacy_filters.json"
+    persisted_file.write_text('{"tournaments_sel": [9], "models_sel": ["Z"]}', encoding="utf-8")
+    monkeypatch.setattr(state_mod, "PERSISTED_FILTERS_FILE", persisted_file)
+
+    st.session_state.clear()
+    loaded = load_persisted_filters()
+
+    assert loaded["tournaments_sel"] == [9]
+    assert loaded["models_sel"] == ["Z"]
+
+
+def test_state_ignores_invalid_schema_version(tmp_path, monkeypatch):
+    persisted_file = tmp_path / "invalid_schema.json"
+    persisted_file.write_text('{"version": 999, "payload": {"models_sel": ["A"]}}', encoding="utf-8")
+    monkeypatch.setattr(state_mod, "PERSISTED_FILTERS_FILE", persisted_file)
+
+    st.session_state.clear()
+    loaded = load_persisted_filters()
+
+    assert loaded == {}

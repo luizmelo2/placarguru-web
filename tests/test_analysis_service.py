@@ -68,3 +68,23 @@ def test_metric_stats_for_handles_empty_metric_rows():
 
     assert stats["Resultado"] == (75.0, 3, 4)
     assert stats["Sugestão de Aposta"] == (0.0, 0, 0)
+
+
+def test_compute_hit_columns_score_parsing_fast_path_and_fallback():
+    df = pd.DataFrame(
+        {
+            "status": ["finished", "finished"],
+            "result_home": [3, 2],
+            "result_away": [1, 0],
+            "result_predicted": ["H", "H"],
+            "bet_suggestion": ["H", "H"],
+            "goal_bet_suggestion": ["over_2_5", "over_1_5"],
+            "btts_suggestion": ["btts_yes", "btts_no"],
+            "score_predicted": ["3-1", {"home": 2, "away": 0}],
+        }
+    )
+
+    out = compute_hit_columns(df)
+
+    assert out.loc[0, "hit_score"] == 1.0  # regex string path
+    assert out.loc[1, "hit_score"] == 1.0  # fallback parse_score_pred path

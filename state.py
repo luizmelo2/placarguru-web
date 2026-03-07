@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict, field
+import os
 import json
 from pathlib import Path
 from datetime import date
@@ -212,11 +213,12 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
 
 
 PERSISTED_FILTERS_KEY = "pg_persisted_filters"
-PERSISTED_FILTERS_FILE = Path.home() / ".placarguru_filters.json"
+PERSISTED_FILTERS_SCHEMA_VERSION = 1
+PERSISTED_FILTERS_FILE = Path(os.getenv("PG_PERSISTED_FILTERS_FILE", Path.home() / ".placarguru_filters.json"))
 
 
 def _load_file_persisted_filters() -> dict:
-    """Carrega filtros persistidos em arquivo local (estratégia cross-session opcional)."""
+    """Carrega filtros persistidos em arquivo local com schema versionado."""
 
     if not PERSISTED_FILTERS_FILE.exists():
         return {}
@@ -224,14 +226,30 @@ def _load_file_persisted_filters() -> dict:
         raw = json.loads(PERSISTED_FILTERS_FILE.read_text(encoding="utf-8"))
     except Exception:
         return {}
-    return raw if isinstance(raw, dict) else {}
+
+    if not isinstance(raw, dict):
+        return {}
+
+    # compatibilidade retroativa: arquivo legado sem envelope
+    if "payload" not in raw:
+        return raw
+
+    version = raw.get("version")
+    payload = raw.get("payload", {})
+    if version != PERSISTED_FILTERS_SCHEMA_VERSION or not isinstance(payload, dict):
+        return {}
+    return payload
 
 
 def _save_file_persisted_filters(state: dict) -> None:
     """Persiste filtros em arquivo local para sobreviver entre sessões."""
 
     try:
-        PERSISTED_FILTERS_FILE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        envelope = {
+            "version": PERSISTED_FILTERS_SCHEMA_VERSION,
+            "payload": state,
+        }
+        PERSISTED_FILTERS_FILE.write_text(json.dumps(envelope, ensure_ascii=False), encoding="utf-8")
     except Exception:
         # Persistência em arquivo é best-effort
         return

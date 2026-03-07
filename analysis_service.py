@@ -88,10 +88,19 @@ def compute_hit_columns(df: pd.DataFrame) -> pd.DataFrame:
     combo_idx = hit_result.notna() & hit_bet.notna()
     hit_combo.loc[combo_idx] = ((hit_result.loc[combo_idx] == 1.0) & (hit_bet.loc[combo_idx] == 1.0)).astype(float)
 
-    # placar previsto: usa parser por elemento para cobrir dict/list/str variados
-    parsed = out.get("score_predicted", pd.Series(np.nan, index=out.index)).apply(parse_score_pred)
-    ph = pd.to_numeric(parsed.apply(lambda t: t[0]), errors="coerce")
-    pa = pd.to_numeric(parsed.apply(lambda t: t[1]), errors="coerce")
+    # placar previsto: caminho rápido vetorizado para strings "x-y" + fallback parser
+    score_raw = out.get("score_predicted", pd.Series(np.nan, index=out.index))
+    score_str = score_raw.astype(str)
+    extracted = score_str.str.extract(r"(?P<ph>\d+)\D+(?P<pa>\d+)")
+    ph = pd.to_numeric(extracted["ph"], errors="coerce")
+    pa = pd.to_numeric(extracted["pa"], errors="coerce")
+
+    # fallback para entradas não cobertas pelo regex (dict/list/tupla/formatos atípicos)
+    missing = ph.isna() | pa.isna()
+    if missing.any():
+        parsed = score_raw[missing].apply(parse_score_pred)
+        ph.loc[missing] = pd.to_numeric(parsed.apply(lambda t: t[0]), errors="coerce")
+        pa.loc[missing] = pd.to_numeric(parsed.apply(lambda t: t[1]), errors="coerce")
     hit_score = pd.Series(np.nan, index=out.index, dtype="float")
     score_idx = valid_score & ph.notna() & pa.notna()
     hit_score.loc[score_idx] = ((rh.loc[score_idx].astype(int) == ph.loc[score_idx].astype(int)) & (ra.loc[score_idx].astype(int) == pa.loc[score_idx].astype(int))).astype(float)
