@@ -2,14 +2,10 @@
 import streamlit as st
 import streamlit.errors as st_errors
 
-import json
-import uuid
-import base64
 import pandas as pd
 import altair as alt
 from datetime import timedelta, date, datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
-from string import Template
 
 # --- novos imports para baixar a release e controlar cache/tempo ---
 from email.utils import parsedate_to_datetime
@@ -56,9 +52,6 @@ _SECRET_ERROR_CLASSES = tuple(
 from ui_components import (
     filtros_ui,
     display_list_view,
-    is_guru_highlight,
-    guru_highlight_flags,
-    guru_highlight_summary,
     render_glassy_table,
     render_app_header,
     render_chip,
@@ -67,7 +60,6 @@ from ui_components import (
     inject_header_fix_css,
     render_mobile_quick_filters,
 )
-import streamlit.components.v1 as components
 
 def _query_param_first(key: str, default: str = "") -> str:
     """Lê query param aceitando str ou lista de valores."""
@@ -113,6 +105,7 @@ auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_
 
 from reporting import generate_pdf_report
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+from dashboard_service import FilterParams, apply_dashboard_filters
 
 # ============================
 # Exibição amigável
@@ -128,19 +121,19 @@ def apply_friendly_for_display(df: pd.DataFrame) -> pd.DataFrame:
         return frame
 
     def _compute_final_score(frame: pd.DataFrame) -> pd.DataFrame:
-        def _fmt_score(row):
-            if norm_status_key(row.get("status", "")) in FINISHED_TOKENS:
-                rh, ra = row.get("result_home"), row.get("result_away")
-                if pd.notna(rh) and pd.notna(ra):
-                    try:
-                        return f"{int(rh)}-{int(ra)}"
-                    except Exception:
-                        return f"{rh}-{ra}"
-                return "N/A"
-            return ""
-
         if {"status", "result_home", "result_away"}.issubset(frame.columns):
-            frame["final_score"] = frame.apply(_fmt_score, axis=1)
+            status_norm = frame["status"].astype(str).map(norm_status_key)
+            finished_mask = status_norm.isin(FINISHED_TOKENS)
+            rh = pd.to_numeric(frame["result_home"], errors="coerce")
+            ra = pd.to_numeric(frame["result_away"], errors="coerce")
+            has_score = rh.notna() & ra.notna()
+            frame["final_score"] = ""
+            frame.loc[finished_mask & ~has_score, "final_score"] = "N/A"
+            frame.loc[finished_mask & has_score, "final_score"] = (
+                rh[finished_mask & has_score].astype(int).astype(str)
+                + "-"
+                + ra[finished_mask & has_score].astype(int).astype(str)
+            )
         return frame
 
     def _apply_status_labels(frame: pd.DataFrame) -> pd.DataFrame:
@@ -272,11 +265,6 @@ try:
             q_team = q_team_input
             set_filter_state(shared_state)
 
-        guru_scope_all = df.apply(guru_highlight_summary, axis=1)
-        guru_flags_all = pd.DataFrame(
-            df.apply(guru_highlight_flags, axis=1).tolist(), index=df.index
-        )
-        guru_flag_all = guru_scope_all.apply(bool)
 
         active_filters = 0
         if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
@@ -295,64 +283,20 @@ try:
         if guru_only:
             active_filters += 1
 
-        # Máscara combinada (sem status)
-        final_mask = pd.Series(True, index=df.index)
-
-        # ▶️ Aplicar filtro global de campeonatos
-        if tournaments_sel and "tournament_id" in df.columns:
-            final_mask &= df["tournament_id"].isin(tournaments_sel)
-
-        if models_sel and "model" in df.columns:
-            final_mask &= df["model"].isin(models_sel)
-
-        if teams_sel and {"home", "away"}.issubset(df.columns):
-            home_ser = df["home"].astype(str)
-            away_ser = df["away"].astype(str)
-            final_mask &= (home_ser.isin(teams_sel) | away_ser.isin(teams_sel))
-
-        if q_team and {"home", "away"}.issubset(df.columns):
-            q = str(q_team).strip()
-            if q:
-                home_contains = df["home"].astype(str).str.contains(q, case=False, na=False)
-                away_contains = df["away"].astype(str).str.contains(q, case=False, na=False)
-                final_mask &= (home_contains | away_contains)
-
-        if bet_sel and "bet_suggestion" in df.columns:
-            final_mask &= df["bet_suggestion"].astype(str).isin([str(x) for x in bet_sel])
-
-        if goal_sel and "goal_bet_suggestion" in df.columns:
-            final_mask &= df["goal_bet_suggestion"].astype(str).isin([str(x) for x in goal_sel])
-
-        if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2 and "date" in df.columns:
-            start_date, end_date = selected_date_range
-            final_mask &= df["date"].dt.date.between(start_date, end_date)
-
-        if "odds_H" in df.columns:
-            final_mask &= ((df["odds_H"] >= sel_h[0]) & (df["odds_H"] <= sel_h[1])) | (df["odds_H"].isna())
-        if "odds_D" in df.columns:
-            final_mask &= ((df["odds_D"] >= sel_d[0]) & (df["odds_D"] <= sel_d[1])) | (df["odds_D"].isna())
-        if "odds_A" in df.columns:
-            final_mask &= ((df["odds_A"] >= sel_a[0]) & (df["odds_A"] <= sel_a[1])) | (df["odds_A"].isna())
-
-        if guru_only:
-            final_mask &= guru_flag_all
-
-        df_filtered = df[final_mask].assign(
-            guru_highlight_scope=guru_scope_all[final_mask],
-            guru_highlight=guru_flag_all[final_mask],
+        params = FilterParams(
+            tournaments_sel=tournaments_sel,
+            models_sel=models_sel,
+            teams_sel=teams_sel,
+            bet_sel=bet_sel,
+            goal_sel=goal_sel,
+            selected_date_range=selected_date_range,
+            sel_h=sel_h,
+            sel_d=sel_d,
+            sel_a=sel_a,
+            q_team=q_team,
+            guru_only=guru_only,
         )
-
-        if guru_only and not df_filtered.empty and not guru_flags_all.empty:
-            filtered_flags = guru_flags_all.loc[df_filtered.index]
-            col_map = {
-                "Resultado": "result_predicted",
-                "Sugestão": "bet_suggestion",
-                "Gols": "goal_bet_suggestion",
-                "Ambos Marcam": "btts_suggestion",
-            }
-            for label, col in col_map.items():
-                if col in df_filtered.columns and label in filtered_flags.columns:
-                    df_filtered.loc[~filtered_flags[label], col] = pd.NA
+        df_filtered, _, _, _ = apply_dashboard_filters(df, params)
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -678,294 +622,44 @@ try:
                         st.markdown("</div>", unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                                        # --- Gráficos de linha de acurácia por dia (aninhados no cartão de desempenho) ---
+                                        # --- Gráficos de linha de acurácia por dia (nativo Altair, sem CDN externo) ---
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
                     if not accuracy_data.empty:
-                        tournaments = sorted(accuracy_data['Campeonato'].unique())
-                        muted = "#94a3b8" if dark_mode else "#475569"
-                        shadow = "0 18px 48px rgba(0,0,0,0.35)" if dark_mode else "0 18px 48px rgba(0,0,0,0.12)"
-
-                        panel_style_tpl = Template(
-                            """
-                            <style>
-                              :root {
-                                --bg: ${bg};
-                                --panel: ${panel};
-                                --stroke: ${stroke};
-                                --text: ${text};
-                                --muted: ${muted};
-                                --primary: ${primary};
-                                --primary-2: ${primary2};
-                                --shadow: ${shadow};
-                              }
-                              body { margin:0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
-                              .pg-stats-panel { border: 1px solid var(--stroke); border-radius: 16px; padding: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
-                              .pg-stats-header { display:flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
-                              .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
-                              .pg-eyebrow { margin:0; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color: var(--muted); }
-                              .pg-stats-tags { display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
-                              .pg-chip { border-radius: 999px; padding: 6px 10px; font-weight: 700; border: 1px solid var(--stroke); color: var(--text); background: color-mix(in srgb, var(--panel) 90%, transparent); }
-                              .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); }
-                              .pg-chart-grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
-                              .pg-chart-cluster { border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent); border-radius: 16px; padding: 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent)); box-shadow: var(--shadow); }
-                              .pg-chart-cluster__head { display:flex; justify-content: space-between; align-items: center; gap:12px; margin-bottom: 8px; }
-                              .pg-chart-card { border: 1px solid var(--stroke); border-radius: 18px; padding: 10px 12px; background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 96%, transparent)); box-shadow: var(--shadow); position: relative; overflow: hidden; }
-                              .pg-chart-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 32%); pointer-events: none; opacity: 0.8; }
-                              .pg-chart-card > * { position: relative; z-index: 1; }
-                              .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
-                              .pg-chart-card .vega-embed, .pg-chart-card .vega-embed * { color: var(--text); }
-                              .vega-actions { display: none; }
-                              svg text { fill: var(--text); }
-                            </style>
-                            """
-                        )
-
-                        panel_style = panel_style_tpl.substitute(
-                            bg=chart_theme["background"],
-                            panel=chart_theme["panel"],
-                            stroke=chart_theme["stroke"],
-                            text=chart_theme["text"],
-                            muted=muted,
-                            primary=chart_theme["accent"],
-                            primary2=chart_theme["palette"][1],
-                            shadow=shadow,
-                        )
-
-                        st.markdown(panel_style, unsafe_allow_html=True)
-
-                        # Monta um único painel HTML com os gráficos em acordeões, renderizados via vega-embed
-                        panel_blocks = []
-                        embed_scripts = []
-
-                        for idx, tourn in enumerate(tournaments):
-                            tourn_data = accuracy_data[accuracy_data['Campeonato'] == tourn]
-                            models = sorted(tourn_data['Modelo'].unique())
-
-                            chart_cards = []
-                            spec_list = []
-                            id_list = []
-
-                            for m_idx, model in enumerate(models):
-                                model_data = tourn_data[tourn_data['Modelo'] == model].copy()
-                                model_data['Data'] = pd.to_datetime(model_data['Data']).dt.strftime('%Y-%m-%d')
+                        st.markdown("### Desempenho diário por campeonato e métrica")
+                        tournaments = sorted(accuracy_data["Campeonato"].dropna().unique().tolist())
+                        for tourn in tournaments:
+                            tourn_df = accuracy_data[accuracy_data["Campeonato"] == tourn]
+                            if tourn_df.empty:
+                                continue
+                            with st.expander(f"{tourn}", expanded=False):
+                                metric_options = sorted(tourn_df["Métrica"].dropna().unique().tolist())
+                                metrics_sel_chart = st.multiselect(
+                                    "Métricas",
+                                    metric_options,
+                                    default=metric_options,
+                                    key=f"pg_daily_metrics_{tourn}",
+                                )
+                                plot_df = tourn_df[tourn_df["Métrica"].isin(metrics_sel_chart)] if metrics_sel_chart else tourn_df
                                 chart = (
-                                    alt.Chart(model_data)
+                                    alt.Chart(plot_df)
                                     .mark_line(point=True)
                                     .encode(
-                                        x=alt.X('Data:T', title='Dia'),
-                                        y=alt.Y('Taxa de Acerto (%):Q', scale=alt.Scale(domain=[0, 100]), title='Taxa de Acerto'),
-                                        color=alt.Color('Métrica:N', title="Métrica de Aposta", scale=alt.Scale(range=chart_theme["palette"]))
-                                        ,
-                                        tooltip=['Data:T', 'Métrica:N', alt.Tooltip('Taxa de Acerto (%):Q', format='.1f')]
+                                        x=alt.X("Data:T", title="Data"),
+                                        y=alt.Y("Taxa de Acerto (%):Q", scale=alt.Scale(domain=[0, 100])),
+                                        color=alt.Color("Modelo:N", scale=alt.Scale(range=chart_theme["palette"])),
+                                        strokeDash=alt.StrokeDash("Métrica:N"),
+                                        tooltip=[
+                                            "Campeonato:N",
+                                            "Modelo:N",
+                                            "Métrica:N",
+                                            alt.Tooltip("Taxa de Acerto (%):Q", format=".2f"),
+                                            alt.Tooltip("Data:T", title="Data"),
+                                        ],
                                     )
-                                    .properties(
-                                        height=240 if modo_mobile else 280,
-                                        width=780 if modo_mobile else 1180,
-                                        background=chart_theme.get("plot_bg", "transparent"),
-                                    )
+                                    .properties(height=260 if modo_mobile else 320)
+                                    .interactive()
                                 )
-
-                                slot_id = f"pg-chart-{idx}-{m_idx}"
-                                id_list.append(slot_id)
-                                spec_list.append(chart.to_dict())
-                                chart_cards.append(
-                                    f"""
-                                    <div class='pg-chart-card nested'>
-                                      <div class='pg-chart-card__title'>Modelo: {model}</div>
-                                      <div id='{slot_id}' class='pg-chart-slot'></div>
-                                    </div>
-                                    """
-                                )
-
-                            chart_cards_html = "".join(chart_cards)
-                            panel_blocks.append(
-                                f"""
-                                <details class="pg-details pg-chart-accordion" open>
-                                  <summary>
-                                    <div>
-                                      <div class="pg-details-title">{tourn}</div>
-                                      <div class="pg-details-hint">Campeonato • {len(models)} modelo(s) • métricas múltiplas</div>
-                                    </div>
-                                    <div class="pg-stats-tags">
-                                      <span class="pg-chip ghost">{len(models)} modelo(s)</span>
-                                      <span class="pg-chip ghost">Diário</span>
-                                    </div>
-                                  </summary>
-                                  <div class="pg-details-body">
-                                    <div class="pg-chart-grid">{chart_cards_html}</div>
-                                  </div>
-                                </details>
-                                """
-                            )
-
-                            embed_scripts.append(
-                                {
-                                    "ids": id_list,
-                                    "specs": spec_list,
-                                }
-                            )
-
-                        palette = {
-                            "bg": "#0b1224" if dark_mode else "#f8fafc",
-                            "panel": "#0f172a" if dark_mode else "#ffffff",
-                            "glass": "rgba(255,255,255,0.04)" if dark_mode else "rgba(255,255,255,0.65)",
-                            "stroke": "#1f2937" if dark_mode else "#e2e8f0",
-                            "text": "#e2e8f0" if dark_mode else "#0f172a",
-                            "muted": "#94a3b8" if dark_mode else "#475569",
-                            "primary": "#60a5fa" if dark_mode else "#2563eb",
-                            "primary2": "#22d3ee",
-                            "neon": "#bfff3b",
-                            "shadow": "0 20px 60px rgba(0,0,0,0.35)" if dark_mode else "0 20px 60px rgba(0,0,0,0.12)",
-                        }
-
-                        panel_css_tpl = Template(
-                            """
-                        <style>
-                          :root {
-                            --bg: ${bg};
-                            --panel: ${panel};
-                            --glass: ${glass};
-                            --stroke: ${stroke};
-                            --text: ${text};
-                            --muted: ${muted};
-                            --primary: ${primary};
-                            --primary-2: ${primary2};
-                            --neon: ${neon};
-                            --shadow: ${shadow};
-                          }
-                          body {
-                            margin: 0;
-                            background: transparent;
-                            color: var(--text);
-                            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-                          }
-                          .pg-stats-panel {
-                            border: 1px solid var(--stroke);
-                            border-radius: 16px;
-                            padding: 14px;
-                            background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent));
-                            box-shadow: var(--shadow);
-                          }
-                          .pg-stats-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
-                          .pg-eyebrow { margin: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-                          .pg-stats-desc { color: var(--muted); margin: 4px 0 0 0; }
-                          .pg-stats-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-                          .pg-chip {
-                            display: inline-flex;
-                            align-items: center;
-                            gap: 6px;
-                            padding: 6px 10px;
-                            border-radius: 999px;
-                            border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-                            background: color-mix(in srgb, var(--panel) 94%, transparent);
-                            color: var(--text);
-                            font-weight: 700;
-                            font-size: 12px;
-                            letter-spacing: -0.01em;
-                          }
-                          .pg-chip.ghost { background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--muted); }
-                          .pg-chart-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 8px; }
-                          .pg-chart-card {
-                            position: relative;
-                            border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
-                            border-radius: 16px;
-                            padding: 12px;
-                            background: linear-gradient(140deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 84%, transparent));
-                            box-shadow: var(--shadow);
-                            overflow: hidden;
-                          }
-                          .pg-chart-card::before {
-                            content: '';
-                            position: absolute;
-                            inset: -30% 40% auto auto;
-                            width: 60%; height: 60%;
-                            background: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 62%);
-                            opacity: 0.3;
-                          }
-                          .pg-chart-card__title { font-weight: 800; font-size: 15px; margin: 4px 0 10px; color: var(--text); }
-                          .pg-chart-slot .vega-embed { background: color-mix(in srgb, var(--panel) 96%, transparent); border-radius: 12px; padding: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
-                          .pg-chart-slot .vega-actions { display: none; }
-                          .pg-details {
-                            margin-top: 12px;
-                            border: 1px solid var(--stroke);
-                            border-radius: 14px;
-                            background: linear-gradient(120deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 98%, transparent));
-                            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-                            overflow: hidden;
-                          }
-                          .pg-details summary {
-                            list-style: none;
-                            cursor: pointer;
-                            display: flex;
-                            align-items: center;
-                            justify-content: space-between;
-                            gap: 10px;
-                            padding: 10px 12px;
-                            color: var(--text);
-                            font-weight: 700;
-                          }
-                          .pg-details summary::-webkit-details-marker { display: none; }
-                          .pg-details summary:focus { outline: 2px solid color-mix(in srgb, var(--primary) 50%, transparent); outline-offset: 2px; }
-                          .pg-details-body { padding: 0 12px 12px 12px; }
-                          .pg-chart-accordion { margin-top: 8px; border: 1px solid color-mix(in srgb, var(--stroke) 72%, transparent); }
-                          .pg-chart-accordion summary > div:first-child { display: grid; gap: 4px; }
-                        </style>
-                        """
-                        )
-                        panel_css = panel_css_tpl.safe_substitute(palette)
-
-                        panel_html_tpl = Template(
-                            """
-                        ${css}
-                        <div class='pg-stats-panel pg-desempenho-panel'>
-                          <div class="pg-stats-header">
-                            <div>
-                              <p class="pg-eyebrow">Desempenho Diário por Campeonato e Métrica</p>
-                              <h4 style="margin:0;">Evolução de acerto por torneio e modelo</h4>
-                              <p class="pg-stats-desc">Acompanhe a curva diária de precisão para cada campeonato, modelo e métrica.</p>
-                            </div>
-                            <div class="pg-stats-tags">
-                              <span class="pg-chip ghost">Linhas</span>
-                              <span class="pg-chip ghost">Interativo</span>
-                            </div>
-                          </div>
-                          <div class='pg-chart-grid nested'>
-                            ${blocks}
-                          </div>
-                        </div>
-                        <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
-                        <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.16.3"></script>
-                        <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.24.0"></script>
-                        <script>
-                          const pgRenderQueues = ${queues};
-                          pgRenderQueues.forEach(({ids, specs}) => {
-                            ids.forEach((slotId, i) => {
-                              const target = document.getElementById(slotId);
-                              if (target) {
-                                vegaEmbed(target, specs[i], {
-                                  actions: false,
-                                  renderer: 'svg'
-                                });
-                              }
-                            });
-                          });
-                        </script>
-                        """
-                        )
-                        panel_html = panel_html_tpl.safe_substitute(
-                            css=panel_css,
-                            blocks="".join(panel_blocks),
-                            queues=json.dumps(embed_scripts),
-                        )
-
-                        # Altura calculada: cabeçalho + acordeões (cada modelo ~320px)
-                        est_height = 260 + sum([140 + len(entry["ids"]) * (320 if modo_mobile else 360) for entry in embed_scripts])
-                        est_height = min(est_height, 1400) if modo_mobile else min(est_height, 1800)
-
-                        # Largura expansiva para ocupar a área útil (iframe padrão do Streamlit é 700px)
-                        panel_width = 1100 if modo_mobile else 1500
-
-                        components.html(panel_html, height=est_height, scrolling=True, width=panel_width)
+                                st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 

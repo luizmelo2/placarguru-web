@@ -163,7 +163,7 @@ def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, di
         "guru_only": False,
     }
 
-    defaults.update({k: v for k, v in persisted.items() if v})
+    defaults.update({k: v for k, v in persisted.items() if k in defaults})
 
     return defaults, options
 
@@ -209,24 +209,22 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
     return st.session_state["pg_viewport_width"]
 
 
-@st.cache_data(show_spinner=False)
-def _persisted_filters_store(state: Optional[dict] = None) -> dict:
-    """Armazena seleções principais de forma leve entre sessões."""
-
-    return state or {}
+PERSISTED_FILTERS_KEY = "pg_persisted_filters"
 
 
 def load_persisted_filters() -> dict:
     """Recupera seleções persistidas de torneio/mercado e busca rápida."""
 
-    return _persisted_filters_store(None)
+    raw = st.session_state.get(PERSISTED_FILTERS_KEY, {})
+    return raw.copy() if isinstance(raw, dict) else {}
 
 
 def save_persisted_filters(state: dict) -> None:
-    """Salva seleções principais em cache leve com opção de reset externo."""
+    """Salva seleções principais em sessão preservando valores intencionais (inclusive vazios)."""
 
-    _persisted_filters_store.clear()
-    _persisted_filters_store(state)
+    if not isinstance(state, dict):
+        return
+    st.session_state[PERSISTED_FILTERS_KEY] = state.copy()
 
 
 TABLE_COLUMN_PRESETS = {
