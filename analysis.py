@@ -185,6 +185,57 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_final.sort_values(by=["Campeonato", "Mercado de Aposta"]).reset_index(drop=True)
 
+
+def build_model_ranking_by_market(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Gera ranking de modelos por mercado, ordenado por acurácia decrescente."""
+
+    if df.empty or "model" not in df.columns:
+        return {}
+
+    df_eval = compute_hit_columns(df)
+    market_map = {
+        "Resultado": "hit_result",
+        "Sugestão de Aposta": "hit_bet",
+        "Sugestão de Gols": "hit_goal",
+        "Ambos Marcam": "hit_btts",
+        "Sugestão Combo": "hit_combo",
+        "Placar Previsto": "hit_score",
+    }
+
+    rankings: dict[str, pd.DataFrame] = {}
+    for market_label, hit_col in market_map.items():
+        if hit_col not in df_eval.columns:
+            continue
+
+        sub = df_eval[["model", hit_col]].dropna(subset=[hit_col]).copy()
+        if sub.empty:
+            continue
+
+        agg = sub.groupby("model", as_index=False).agg(
+            acertos=(hit_col, "sum"),
+            total_jogos=(hit_col, "count"),
+        )
+        agg = agg[agg["total_jogos"] > 0]
+        if agg.empty:
+            continue
+
+        agg["Acerto (%)"] = (agg["acertos"] / agg["total_jogos"] * 100).round(2)
+        agg = agg.sort_values(
+            by=["Acerto (%)", "acertos", "total_jogos", "model"],
+            ascending=[False, False, False, True],
+        ).reset_index(drop=True)
+        agg.insert(0, "Ranking", range(1, len(agg) + 1))
+
+        rankings[market_label] = agg.rename(
+            columns={
+                "model": "Modelo",
+                "acertos": "Acertos",
+                "total_jogos": "Total de Jogos Avaliados",
+            }
+        )[["Ranking", "Modelo", "Acerto (%)", "Acertos", "Total de Jogos Avaliados"]]
+
+    return rankings
+
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
     """Agrupa o resumo por **campeonato e modelo**, mantendo o recorte de mercado.
 

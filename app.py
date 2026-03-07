@@ -122,7 +122,13 @@ st.session_state["pg_mobile_auto"] = modo_mobile
 auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_width}px)"
 
 from reporting import generate_pdf_report
-from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+from analysis import (
+    prepare_accuracy_chart_data,
+    get_best_model_by_market,
+    create_summary_pivot_table,
+    calculate_kpis,
+    build_model_ranking_by_market,
+)
 from insights_service import METRIC_ORDER, metric_stats_for, build_tournament_stats
 from dashboard_service import FilterParams, apply_dashboard_filters
 
@@ -634,6 +640,21 @@ try:
                             summary_pivot_table,
                             caption="Resumo do Melhor Modelo por Mercado",
                         )
+
+                        market_rankings = build_model_ranking_by_market(df_fin.copy())
+                        if market_rankings:
+                            st.caption("Ranking por mercado")
+                            st.subheader("Performance de cada mercado por modelo")
+                            st.caption("Cada tabela considera somente jogos avaliáveis no respectivo mercado (Total de Jogos Avaliados).")
+                            for market_name, ranking_df in market_rankings.items():
+                                if ranking_df.empty:
+                                    continue
+                                render_glassy_table(
+                                    ranking_df,
+                                    caption=f"Ranking por modelo — {market_name}",
+                                )
+                        else:
+                            st.info("Não há dados suficientes para gerar os rankings por mercado.")
                     else:
                         st.info("Não há dados suficientes para gerar a tabela de melhores modelos.")
 
