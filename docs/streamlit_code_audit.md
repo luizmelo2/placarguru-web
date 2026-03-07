@@ -17,7 +17,7 @@ Este documento resume pontos críticos encontrados na revisão técnica do códi
 ## Recomendações
 
 - Corrigir erro de variável e cobrir com teste de regressão.
-- Remover `verify=False`, adicionar timeout/retry e mensagem de fallback.
+- **Manter `verify=False` (requisito atual)**, mas compensar com controles: timeout/retry, validação de checksum/assinatura do arquivo baixado, allowlist de domínio e monitoramento de integridade.
 - Separar pipeline: ingestão/validação/transformação/renderização.
 - Introduzir validações de schema e tratamento defensivo para colunas opcionais.
 - Reduzir HTML `unsafe_allow_html` e scripts inline quando possível.
