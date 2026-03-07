@@ -69,6 +69,14 @@ from ui_components import (
 )
 import streamlit.components.v1 as components
 
+def _query_param_first(key: str, default: str = "") -> str:
+    """Lê query param aceitando str ou lista de valores."""
+    raw = st.query_params.get(key, default)
+    if isinstance(raw, list):
+        return str(raw[0]) if raw else str(default)
+    return str(raw)
+
+
 # Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
 render_custom_navigation()
 
@@ -77,8 +85,9 @@ try:
     force_header_patch = bool(st.secrets.get("force_header_patch", False))
 except _SECRET_ERROR_CLASSES:
     force_header_patch = False
-force_header_patch = force_header_patch or st.query_params.get("force_header", ["0"])[0] == "1"
+force_header_patch = force_header_patch or _query_param_first("force_header", "0") == "1"
 inject_header_fix_css(force_header_patch)
+
 
 
 def init_theme_state() -> None:
@@ -316,7 +325,7 @@ try:
 
         if selected_date_range and isinstance(selected_date_range, (list, tuple)) and len(selected_date_range) == 2 and "date" in df.columns:
             start_date, end_date = selected_date_range
-            final_mask &= (df["date"].dt.date.between(start_date, end_date)) | (df["date"].isna())
+            final_mask &= df["date"].dt.date.between(start_date, end_date)
 
         if "odds_H" in df.columns:
             final_mask &= ((df["odds_H"] >= sel_h[0]) & (df["odds_H"] <= sel_h[1])) | (df["odds_H"].isna())
@@ -361,12 +370,8 @@ try:
                 key="pg_status_view",
             )
 
-            if status_view.startswith("🗓️"):
-                curr_df = df_ag
-                curr_label = "Agendados"
-            else:
-                curr_df = df_fin
-                curr_label = "Finalizados"
+            curr_df = df_ag if status_view.startswith("🗓️") else df_fin
+            curr_label = "Agendados" if status_view.startswith("🗓️") else "Finalizados"
 
             export_disabled = curr_df.empty
             export_state_label = "Exportação pronta" if not export_disabled else "Aplique filtros para habilitar PDF"
@@ -410,6 +415,15 @@ try:
 
             if "date" in df_fin.columns:
                 df_fin = df_fin.sort_values("date", ascending=False, na_position="last")
+
+            # Recalcula o recorte exportável após possíveis ajustes automáticos em finalizados
+            if status_view.startswith("🗓️"):
+                curr_df = df_ag
+                curr_label = "Agendados"
+            else:
+                curr_df = df_fin
+                curr_label = "Finalizados"
+            export_disabled = curr_df.empty
             # --------------------------------------------------------------------------
 
             # --- VISÃO POR STATUS (seleção acima) ---
