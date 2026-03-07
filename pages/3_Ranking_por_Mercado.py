@@ -10,6 +10,21 @@ from ui_components import render_glassy_table
 from utils import RELEASE_URL, fetch_release_file, load_data, norm_status_key
 
 
+def _game_key(frame: pd.DataFrame) -> pd.Series:
+    """Monta chave de jogo único para diferenciar partidas de previsões por modelo."""
+
+    id_candidates = ["match_id", "fixture_id", "game_id", "id"]
+    for col in id_candidates:
+        if col in frame.columns and frame[col].notna().any():
+            return frame[col].astype(str)
+
+    cols = [c for c in ["date", "tournament_id", "home", "away"] if c in frame.columns]
+    if cols:
+        return frame[cols].astype(str).agg("|".join, axis=1)
+
+    return pd.Series(frame.index.astype(str), index=frame.index)
+
+
 st.set_page_config(layout="wide", page_title="Ranking por Mercado")
 st.title("Ranking por Mercado x Modelo")
 st.caption("Tabela dedicada para comparar acerto por mercado entre modelos.")
@@ -36,7 +51,10 @@ try:
     if "date" in df_finished.columns:
         df_finished = df_finished.sort_values("date", ascending=False)
 
-    max_games = int(len(df_finished))
+    df_finished["_game_key"] = _game_key(df_finished)
+    jogos_unicos = df_finished["_game_key"].drop_duplicates().tolist()
+
+    max_games = int(len(jogos_unicos))
     default_games = min(300, max_games)
     qtd_jogos = st.sidebar.number_input(
         "Quantidade de jogos passados",
@@ -47,8 +65,13 @@ try:
         help="Define quantos jogos finalizados mais recentes serão usados na análise.",
     )
 
-    recorte = df_finished.head(int(qtd_jogos)).copy()
-    st.info(f"Analisando os últimos {len(recorte)} jogos finalizados.")
+    selected_game_keys = set(jogos_unicos[: int(qtd_jogos)])
+    recorte = df_finished[df_finished["_game_key"].isin(selected_game_keys)].copy()
+
+    st.info(
+        f"Analisando os últimos {len(selected_game_keys)} jogos finalizados "
+        f"({len(recorte)} previsões no total)."
+    )
 
     rankings = build_model_ranking_by_market(recorte)
     if not rankings:
@@ -57,8 +80,8 @@ try:
 
     st.subheader("Ranking de acerto por mercado")
     st.caption(
-        "Observação: o recorte usa exatamente a quantidade de jogos selecionada; "
-        "o total por mercado pode ser menor quando faltarem previsões específicas naquele mercado."
+        "Observação: o filtro usa quantidade de jogos únicos. "
+        "O total avaliado por mercado pode ser menor quando faltarem previsões específicas naquele mercado."
     )
     for market_name, ranking_df in rankings.items():
         if ranking_df.empty:
