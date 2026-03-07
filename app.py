@@ -587,9 +587,8 @@ try:
                                     color=alt.Color('Modelo:N', scale=alt.Scale(range=chart_theme["palette"]))
                                 )
                             )
-                            st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
-                            st.altair_chart(chart + text, use_container_width=True)
-                            st.markdown("</div>", unsafe_allow_html=True)
+                            with st.container(border=True):
+                                st.altair_chart(chart + text, use_container_width=True)
                     else:
                         # Definir as métricas que queremos exibir e a ordem
                         metric_order = ["Resultado", "Sugestão de Aposta", "Sugestão Combo", "Sugestão de Gols", "Ambos Marcam"]
@@ -617,10 +616,8 @@ try:
                             y='Acerto (%):Q',
                             text=alt.Text('Acerto (%):Q', format='.1f')
                         )
-                        st.markdown("<div class='pg-chart-card'>", unsafe_allow_html=True)
-                        st.altair_chart(chart + text, use_container_width=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
+                        with st.container(border=True):
+                            st.altair_chart(chart + text, use_container_width=True)
 
                                         # --- Gráficos de linha de acurácia por dia (nativo Altair, sem CDN externo) ---
                     accuracy_data = prepare_accuracy_chart_data(df_fin)
@@ -668,20 +665,9 @@ try:
                     if not best_model_data.empty:
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
 
-                        st.markdown(
-                            """
-                            <div class='pg-stats-panel'>
-                              <div class="pg-stats-header">
-                                <div>
-                                  <p class="pg-eyebrow">Modelos vencedores</p>
-                                  <h4 style="margin:0;">Sessão de Melhor Modelo</h4>
-                                  <p class="pg-stats-desc">Compare o desempenho por campeonato e mercado no mesmo layout das demais tabelas glassy.</p>
-                                </div>
-                              </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                        st.caption("Modelos vencedores")
+                        st.subheader("Sessão de Melhor Modelo")
+                        st.caption("Compare o desempenho por campeonato e mercado no mesmo layout das demais tabelas glassy.")
 
                         render_glassy_table(
                             best_model_data,
