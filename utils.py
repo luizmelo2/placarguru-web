@@ -1,12 +1,15 @@
 """Módulo de utilitários com funções e constantes compartilhadas."""
 import pandas as pd
 import numpy as np
+import os
 import re
+import time
+import hashlib
 from io import BytesIO
 from typing import Any, Tuple, Optional
 import requests
 import streamlit as st
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 def generate_sofascore_link(home_team: str, away_team: str) -> str:
     """Gera um link de busca do Google para a partida no Sofascore."""
@@ -411,17 +414,72 @@ def _exists(df: pd.DataFrame, *cols: str) -> bool:
 RELEASE_URL = "https://github.com/luizmelo2/arquivos/releases/download/latest/PrevisaoJogos.xlsx"
 #RELEASE_URL = "PrevisaoJogos.xlsx"
 
+
+
+def _release_allowlist() -> set[str]:
+    """Hosts permitidos para baixar o arquivo de previsões."""
+
+    env_raw = os.getenv("PG_RELEASE_ALLOWED_HOSTS", "")
+    if env_raw.strip():
+        return {h.strip().lower() for h in env_raw.split(",") if h.strip()}
+    return {"github.com", "objects.githubusercontent.com"}
+
+
+def _validate_release_source(url: str) -> None:
+    """Valida se a URL pertence à allowlist configurada."""
+
+    host = (urlparse(url).hostname or "").lower()
+    allowed = _release_allowlist()
+    if host not in allowed:
+        raise ValueError(f"Host não permitido para release: {host}")
+
+
+def _validate_release_checksum(content: bytes) -> None:
+    """Valida checksum SHA256 opcionalmente configurado por ambiente."""
+
+    expected = os.getenv("PG_RELEASE_SHA256", "").strip().lower()
+    if not expected:
+        return
+    digest = hashlib.sha256(content).hexdigest().lower()
+    if digest != expected:
+        raise ValueError("Checksum SHA256 da release não confere")
+
+
+def _release_retry_params() -> tuple[int, float]:
+    """Retorna (max_attempts, backoff_seconds) para download da release."""
+
+    attempts = int(os.getenv("PG_RELEASE_MAX_ATTEMPTS", "3"))
+    backoff = float(os.getenv("PG_RELEASE_BACKOFF_S", "1.0"))
+    return max(attempts, 1), max(backoff, 0.0)
+
+
 @st.cache_data(show_spinner=False)
 def fetch_release_file(url: str):
     """
     Baixa o arquivo da Release pública do GitHub.
+    Mantém verify=False (requisito), com mitigação de allowlist, retry/backoff e checksum opcional.
     Retorna: (bytes, etag, last_modified)
     """
-    r = requests.get(url, timeout=60, verify=False)
-    r.raise_for_status()
-    etag = r.headers.get("ETag", "")
-    last_mod = r.headers.get("Last-Modified", "")
-    return r.content, etag, last_mod
+    _validate_release_source(url)
+    max_attempts, backoff = _release_retry_params()
+
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            r = requests.get(url, timeout=60, verify=False)
+            r.raise_for_status()
+            content = r.content
+            _validate_release_checksum(content)
+            etag = r.headers.get("ETag", "")
+            last_mod = r.headers.get("Last-Modified", "")
+            return content, etag, last_mod
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= max_attempts:
+                break
+            time.sleep(backoff * attempt)
+
+    raise RuntimeError(f"Falha ao baixar release após {max_attempts} tentativa(s)") from last_exc
 
 
 def _fetch_release_file(local_path: str):

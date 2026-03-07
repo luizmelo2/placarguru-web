@@ -2,6 +2,7 @@
 import streamlit as st
 import streamlit.errors as st_errors
 
+import os
 import pandas as pd
 import altair as alt
 from datetime import timedelta, date, datetime
@@ -67,6 +68,23 @@ def _query_param_first(key: str, default: str = "") -> str:
     if isinstance(raw, list):
         return str(raw[0]) if raw else str(default)
     return str(raw)
+
+
+def _months_back_config(default: int = 2) -> int:
+    """Obtém recorte padrão em meses via env/secrets com fallback seguro."""
+
+    raw_env = os.getenv("PG_MONTHS_BACK", "").strip()
+    if raw_env:
+        try:
+            return max(int(raw_env), 0)
+        except Exception:
+            return default
+    try:
+        return max(int(st.secrets.get("months_back", default)), 0)
+    except _SECRET_ERROR_CLASSES:
+        return default
+    except Exception:
+        return default
 
 
 # Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
@@ -195,7 +213,7 @@ try:
     else:
         last_update_dt = datetime.now(tz=tz_sp)
 
-    df = load_data(content)
+    df = load_data(content, months_back=_months_back_config())
 
     if "init_from_url" not in st.session_state:
         st.session_state.init_from_url = True

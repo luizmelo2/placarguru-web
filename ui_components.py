@@ -417,13 +417,11 @@ def render_glassy_table(
         "Status (badge)": st.column_config.TextColumn(label="Status", width="small"),
     }
 
-    density_cls = "pg-density-compact" if density == "compact" else "pg-density-comfortable"
-    with st.container():
-        st.markdown(f'<div class="pg-table-card pg-table-card--interactive {density_cls}">', unsafe_allow_html=True)
+    with st.container(border=True):
         legend = "⭐ Sugestão Guru (prob ≥80% para Resultado/Sugestão/Gols/BTTS)"
         if caption:
             legend = f"{caption} · {legend}"
-        st.markdown(f"<div class='pg-table-caption'>{legend}</div>", unsafe_allow_html=True)
+        st.caption(legend)
         st.data_editor(
             df_to_render,
             use_container_width=True,
@@ -431,7 +429,6 @@ def render_glassy_table(
             disabled=True,
             column_config=column_config,
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def is_guru_highlight(row: pd.Series) -> bool:
