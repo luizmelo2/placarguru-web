@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import re
+from io import BytesIO
 from typing import Any, Tuple, Optional
 import requests
 import streamlit as st
@@ -458,17 +459,23 @@ def calculate_double_chance(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 @st.cache_data(show_spinner=False)
-def load_data(_file_bytes: bytes) -> pd.DataFrame:
+def load_data(_file_bytes: bytes, months_back: int = 2) -> pd.DataFrame:
     """
     Carrega o Excel. O parâmetro _file_bytes é usado para invalidar o cache
     quando o conteúdo do arquivo mudar.
     """
-    df = pd.read_excel(_file_bytes)
+    df = pd.read_excel(BytesIO(_file_bytes))
     df = calculate_double_chance(df)
 
     # Tipos
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+        # Recorte padrão de performance: mantém apenas os últimos N meses
+        # para reduzir processamento e tempo de renderização da dashboard.
+        if months_back > 0 and df["date"].notna().any():
+            cutoff = (pd.Timestamp.now().normalize() - pd.DateOffset(months=int(months_back)))
+            df = df[(df["date"] >= cutoff) | (df["date"].isna())].copy()
 
     for col in ["odds_H", "odds_D", "odds_A"]:
         if col in df.columns:

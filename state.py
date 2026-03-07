@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict, field
+import json
+from pathlib import Path
 from datetime import date
 from typing import List, Optional, Tuple
 
@@ -163,7 +165,7 @@ def build_filter_defaults(df: pd.DataFrame, modo_mobile: bool) -> tuple[dict, di
         "guru_only": False,
     }
 
-    defaults.update({k: v for k, v in persisted.items() if v})
+    defaults.update({k: v for k, v in persisted.items() if k in defaults})
 
     return defaults, options
 
@@ -209,24 +211,54 @@ def detect_viewport_width(default: int = 1280, debounce_ms: int = 260) -> int:
     return st.session_state["pg_viewport_width"]
 
 
-@st.cache_data(show_spinner=False)
-def _persisted_filters_store(state: Optional[dict] = None) -> dict:
-    """Armazena seleções principais de forma leve entre sessões."""
+PERSISTED_FILTERS_KEY = "pg_persisted_filters"
+PERSISTED_FILTERS_FILE = Path.home() / ".placarguru_filters.json"
 
-    return state or {}
+
+def _load_file_persisted_filters() -> dict:
+    """Carrega filtros persistidos em arquivo local (estratégia cross-session opcional)."""
+
+    if not PERSISTED_FILTERS_FILE.exists():
+        return {}
+    try:
+        raw = json.loads(PERSISTED_FILTERS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _save_file_persisted_filters(state: dict) -> None:
+    """Persiste filtros em arquivo local para sobreviver entre sessões."""
+
+    try:
+        PERSISTED_FILTERS_FILE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        # Persistência em arquivo é best-effort
+        return
 
 
 def load_persisted_filters() -> dict:
     """Recupera seleções persistidas de torneio/mercado e busca rápida."""
 
-    return _persisted_filters_store(None)
+    raw = st.session_state.get(PERSISTED_FILTERS_KEY, {})
+    if isinstance(raw, dict) and raw:
+        return raw.copy()
+
+    file_raw = _load_file_persisted_filters()
+    if file_raw:
+        st.session_state[PERSISTED_FILTERS_KEY] = file_raw.copy()
+        return file_raw
+    return raw.copy() if isinstance(raw, dict) else {}
 
 
 def save_persisted_filters(state: dict) -> None:
-    """Salva seleções principais em cache leve com opção de reset externo."""
+    """Salva seleções principais em sessão preservando valores intencionais (inclusive vazios)."""
 
-    _persisted_filters_store.clear()
-    _persisted_filters_store(state)
+    if not isinstance(state, dict):
+        return
+    payload = state.copy()
+    st.session_state[PERSISTED_FILTERS_KEY] = payload
+    _save_file_persisted_filters(payload)
 
 
 TABLE_COLUMN_PRESETS = {
