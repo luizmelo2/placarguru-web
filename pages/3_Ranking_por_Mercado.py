@@ -16,7 +16,9 @@ st.caption("Tabela dedicada para comparar acerto por mercado entre modelos.")
 
 try:
     content, _, _ = fetch_release_file(RELEASE_URL)
-    df = load_data(content, months_back=2)
+    # Para o filtro de quantidade funcionar corretamente, carregamos todo o histórico
+    # e aplicamos o recorte apenas pela quantidade de jogos passados.
+    df = load_data(content, months_back=0)
 
     if df.empty:
         st.warning("Não há dados disponíveis para análise.")
@@ -54,6 +56,10 @@ try:
         st.stop()
 
     st.subheader("Ranking de acerto por mercado")
+    st.caption(
+        "Observação: o recorte usa exatamente a quantidade de jogos selecionada; "
+        "o total por mercado pode ser menor quando faltarem previsões específicas naquele mercado."
+    )
     for market_name, ranking_df in rankings.items():
         if ranking_df.empty:
             continue
