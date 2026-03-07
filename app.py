@@ -376,19 +376,8 @@ try:
                 if df_ag.empty:
                     st.info("Sem jogos agendados neste recorte.")
                 else:
-                    st.markdown(
-                        f"""
-                        <div class="pg-hide-copy">
-                          <p class="pg-eyebrow">Lista de jogos agendados</p>
-                          <div class="pg-hide-title">Jogos futuros no recorte</div>
-                          <div class="pg-hide-chips">
-                            <span class="pg-chip ghost">{len(df_ag)} jogos</span>
-                            <span class="pg-chip ghost">{'Visão lista' if use_list_view else 'Visão tabela'}</span>
-                          </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                    st.caption("Lista de jogos agendados")
+                    st.write(f"Jogos futuros no recorte • {len(df_ag)} jogos • {'Visão lista' if use_list_view else 'Visão tabela'}")
                     if use_list_view:
                         display_list_view(df_ag, hide_missing=guru_only)
                     else:
@@ -408,37 +397,23 @@ try:
                 if df_fin.empty:
                     st.info("Sem jogos finalizados neste recorte.")
                 else:
-                    st.markdown("<div class='pg-hide-card'>", unsafe_allow_html=True)
-                    hide_info, hide_toggle = st.columns([4, 1.3])
-                    with hide_info:
-                        st.markdown(
-                            f"""
-                            <div class="pg-hide-copy">
-                              <p class="pg-eyebrow">Lista de jogos finalizados</p>
-                              <div class="pg-hide-title">Exibir ou ocultar rapidamente</div>
-                              <p class="pg-hide-desc">Use quando quiser focar apenas nas métricas e gráficos de desempenho.</p>
-                              <div class="pg-hide-chips">
-                                <span class="pg-chip ghost">{len(df_fin)} jogos</span>
-                                <span class="pg-chip ghost">{'Visão lista' if use_list_view else 'Visão tabela'}</span>
-                              </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                    with hide_toggle:
-                        hide_games = st.toggle(
-                            "Ocultar lista de jogos",
-                            key="pg_hide_fin_list",
-                            value=st.session_state.get("pg_hide_fin_list", False),
-                            help="Oculte a listagem para ver somente KPIs, gráficos e tabelas avançadas.",
-                        )
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        hide_info, hide_toggle = st.columns([4, 1.3])
+                        with hide_info:
+                            st.caption("Lista de jogos finalizados")
+                            st.write("Exibir ou ocultar rapidamente")
+                            st.caption("Use quando quiser focar apenas nas métricas e gráficos de desempenho.")
+                            st.caption(f"{len(df_fin)} jogos • {'Visão lista' if use_list_view else 'Visão tabela'}")
+                        with hide_toggle:
+                            hide_games = st.toggle(
+                                "Ocultar lista de jogos",
+                                key="pg_hide_fin_list",
+                                value=st.session_state.get("pg_hide_fin_list", False),
+                                help="Oculte a listagem para ver somente KPIs, gráficos e tabelas avançadas.",
+                            )
 
                     if hide_games:
-                        st.markdown(
-                            "<div class='pg-chip ghost'>Lista oculta. Desative o toggle acima para reexibir os jogos.</div>",
-                            unsafe_allow_html=True,
-                        )
+                        st.info("Lista oculta. Desative o toggle acima para reexibir os jogos.")
                     else:
                         if use_list_view:
                             display_list_view(df_fin, hide_missing=guru_only)
