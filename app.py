@@ -105,6 +105,7 @@ auto_view_label = f"Visual: {'mobile' if modo_mobile else 'desktop'} ({viewport_
 
 from reporting import generate_pdf_report
 from analysis import prepare_accuracy_chart_data, get_best_model_by_market, create_summary_pivot_table, calculate_kpis
+from insights_service import METRIC_ORDER, metric_stats_for, build_tournament_stats
 from dashboard_service import FilterParams, apply_dashboard_filters
 
 # ============================
@@ -471,36 +472,9 @@ try:
                     metrics_df = calculate_kpis(df_fin, multi_model)
                     overall_metrics = calculate_kpis(df_fin, False)
 
-                    metric_order = [
-                        "Resultado",
-                        "Sugestão de Aposta",
-                        "Sugestão Combo",
-                        "Sugestão de Gols",
-                        "Ambos Marcam",
-                    ]
-
-                    def _metric_stats_for(metrics_frame: pd.DataFrame) -> dict[str, tuple[float, int, int]]:
-                        def _extract(metric: str) -> tuple[float, int, int]:
-                            row = metrics_frame[metrics_frame["Métrica"] == metric]
-                            if row.empty:
-                                return 0.0, 0, 0
-                            acc = float(row["Acerto (%)"].iloc[0]) if pd.notna(row["Acerto (%)"].iloc[0]) else 0.0
-                            hits = int(row["Acertos"].iloc[0]) if pd.notna(row["Acertos"].iloc[0]) else 0
-                            total = int(row["Total Avaliado"].iloc[0]) if pd.notna(row["Total Avaliado"].iloc[0]) else 0
-                            return acc, hits, total
-
-                        return {metric: _extract(metric) for metric in metric_order}
-
-                    overall_stats = _metric_stats_for(overall_metrics)
-
-                    campeonatos_stats: list[tuple[str, dict[str, tuple[float, int, int]]]] = []
-                    if "tournament_id" in df_fin.columns:
-                        for tourn_id in sorted(df_fin["tournament_id"].dropna().unique()):
-                            tourn_df = df_fin[df_fin["tournament_id"] == tourn_id]
-                            if tourn_df.empty:
-                                continue
-                            tourn_metrics = calculate_kpis(tourn_df, False)
-                            campeonatos_stats.append((tournament_label(tourn_id), _metric_stats_for(tourn_metrics)))
+                    metric_order = METRIC_ORDER
+                    overall_stats = metric_stats_for(overall_metrics, metric_order)
+                    campeonatos_stats = build_tournament_stats(df_fin, metric_order)
 
                     def _render_stat_row(title: str, desc: str, stats: dict[str, tuple[float, int, int]], tag: str | None = None):
                         st.markdown(f"**{title}**")
@@ -529,19 +503,9 @@ try:
                             tag="Recorte do campeonato",
                         )
 
-                    st.markdown(
-                        """
-                        <div class='pg-stats-panel'>
-                          <div class="pg-stats-header">
-                            <div>
-                              <p class="pg-eyebrow">Gráfico de acertos</p>
-                              <h4 style="margin:0;">Precisão por métrica</h4>
-                              <p class="pg-stats-desc">Compare modelos, mercados e a taxa de acerto consolidada.</p>
-                            </div>
-                          </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                    st.caption("Gráfico de acertos")
+                    st.subheader("Precisão por métrica")
+                    st.caption("Compare modelos, mercados e a taxa de acerto consolidada.")
 
                     # Sempre exibir a tabela de precisão por métrica
                     if not metrics_df.empty:
@@ -693,18 +657,11 @@ try:
             st.caption("O botão é habilitado ao aplicar filtros que retornem jogos neste recorte.")
 
         # --- Rodapé: Última Atualização + alternância de tema (agora no rodapé) ---
-        st.markdown('<hr style="border: 0; border-top: 1px solid #1f2937; margin: 1rem 0 0.5rem 0;" />', unsafe_allow_html=True)
+        st.divider()
 
         fcol1, fcol2 = st.columns([3, 2])
         with fcol1:
-            st.markdown(
-                f"""
-                <div style=\"color:#9CA3AF; font-size:0.95rem;\">
-                  <strong>Última atualização:</strong> {last_update_dt.strftime('%d/%m/%Y %H:%M')}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            st.write(f"**Última atualização:** {last_update_dt.strftime('%d/%m/%Y %H:%M')}")
         with fcol2:
             st.empty()
 

@@ -138,11 +138,6 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
     if not value_vars:
         return pd.DataFrame()
 
-    # Converte True/False para 1/0 para agregação, preservando NaN para não avaliados
-    df_eval[value_vars] = df_eval[value_vars].applymap(
-        lambda x: 1 if x is True else (0 if x is False else np.nan)
-    )
-
     # 2) Reestrutura e descarta mercados sem avaliação
     df_melted = df_eval.melt(
         id_vars=["tournament_id", "model"],
@@ -170,7 +165,7 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
         by=["tournament_id", "mercado", "taxa_acerto", "total_jogos"],
         ascending=[True, True, False, False],
     )
-    df_best = ordered.drop_duplicates(subset=["tournament_id", "mercado"], keep="first")
+    df_best = ordered.drop_duplicates(subset=["tournament_id", "mercado"], keep="first").copy()
 
     # 5) Formata o DataFrame final
     df_best["mercado"] = df_best["mercado"].map(eval_map)
