@@ -470,8 +470,8 @@ def fetch_release_file(url: str):
     """
     _validate_release_source(url)
     max_attempts, backoff = _release_retry_params()
-    verify_ssl = _release_verify_ssl()
-
+    #verify_ssl = _release_verify_ssl()
+    verify_ssl = False
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:

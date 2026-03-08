@@ -55,7 +55,7 @@ try:
     jogos_unicos = df_finished["_game_key"].drop_duplicates().tolist()
 
     max_games = int(len(jogos_unicos))
-    default_games = min(300, max_games)
+    default_games = min(30, max_games)
     qtd_jogos = st.sidebar.number_input(
         "Quantidade de jogos passados",
         min_value=1,
