@@ -90,6 +90,11 @@ def _months_back_config(default: int = 2) -> int:
 # Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
 render_custom_navigation()
 
+with st.sidebar:
+    if st.button("🔄 Atualizar agora", key="pg_refresh_sidebar", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
 # Aplica correção do header somente se estiver habilitada em secrets ou query string
 try:
     force_header_patch = bool(st.secrets.get("force_header_patch", False))
@@ -354,12 +359,7 @@ try:
             ]
             header_html = render_app_header(live_messages=live_messages)
             with topbar_placeholder.container():
-                brand_col, action_col = st.columns([4, 1.4])
-                brand_col.markdown(header_html, unsafe_allow_html=True)
-                with action_col:
-                    if st.button("🔄 Atualizar agora", key="pg_refresh_top", use_container_width=True):
-                        st.cache_data.clear()
-                        st.rerun()
+                st.markdown(header_html, unsafe_allow_html=True)
 
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
