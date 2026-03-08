@@ -18,6 +18,7 @@ from state import (
     reset_filters,
     build_filter_defaults,
     DEFAULT_TABLE_DENSITY,
+    count_active_filters,
 )
 
 from utils import (
@@ -669,6 +670,12 @@ def filtros_ui(
     state = get_filter_state(defaults)
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
     state.tournaments_sel = tournaments_sel
+    active_filters_count = count_active_filters(
+        state,
+        tournament_total=len(opts["tourn_opts"]),
+        model_total=len(opts["model_opts"]),
+        full_date_range=(opts["min_date"], opts["max_date"]) if opts["min_date"] and opts["max_date"] else (),
+    )
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -687,9 +694,9 @@ def filtros_ui(
             unsafe_allow_html=True,
         )
         st.session_state["pg_filters_open"] = True
-        if state.active_count:
+        if active_filters_count:
             st.button(
-                f"Limpar filtros ({state.active_count})",
+                f"Limpar filtros ({active_filters_count})",
                 use_container_width=True,
                 key="btn_clear_filters",
                 on_click=lambda: (

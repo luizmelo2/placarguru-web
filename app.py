@@ -27,6 +27,7 @@ from state import (
     TABLE_COLUMN_PRESETS,
     DEFAULT_TABLE_DENSITY,
     reset_filters,
+    count_active_filters,
 )
 
 # ============================
@@ -282,8 +283,14 @@ try:
                     q_team_input = cleared.search_query
                     shared_state = cleared
             with chips_col:
+                active_mobile = count_active_filters(
+                    shared_state,
+                    tournament_total=len(tournament_opts),
+                    model_total=(df["model"].nunique() if "model" in df.columns else 0),
+                    full_date_range=(min_date, max_date) if min_date and max_date else (),
+                )
                 st.markdown(
-                    f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {shared_state.active_count}</div>",
+                    f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {active_mobile}</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -291,22 +298,13 @@ try:
             set_filter_state(shared_state)
 
 
-        active_filters = 0
-        if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
-            active_filters += 1
         model_unique = df["model"].nunique() if "model" in df.columns else 0
-        if models_sel and (model_unique and len(models_sel) != model_unique):
-            active_filters += 1
-        if teams_sel:
-            active_filters += 1
-        if q_team:
-            active_filters += 1
-        if bet_sel or goal_sel:
-            active_filters += 1
-        if selected_date_range:
-            active_filters += 1
-        if guru_only:
-            active_filters += 1
+        active_filters = count_active_filters(
+            shared_state,
+            tournament_total=len(tournament_opts),
+            model_total=model_unique,
+            full_date_range=(min_date, max_date) if min_date and max_date else (),
+        )
 
         params = FilterParams(
             tournaments_sel=tournaments_sel,
