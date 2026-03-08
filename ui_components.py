@@ -106,8 +106,10 @@ def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None
     cls = "pg-chip"
     if tone == "ghost":
         cls += " ghost"
-    aria = f" aria-label=\"{aria_label}\"" if aria_label else ""
-    return f"<span class=\"{cls}\"{aria}>{text}</span>"
+    safe_text = html.escape(str(text))
+    safe_aria = html.escape(str(aria_label), quote=True) if aria_label else ""
+    aria = f" aria-label=\"{safe_aria}\"" if safe_aria else ""
+    return f"<span class=\"{cls}\"{aria}>{safe_text}</span>"
 
 
 def render_status_badge(status: str) -> str:
@@ -167,7 +169,7 @@ def render_app_header(
 ) -> str:
     """Header minimalista com apenas nome e slogan."""
 
-    live_text = " | ".join([m for m in (live_messages or []) if m])
+    live_text = " | ".join([html.escape(str(m)) for m in (live_messages or []) if m])
 
     return f"""
     <div class="pg-header" role="banner">
@@ -962,8 +964,9 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
             sofascore_icon_svg = _get_sofascore_icon_svg()
             sofascore_html = ""
             if sofascore_icon_svg and data.get("sofascore_link"):
+                safe_sofascore_link = html.escape(str(data.get("sofascore_link", "")), quote=True)
                 sofascore_html = f"""
-                    <a href="{data['sofascore_link']}" target="_blank" rel="noopener noreferrer" class="pg-sofascore-link" aria-label="Ver no Sofascore">
+                    <a href="{safe_sofascore_link}" target="_blank" rel="noopener noreferrer" class="pg-sofascore-link" aria-label="Ver no Sofascore">
                         {sofascore_icon_svg}
                     </a>
                 """
