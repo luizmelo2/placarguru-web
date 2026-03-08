@@ -100,8 +100,8 @@ def build_filter_mask(df: pd.DataFrame, params: FilterParams) -> pd.Series:
     if params.q_team and {"home", "away"}.issubset(df.columns):
         q = str(params.q_team).strip()
         if q:
-            home_contains = df["home"].astype(str).str.contains(q, case=False, na=False)
-            away_contains = df["away"].astype(str).str.contains(q, case=False, na=False)
+            home_contains = df["home"].astype(str).str.contains(q, case=False, na=False, regex=False)
+            away_contains = df["away"].astype(str).str.contains(q, case=False, na=False, regex=False)
             mask &= (home_contains | away_contains)
 
     if params.bet_sel and "bet_suggestion" in df.columns:
@@ -142,17 +142,5 @@ def apply_dashboard_filters(df: pd.DataFrame, params: FilterParams) -> tuple[pd.
         guru_highlight_scope=guru_scope_all[mask],
         guru_highlight=guru_flag_all[mask],
     )
-
-    if params.guru_only and not df_filtered.empty and not guru_flags_all.empty:
-        filtered_flags = guru_flags_all.loc[df_filtered.index]
-        col_map = {
-            "Resultado": "result_predicted",
-            "Sugestão": "bet_suggestion",
-            "Gols": "goal_bet_suggestion",
-            "Ambos Marcam": "btts_suggestion",
-        }
-        for label, col in col_map.items():
-            if col in df_filtered.columns and label in filtered_flags.columns:
-                df_filtered.loc[~filtered_flags[label], col] = pd.NA
 
     return df_filtered, guru_flags_all, guru_flag_all, mask

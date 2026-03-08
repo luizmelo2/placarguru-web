@@ -19,6 +19,16 @@ def compute_acc2(ok_mask: pd.Series, bad_mask: pd.Series) -> Tuple[float, int, i
     return acc, correct, total
 
 
+
+
+def _ensure_eval_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Retorna DataFrame com colunas de acerto sem recomputar desnecessariamente."""
+
+    required = {"hit_result", "hit_bet", "hit_goal", "hit_btts", "hit_combo", "hit_score"}
+    if required.issubset(df.columns):
+        return df
+    return compute_hit_columns(df)
+
 def _metric_from_hits(hit_series: pd.Series, metric_name: str) -> dict:
     """Calcula estatísticas de acerto a partir de série numérica (1/0/NaN)."""
     correct_mask = hit_series == 1.0
@@ -35,7 +45,7 @@ def _metric_from_hits(hit_series: pd.Series, metric_name: str) -> dict:
 def calculate_kpis_for_model(sub: pd.DataFrame, model_name: Optional[str] = None) -> List[dict]:
     """Calcula métricas KPI para um subconjunto (modelo único ou consolidado)."""
 
-    eval_df = compute_hit_columns(sub)
+    eval_df = _ensure_eval_df(sub)
     goal_codes = eval_df.get("goal_bet_suggestion", pd.Series(index=eval_df.index, dtype="object")).astype(str).str.lower()
     no_btts_goal_mask = ~goal_codes.isin(["btts_yes", "btts_no"])
 
@@ -81,7 +91,7 @@ def prepare_accuracy_chart_data(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or 'date' not in df.columns or 'tournament_id' not in df.columns or 'model' not in df.columns:
         return pd.DataFrame()
 
-    df_eval = compute_hit_columns(df)
+    df_eval = _ensure_eval_df(df)
     hit_cols = ['hit_result', 'hit_bet', 'hit_goal', 'hit_btts', 'hit_combo', 'hit_score']
 
     id_vars = ['date', 'tournament_id', 'model']
@@ -126,7 +136,7 @@ def get_best_model_by_market(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or "model" not in df.columns or "tournament_id" not in df.columns:
         return pd.DataFrame()
 
-    df_eval = compute_hit_columns(df)
+    df_eval = _ensure_eval_df(df)
 
     eval_map = {
         "hit_result": "Resultado Final",
@@ -192,7 +202,7 @@ def build_model_ranking_by_market(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     if df.empty or "model" not in df.columns:
         return {}
 
-    df_eval = compute_hit_columns(df)
+    df_eval = _ensure_eval_df(df)
     market_map = {
         "Resultado": "hit_result",
         "Sugestão de Aposta": "hit_bet",

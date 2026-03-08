@@ -55,7 +55,6 @@ from ui_components import (
     display_list_view,
     render_glassy_table,
     render_app_header,
-    render_chip,
     render_custom_navigation,
     inject_topbar_branding,
     inject_header_fix_css,
@@ -107,7 +106,7 @@ def init_theme_state() -> None:
 
 
 init_theme_state()
-dark_mode = False
+dark_mode = bool(st.session_state.get("pg_dark_mode", False))
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -131,6 +130,7 @@ from analysis import (
 )
 from insights_service import METRIC_ORDER, metric_stats_for, build_tournament_stats
 from dashboard_service import FilterParams, apply_dashboard_filters
+from analysis_service import compute_hit_columns
 
 # ============================
 # Exibição amigável
@@ -249,8 +249,8 @@ try:
                 help="Mantém a listagem em cards mesmo no desktop quando preferir.",
             )
 
-        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
-        table_density = DEFAULT_TABLE_DENSITY
+        st.session_state.setdefault("pg_table_density", DEFAULT_TABLE_DENSITY)
+        table_density = st.session_state.get("pg_table_density", DEFAULT_TABLE_DENSITY)
 
         use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
 
@@ -323,6 +323,10 @@ try:
         )
         df_filtered, _, _, _ = apply_dashboard_filters(df, params)
 
+        curr_df = pd.DataFrame()
+        curr_label = "recorte"
+        export_disabled = True
+
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
             st.warning("Nenhum dado corresponde aos filtros atuais.")
@@ -352,7 +356,7 @@ try:
             ]
             header_html = render_app_header(live_messages=live_messages)
             with topbar_placeholder.container():
-                brand_col, action_col = st.columns([4, 1.4])
+                brand_col, _action_col = st.columns([4, 1.4])
                 brand_col.markdown(header_html, unsafe_allow_html=True)
 
 
@@ -455,25 +459,16 @@ try:
                             )
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
-                    rh = df_fin.get("result_home", pd.Series(index=df_fin.index, dtype="float"))
-                    ra = df_fin.get("result_away", pd.Series(index=df_fin.index, dtype="float"))
-                    mask_valid = rh.notna() & ra.notna()
-
-                    # Códigos reais H/D/A
-                    real_code = pd.Series(index=df_fin.index, dtype="object")
-                    real_code.loc[mask_valid & (rh > ra)] = "H"
-                    real_code.loc[mask_valid & (rh == ra)] = "D"
-                    real_code.loc[mask_valid & (rh < ra)] = "A"
-
-                    selected_models = list(df_fin["model"].dropna().unique()) if "model" in df_fin.columns else []
+                    df_fin_eval = compute_hit_columns(df_fin)
+                    selected_models = list(df_fin_eval["model"].dropna().unique()) if "model" in df_fin_eval.columns else []
                     multi_model = len(selected_models) > 1
 
-                    metrics_df = calculate_kpis(df_fin, multi_model)
-                    overall_metrics = calculate_kpis(df_fin, False)
+                    metrics_df = calculate_kpis(df_fin_eval, multi_model)
+                    overall_metrics = calculate_kpis(df_fin_eval, False)
 
                     metric_order = METRIC_ORDER
                     overall_stats = metric_stats_for(overall_metrics, metric_order)
-                    campeonatos_stats = build_tournament_stats(df_fin, metric_order)
+                    campeonatos_stats = build_tournament_stats(df_fin_eval, metric_order)
 
                     def _render_stat_row(title: str, desc: str, stats: dict[str, tuple[float, int, int]], tag: str | None = None):
                         st.markdown(f"**{title}**")
@@ -583,7 +578,7 @@ try:
                             st.altair_chart(chart + text, use_container_width=True)
 
                                         # --- Gráficos de linha de acurácia por dia (nativo Altair, sem CDN externo) ---
-                    accuracy_data = prepare_accuracy_chart_data(df_fin)
+                    accuracy_data = prepare_accuracy_chart_data(df_fin_eval)
                     if not accuracy_data.empty:
                         st.markdown("### Desempenho diário por campeonato e métrica")
                         tournaments = sorted(accuracy_data["Campeonato"].dropna().unique().tolist())
@@ -624,7 +619,7 @@ try:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
                     # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
-                    best_model_data = get_best_model_by_market(df_fin.copy())
+                    best_model_data = get_best_model_by_market(df_fin_eval.copy())
                     if not best_model_data.empty:
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
 
@@ -641,7 +636,7 @@ try:
                             caption="Resumo do Melhor Modelo por Mercado",
                         )
 
-                        market_rankings = build_model_ranking_by_market(df_fin.copy())
+                        market_rankings = build_model_ranking_by_market(df_fin_eval.copy())
                         if market_rankings:
                             st.caption("Ranking por mercado")
                             st.subheader("Performance de cada mercado por modelo")

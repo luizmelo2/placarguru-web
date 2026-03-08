@@ -794,6 +794,12 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
     gols_txt = f"{market_label(row.get('goal_bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
     btts_pred_txt = f"{market_label(btts_pred, default=missing_label)} {get_prob_and_odd_for_market(row, btts_pred)}"
 
+    rh = row.get("result_home")
+    ra = row.get("result_away")
+    final_score = "—"
+    if pd.notna(rh) and pd.notna(ra):
+        final_score = f"{int(rh)}-{int(ra)}"
+
     return {
         "title": f"{dt_txt} • {row.get('home', '?')} vs {row.get('away', '?')}",
         "status_txt": status_label(row.get("status", "N/A")),
@@ -809,7 +815,7 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
         "btts_pred_txt": btts_pred_txt,
         "cap_line": f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}",
         "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
-        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—",
+        "final_score": final_score,
         "highlight": highlight,
         "highlight_scope": highlight_scope,
         "suggested_prob": prob_val,
@@ -912,16 +918,21 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
+            safe_cap_line = html.escape(str(data.get("cap_line", "")))
+            safe_kickoff = html.escape(str(data.get("kickoff", "")))
+            safe_status = html.escape(str(data.get("status_txt", "")))
+            safe_final_score = html.escape(str(data.get("final_score", "")))
+
             highlight_label = ""
             if data["highlight"]:
-                scope_txt = data.get("highlight_scope", "").strip()
+                scope_txt = html.escape(str(data.get("highlight_scope", "")).strip())
                 scope_hint = f" — {scope_txt}" if scope_txt else ""
                 highlight_label = (
                     "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru"
                     f"{scope_hint}</span>"
                 )
             final_score_badge = (
-                f"<span class=\"badge badge-finished\">Placar Final {data['final_score']}</span>"
+                f"<span class=\"badge badge-finished\">Placar Final {safe_final_score}</span>"
                 if data["is_finished"]
                 else ""
             )
@@ -955,15 +966,15 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
                   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                     <div>
-                      <div class="pg-meta">{data['cap_line']}</div>
+                      <div class="pg-meta">{safe_cap_line}</div>
                       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <div class="pg-matchup">{data['match_title_html']}</div>
                         {sofascore_html}
-                        <span class="badge">{data['kickoff']}</span>
+                        <span class="badge">{safe_kickoff}</span>
                         {highlight_label}
                       </div>
                     </div>
-                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                    <span class="badge {badge_class}">{safe_status}</span>
                   </div>
 
                   <div class="pg-grid" style="margin-top:10px;">
