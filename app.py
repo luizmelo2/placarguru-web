@@ -94,6 +94,7 @@ with st.sidebar:
     if st.button("🔄 Atualizar agora", key="pg_refresh_sidebar", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+    sidebar_update_placeholder = st.empty()
 
 # Aplica correção do header somente se estiver habilitada em secrets ou query string
 try:
@@ -224,6 +225,10 @@ try:
             last_update_dt = datetime.now(tz=tz_sp)
     else:
         last_update_dt = datetime.now(tz=tz_sp)
+
+    sidebar_update_placeholder.caption(
+        f"Última atualização: {last_update_dt.strftime('%d/%m/%Y %H:%M')}"
+    )
 
     df = load_data(content, months_back=_months_back_config())
 
