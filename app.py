@@ -354,8 +354,12 @@ try:
             ]
             header_html = render_app_header(live_messages=live_messages)
             with topbar_placeholder.container():
-                brand_col, _action_col = st.columns([4, 1.4])
+                brand_col, action_col = st.columns([4, 1.4])
                 brand_col.markdown(header_html, unsafe_allow_html=True)
+                with action_col:
+                    if st.button("🔄 Atualizar agora", key="pg_refresh_top", use_container_width=True):
+                        st.cache_data.clear()
+                        st.rerun()
 
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
@@ -672,10 +676,6 @@ try:
         with fcol2:
             st.empty()
 
-        # Botão para forçar atualização (limpa o cache de dados e re-executa o app)
-        if st.button("🔄 Atualizar agora"):
-            st.cache_data.clear()
-            st.rerun()
 
 except FileNotFoundError:
     st.error("FATAL: `PrevisaoJogos.xlsx` não encontrado.")
