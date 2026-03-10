@@ -124,3 +124,88 @@ def test_state_ignores_invalid_schema_version(tmp_path, monkeypatch):
     loaded = load_persisted_filters()
 
     assert loaded == {}
+
+
+def test_apply_dashboard_filters_guru_only_does_not_mutate_predictions():
+    df = _base_df()
+    params = FilterParams(
+        tournaments_sel=[1, 2],
+        models_sel=["A", "B"],
+        teams_sel=[],
+        bet_sel=[],
+        goal_sel=[],
+        selected_date_range=(),
+        sel_h=(1.0, 5.0),
+        sel_d=(1.0, 5.0),
+        sel_a=(1.0, 5.0),
+        q_team="",
+        guru_only=True,
+    )
+
+    filtered, _, _, _ = apply_dashboard_filters(df, params)
+
+    # garante que não houve nulificação destrutiva de colunas de previsão
+    for col in ["result_predicted", "bet_suggestion", "goal_bet_suggestion", "btts_suggestion"]:
+        assert filtered[col].notna().all()
+
+
+def test_apply_dashboard_filters_team_search_special_chars_literal():
+    df = _base_df()
+    params = FilterParams(
+        tournaments_sel=[1, 2],
+        models_sel=["A", "B"],
+        teams_sel=[],
+        bet_sel=[],
+        goal_sel=[],
+        selected_date_range=(),
+        sel_h=(1.0, 5.0),
+        sel_d=(1.0, 5.0),
+        sel_a=(1.0, 5.0),
+        q_team="Team (Y",
+        guru_only=False,
+    )
+
+    filtered, _, _, _ = apply_dashboard_filters(df, params)
+    assert filtered.empty
+
+
+def test_count_active_filters_treats_full_selection_as_neutral():
+    state = state_mod.FilterState(
+        tournaments_sel=[1, 2],
+        models_sel=["A", "B"],
+        teams_sel=[],
+        bet_sel=[],
+        goal_sel=[],
+        selected_date_range=(date(2024, 1, 1), date(2024, 1, 31)),
+        search_query="",
+        guru_only=False,
+    )
+
+    count = state_mod.count_active_filters(
+        state,
+        tournament_total=2,
+        model_total=2,
+        full_date_range=(date(2024, 1, 1), date(2024, 1, 31)),
+    )
+    assert count == 0
+
+
+def test_count_active_filters_counts_partial_selection_and_search():
+    state = state_mod.FilterState(
+        tournaments_sel=[1],
+        models_sel=["A"],
+        teams_sel=[],
+        bet_sel=[],
+        goal_sel=[],
+        selected_date_range=(date(2024, 1, 1), date(2024, 1, 31)),
+        search_query="team",
+        guru_only=True,
+    )
+
+    count = state_mod.count_active_filters(
+        state,
+        tournament_total=2,
+        model_total=2,
+        full_date_range=(date(2024, 1, 1), date(2024, 1, 31)),
+    )
+    assert count == 4  # torneio + modelo + busca + guru_only

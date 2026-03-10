@@ -27,6 +27,7 @@ from state import (
     TABLE_COLUMN_PRESETS,
     DEFAULT_TABLE_DENSITY,
     reset_filters,
+    count_active_filters,
 )
 
 # ============================
@@ -55,7 +56,6 @@ from ui_components import (
     display_list_view,
     render_glassy_table,
     render_app_header,
-    render_chip,
     render_custom_navigation,
     inject_topbar_branding,
     inject_header_fix_css,
@@ -90,6 +90,12 @@ def _months_back_config(default: int = 2) -> int:
 # Garante que o nome da página principal apareça como "Previsões" na navegação lateral customizada
 render_custom_navigation()
 
+with st.sidebar:
+    if st.button("🔄 Atualizar agora", key="pg_refresh_sidebar", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+    sidebar_update_placeholder = st.empty()
+
 # Aplica correção do header somente se estiver habilitada em secrets ou query string
 try:
     force_header_patch = bool(st.secrets.get("force_header_patch", False))
@@ -107,7 +113,7 @@ def init_theme_state() -> None:
 
 
 init_theme_state()
-dark_mode = False
+dark_mode = bool(st.session_state.get("pg_dark_mode", False))
 
 # --- Estilos mobile-first + cores e tema dos gráficos ---
 inject_custom_css(dark_mode)
@@ -131,6 +137,7 @@ from analysis import (
 )
 from insights_service import METRIC_ORDER, metric_stats_for, build_tournament_stats
 from dashboard_service import FilterParams, apply_dashboard_filters
+from analysis_service import compute_hit_columns
 
 # ============================
 # Exibição amigável
@@ -219,6 +226,10 @@ try:
     else:
         last_update_dt = datetime.now(tz=tz_sp)
 
+    sidebar_update_placeholder.caption(
+        f"Última atualização: {last_update_dt.strftime('%d/%m/%Y %H:%M')}"
+    )
+
     df = load_data(content, months_back=_months_back_config())
 
     if "init_from_url" not in st.session_state:
@@ -249,8 +260,8 @@ try:
                 help="Mantém a listagem em cards mesmo no desktop quando preferir.",
             )
 
-        st.session_state["pg_table_density"] = DEFAULT_TABLE_DENSITY
-        table_density = DEFAULT_TABLE_DENSITY
+        st.session_state.setdefault("pg_table_density", DEFAULT_TABLE_DENSITY)
+        table_density = st.session_state.get("pg_table_density", DEFAULT_TABLE_DENSITY)
 
         use_list_view = bool(st.session_state.get("pg_list_view_pref", modo_mobile))
 
@@ -282,8 +293,14 @@ try:
                     q_team_input = cleared.search_query
                     shared_state = cleared
             with chips_col:
+                active_mobile = count_active_filters(
+                    shared_state,
+                    tournament_total=len(tournament_opts),
+                    model_total=(df["model"].nunique() if "model" in df.columns else 0),
+                    full_date_range=(min_date, max_date) if min_date and max_date else (),
+                )
                 st.markdown(
-                    f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {shared_state.active_count}</div>",
+                    f"<div class='pg-chip ghost' aria-hidden='true'>Ativos agora: {active_mobile}</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -291,22 +308,13 @@ try:
             set_filter_state(shared_state)
 
 
-        active_filters = 0
-        if tournaments_sel and len(tournaments_sel) != len(tournament_opts):
-            active_filters += 1
         model_unique = df["model"].nunique() if "model" in df.columns else 0
-        if models_sel and (model_unique and len(models_sel) != model_unique):
-            active_filters += 1
-        if teams_sel:
-            active_filters += 1
-        if q_team:
-            active_filters += 1
-        if bet_sel or goal_sel:
-            active_filters += 1
-        if selected_date_range:
-            active_filters += 1
-        if guru_only:
-            active_filters += 1
+        active_filters = count_active_filters(
+            shared_state,
+            tournament_total=len(tournament_opts),
+            model_total=model_unique,
+            full_date_range=(min_date, max_date) if min_date and max_date else (),
+        )
 
         params = FilterParams(
             tournaments_sel=tournaments_sel,
@@ -322,6 +330,10 @@ try:
             guru_only=guru_only,
         )
         df_filtered, _, _, _ = apply_dashboard_filters(df, params)
+
+        curr_df = pd.DataFrame()
+        curr_label = "recorte"
+        export_disabled = True
 
         # Abas Agendados x Finalizados (KPIs só em Finalizados)
         if df_filtered.empty:
@@ -352,8 +364,7 @@ try:
             ]
             header_html = render_app_header(live_messages=live_messages)
             with topbar_placeholder.container():
-                brand_col, action_col = st.columns([4, 1.4])
-                brand_col.markdown(header_html, unsafe_allow_html=True)
+                st.markdown(header_html, unsafe_allow_html=True)
 
 
             # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
@@ -455,25 +466,16 @@ try:
                             )
 
                     # ---------- KPIs e gráfico por modelo (apenas finalizados) ----------
-                    rh = df_fin.get("result_home", pd.Series(index=df_fin.index, dtype="float"))
-                    ra = df_fin.get("result_away", pd.Series(index=df_fin.index, dtype="float"))
-                    mask_valid = rh.notna() & ra.notna()
-
-                    # Códigos reais H/D/A
-                    real_code = pd.Series(index=df_fin.index, dtype="object")
-                    real_code.loc[mask_valid & (rh > ra)] = "H"
-                    real_code.loc[mask_valid & (rh == ra)] = "D"
-                    real_code.loc[mask_valid & (rh < ra)] = "A"
-
-                    selected_models = list(df_fin["model"].dropna().unique()) if "model" in df_fin.columns else []
+                    df_fin_eval = compute_hit_columns(df_fin)
+                    selected_models = list(df_fin_eval["model"].dropna().unique()) if "model" in df_fin_eval.columns else []
                     multi_model = len(selected_models) > 1
 
-                    metrics_df = calculate_kpis(df_fin, multi_model)
-                    overall_metrics = calculate_kpis(df_fin, False)
+                    metrics_df = calculate_kpis(df_fin_eval, multi_model)
+                    overall_metrics = calculate_kpis(df_fin_eval, False)
 
                     metric_order = METRIC_ORDER
                     overall_stats = metric_stats_for(overall_metrics, metric_order)
-                    campeonatos_stats = build_tournament_stats(df_fin, metric_order)
+                    campeonatos_stats = build_tournament_stats(df_fin_eval, metric_order)
 
                     def _render_stat_row(title: str, desc: str, stats: dict[str, tuple[float, int, int]], tag: str | None = None):
                         st.markdown(f"**{title}**")
@@ -522,7 +524,11 @@ try:
                             ordered=True,
                         )
                         metrics_df_display = metrics_df_display.sort_values("Métrica")
-                        render_glassy_table(metrics_df_display, caption="Precisão por métrica")
+                        render_glassy_table(
+                            metrics_df_display,
+                            caption="Precisão por métrica",
+                            key="metrics_precision_table",
+                        )
 
                     if multi_model:
                         # Gráfico de barras agrupadas por modelo
@@ -583,7 +589,7 @@ try:
                             st.altair_chart(chart + text, use_container_width=True)
 
                                         # --- Gráficos de linha de acurácia por dia (nativo Altair, sem CDN externo) ---
-                    accuracy_data = prepare_accuracy_chart_data(df_fin)
+                    accuracy_data = prepare_accuracy_chart_data(df_fin_eval)
                     if not accuracy_data.empty:
                         st.markdown("### Desempenho diário por campeonato e métrica")
                         tournaments = sorted(accuracy_data["Campeonato"].dropna().unique().tolist())
@@ -624,7 +630,7 @@ try:
                         st.info("Não há dados suficientes para gerar os gráficos de desempenho diário.")
 
                     # --- Tabela de Melhor Modelo por Campeonato e Mercado ---
-                    best_model_data = get_best_model_by_market(df_fin.copy())
+                    best_model_data = get_best_model_by_market(df_fin_eval.copy())
                     if not best_model_data.empty:
                         summary_pivot_table = create_summary_pivot_table(best_model_data)
 
@@ -635,13 +641,15 @@ try:
                         render_glassy_table(
                             best_model_data,
                             caption="Melhor Modelo por Campeonato e Mercado",
+                            key="best_model_by_market_table",
                         )
                         render_glassy_table(
                             summary_pivot_table,
                             caption="Resumo do Melhor Modelo por Mercado",
+                            key="best_model_summary_table",
                         )
 
-                        market_rankings = build_model_ranking_by_market(df_fin.copy())
+                        market_rankings = build_model_ranking_by_market(df_fin_eval.copy())
                         if market_rankings:
                             st.caption("Ranking por mercado")
                             st.subheader("Performance de cada mercado por modelo")
@@ -649,9 +657,11 @@ try:
                             for market_name, ranking_df in market_rankings.items():
                                 if ranking_df.empty:
                                     continue
+                                ranking_key = f"app_ranking_market_{str(market_name).strip().lower().replace(' ', '_').replace('—', '-')}"
                                 render_glassy_table(
                                     ranking_df,
                                     caption=f"Ranking por modelo — {market_name}",
+                                    key=ranking_key,
                                 )
                         else:
                             st.info("Não há dados suficientes para gerar os rankings por mercado.")
@@ -679,10 +689,6 @@ try:
         with fcol2:
             st.empty()
 
-        # Botão para forçar atualização (limpa o cache de dados e re-executa o app)
-        if st.button("🔄 Atualizar agora"):
-            st.cache_data.clear()
-            st.rerun()
 
 except FileNotFoundError:
     st.error("FATAL: `PrevisaoJogos.xlsx` não encontrado.")

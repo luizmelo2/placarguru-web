@@ -18,6 +18,7 @@ from state import (
     reset_filters,
     build_filter_defaults,
     DEFAULT_TABLE_DENSITY,
+    count_active_filters,
 )
 
 from utils import (
@@ -105,8 +106,10 @@ def render_chip(text: str, tone: str = "ghost", aria_label: Optional[str] = None
     cls = "pg-chip"
     if tone == "ghost":
         cls += " ghost"
-    aria = f" aria-label=\"{aria_label}\"" if aria_label else ""
-    return f"<span class=\"{cls}\"{aria}>{text}</span>"
+    safe_text = html.escape(str(text))
+    safe_aria = html.escape(str(aria_label), quote=True) if aria_label else ""
+    aria = f" aria-label=\"{safe_aria}\"" if safe_aria else ""
+    return f"<span class=\"{cls}\"{aria}>{safe_text}</span>"
 
 
 def render_status_badge(status: str) -> str:
@@ -166,7 +169,7 @@ def render_app_header(
 ) -> str:
     """Header minimalista com apenas nome e slogan."""
 
-    live_text = " | ".join([m for m in (live_messages or []) if m])
+    live_text = " | ".join([html.escape(str(m)) for m in (live_messages or []) if m])
 
     return f"""
     <div class="pg-header" role="banner">
@@ -362,6 +365,7 @@ def render_glassy_table(
     caption: Optional[str] = None,
     show_index: Optional[bool] = None,
     density: str = "comfortable",
+    key: Optional[str] = None,
 ):
     """Renderiza uma tabela interativa com visual glassy e realce de Sugestão Guru.
 
@@ -433,6 +437,7 @@ def render_glassy_table(
             hide_index=not show_index,
             disabled=True,
             column_config=column_config,
+            key=key,
         )
 
 
@@ -669,6 +674,12 @@ def filtros_ui(
     state = get_filter_state(defaults)
     tournaments_sel = [t for t in (state.tournaments_sel or []) if t in opts["tourn_opts"]] or list(opts["tourn_opts"])
     state.tournaments_sel = tournaments_sel
+    active_filters_count = count_active_filters(
+        state,
+        tournament_total=len(opts["tourn_opts"]),
+        model_total=len(opts["model_opts"]),
+        full_date_range=(opts["min_date"], opts["max_date"]) if opts["min_date"] and opts["max_date"] else (),
+    )
 
     # --- 3. Renderização da UI (menu lateral esquerdo) ---
     with st.sidebar:
@@ -687,9 +698,9 @@ def filtros_ui(
             unsafe_allow_html=True,
         )
         st.session_state["pg_filters_open"] = True
-        if state.active_count:
+        if active_filters_count:
             st.button(
-                f"Limpar filtros ({state.active_count})",
+                f"Limpar filtros ({active_filters_count})",
                 use_container_width=True,
                 key="btn_clear_filters",
                 on_click=lambda: (
@@ -794,6 +805,12 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
     gols_txt = f"{market_label(row.get('goal_bet_suggestion'), default=missing_label)} {get_prob_and_odd_for_market(row, row.get('goal_bet_suggestion'))}"
     btts_pred_txt = f"{market_label(btts_pred, default=missing_label)} {get_prob_and_odd_for_market(row, btts_pred)}"
 
+    rh = row.get("result_home")
+    ra = row.get("result_away")
+    final_score = "—"
+    if pd.notna(rh) and pd.notna(ra):
+        final_score = f"{int(rh)}-{int(ra)}"
+
     return {
         "title": f"{dt_txt} • {row.get('home', '?')} vs {row.get('away', '?')}",
         "status_txt": status_label(row.get("status", "N/A")),
@@ -809,7 +826,7 @@ def _prepare_display_data(row: pd.Series, hide_missing: bool = False) -> dict:
         "btts_pred_txt": btts_pred_txt,
         "cap_line": f"{tournament_label(row.get('tournament_id'))} • Modelo {row.get('model','—')}",
         "is_finished": norm_status_key(row.get("status", "")) in FINISHED_TOKENS,
-        "final_score": f"{int(row.get('result_home', 0))}-{int(row.get('result_away', 0))}" if pd.notna(row.get("result_home")) else "—",
+        "final_score": final_score,
         "highlight": highlight,
         "highlight_scope": highlight_scope,
         "suggested_prob": prob_val,
@@ -912,16 +929,21 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
 
         with st.container():
             badge_class = "badge-finished" if data["is_finished"] else "badge-wait"
+            safe_cap_line = html.escape(str(data.get("cap_line", "")))
+            safe_kickoff = html.escape(str(data.get("kickoff", "")))
+            safe_status = html.escape(str(data.get("status_txt", "")))
+            safe_final_score = html.escape(str(data.get("final_score", "")))
+
             highlight_label = ""
             if data["highlight"]:
-                scope_txt = data.get("highlight_scope", "").strip()
+                scope_txt = html.escape(str(data.get("highlight_scope", "")).strip())
                 scope_hint = f" — {scope_txt}" if scope_txt else ""
                 highlight_label = (
                     "<span class=\"badge\" style=\"background: var(--neon); color:#0f172a; border-color: var(--neon);\">Sugestão Guru"
                     f"{scope_hint}</span>"
                 )
             final_score_badge = (
-                f"<span class=\"badge badge-finished\">Placar Final {data['final_score']}</span>"
+                f"<span class=\"badge badge-finished\">Placar Final {safe_final_score}</span>"
                 if data["is_finished"]
                 else ""
             )
@@ -944,8 +966,9 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
             sofascore_icon_svg = _get_sofascore_icon_svg()
             sofascore_html = ""
             if sofascore_icon_svg and data.get("sofascore_link"):
+                safe_sofascore_link = html.escape(str(data.get("sofascore_link", "")), quote=True)
                 sofascore_html = f"""
-                    <a href="{data['sofascore_link']}" target="_blank" rel="noopener noreferrer" class="pg-sofascore-link" aria-label="Ver no Sofascore">
+                    <a href="{safe_sofascore_link}" target="_blank" rel="noopener noreferrer" class="pg-sofascore-link" aria-label="Ver no Sofascore">
                         {sofascore_icon_svg}
                     </a>
                 """
@@ -955,15 +978,15 @@ def display_list_view(df: pd.DataFrame, hide_missing: bool = False):
                 <div class="pg-card {'neon' if data['highlight'] else ''}">
                   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                     <div>
-                      <div class="pg-meta">{data['cap_line']}</div>
+                      <div class="pg-meta">{safe_cap_line}</div>
                       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <div class="pg-matchup">{data['match_title_html']}</div>
                         {sofascore_html}
-                        <span class="badge">{data['kickoff']}</span>
+                        <span class="badge">{safe_kickoff}</span>
                         {highlight_label}
                       </div>
                     </div>
-                    <span class="badge {badge_class}">{data['status_txt']}</span>
+                    <span class="badge {badge_class}">{safe_status}</span>
                   </div>
 
                   <div class="pg-grid" style="margin-top:10px;">

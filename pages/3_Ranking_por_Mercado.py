@@ -86,7 +86,13 @@ try:
     for market_name, ranking_df in rankings.items():
         if ranking_df.empty:
             continue
-        render_glassy_table(ranking_df, caption=f"Ranking por modelo — {market_name}")
+        safe_market = str(market_name).strip().lower().replace(" ", "_").replace("—", "-")
+        safe_key = f"ranking_market_{safe_market}"
+        render_glassy_table(
+            ranking_df,
+            caption=f"Ranking por modelo — {market_name}",
+            key=safe_key,
+        )
 
 except Exception as exc:
     st.error(f"Erro inesperado ao montar ranking por mercado: {exc}")

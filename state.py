@@ -41,23 +41,37 @@ class FilterState:
 
     @property
     def active_count(self) -> int:
-        count = 0
-        if self.tournaments_sel:
-            count += 1
-        if self.models_sel:
-            count += 1
-        if self.teams_sel:
-            count += 1
-        if self.search_query:
-            count += 1
-        if self.bet_sel or self.goal_sel:
-            count += 1
-        if self.selected_date_range:
-            count += 1
-        if self.guru_only:
-            count += 1
-        return count
+        return count_active_filters(self)
 
+
+
+
+def count_active_filters(
+    state: "FilterState",
+    *,
+    tournament_total: int = 0,
+    model_total: int = 0,
+    full_date_range: tuple[date, date] | tuple = (),
+) -> int:
+    """Conta filtros ativos considerando seleção total como estado neutro."""
+
+    count = 0
+    if state.tournaments_sel and (tournament_total <= 0 or len(state.tournaments_sel) != tournament_total):
+        count += 1
+    if state.models_sel and (model_total <= 0 or len(state.models_sel) != model_total):
+        count += 1
+    if state.teams_sel:
+        count += 1
+    if state.search_query:
+        count += 1
+    if state.bet_sel or state.goal_sel:
+        count += 1
+    if state.selected_date_range:
+        if not full_date_range or tuple(state.selected_date_range) != tuple(full_date_range):
+            count += 1
+    if state.guru_only:
+        count += 1
+    return count
 
 def get_filter_state(defaults: Optional[dict] = None) -> FilterState:
     """Obtém o estado de filtros armazenado em sessão, aplicando defaults fornecidos."""

@@ -59,3 +59,37 @@ def test_fetch_release_file_checksum_validation(monkeypatch):
 
     with pytest.raises(RuntimeError):
         fetch_release_file("https://github.com/owner/repo/file.xlsx")
+
+
+def test_fetch_release_file_uses_tls_verify_by_default(monkeypatch):
+    fetch_release_file.clear()
+    monkeypatch.setenv("PG_RELEASE_ALLOWED_HOSTS", "github.com")
+    monkeypatch.delenv("PG_RELEASE_VERIFY_SSL", raising=False)
+
+    seen = {"verify": None}
+
+    def fake_get(url, timeout, verify):
+        seen["verify"] = verify
+        return _Resp(b"ok")
+
+    monkeypatch.setattr(utils.requests, "get", fake_get)
+
+    fetch_release_file("https://github.com/owner/repo/file.xlsx")
+    assert seen["verify"] is True
+
+
+def test_fetch_release_file_can_disable_tls_verify_via_env(monkeypatch):
+    fetch_release_file.clear()
+    monkeypatch.setenv("PG_RELEASE_ALLOWED_HOSTS", "github.com")
+    monkeypatch.setenv("PG_RELEASE_VERIFY_SSL", "0")
+
+    seen = {"verify": None}
+
+    def fake_get(url, timeout, verify):
+        seen["verify"] = verify
+        return _Resp(b"ok")
+
+    monkeypatch.setattr(utils.requests, "get", fake_get)
+
+    fetch_release_file("https://github.com/owner/repo/file.xlsx")
+    assert seen["verify"] is False

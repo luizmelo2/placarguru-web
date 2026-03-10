@@ -445,6 +445,14 @@ def _validate_release_checksum(content: bytes) -> None:
         raise ValueError("Checksum SHA256 da release não confere")
 
 
+
+
+def _release_verify_ssl() -> bool:
+    """Define se o download da release valida certificado TLS."""
+
+    raw = os.getenv("PG_RELEASE_VERIFY_SSL", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
 def _release_retry_params() -> tuple[int, float]:
     """Retorna (max_attempts, backoff_seconds) para download da release."""
 
@@ -457,16 +465,17 @@ def _release_retry_params() -> tuple[int, float]:
 def fetch_release_file(url: str):
     """
     Baixa o arquivo da Release pública do GitHub.
-    Mantém verify=False (requisito), com mitigação de allowlist, retry/backoff e checksum opcional.
+    Usa validação TLS por padrão, com opção de override por ambiente.
     Retorna: (bytes, etag, last_modified)
     """
     _validate_release_source(url)
     max_attempts, backoff = _release_retry_params()
+    verify_ssl = _release_verify_ssl()
 
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            r = requests.get(url, timeout=60, verify=False)
+            r = requests.get(url, timeout=60, verify=verify_ssl)
             r.raise_for_status()
             content = r.content
             _validate_release_checksum(content)
