@@ -524,7 +524,11 @@ try:
                             ordered=True,
                         )
                         metrics_df_display = metrics_df_display.sort_values("Métrica")
-                        render_glassy_table(metrics_df_display, caption="Precisão por métrica")
+                        render_glassy_table(
+                            metrics_df_display,
+                            caption="Precisão por métrica",
+                            key="metrics_precision_table",
+                        )
 
                     if multi_model:
                         # Gráfico de barras agrupadas por modelo
@@ -637,10 +641,12 @@ try:
                         render_glassy_table(
                             best_model_data,
                             caption="Melhor Modelo por Campeonato e Mercado",
+                            key="best_model_by_market_table",
                         )
                         render_glassy_table(
                             summary_pivot_table,
                             caption="Resumo do Melhor Modelo por Mercado",
+                            key="best_model_summary_table",
                         )
 
                         market_rankings = build_model_ranking_by_market(df_fin_eval.copy())
@@ -651,9 +657,11 @@ try:
                             for market_name, ranking_df in market_rankings.items():
                                 if ranking_df.empty:
                                     continue
+                                ranking_key = f"app_ranking_market_{str(market_name).strip().lower().replace(' ', '_').replace('—', '-')}"
                                 render_glassy_table(
                                     ranking_df,
                                     caption=f"Ranking por modelo — {market_name}",
+                                    key=ranking_key,
                                 )
                         else:
                             st.info("Não há dados suficientes para gerar os rankings por mercado.")

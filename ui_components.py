@@ -365,6 +365,7 @@ def render_glassy_table(
     caption: Optional[str] = None,
     show_index: Optional[bool] = None,
     density: str = "comfortable",
+    key: Optional[str] = None,
 ):
     """Renderiza uma tabela interativa com visual glassy e realce de Sugestão Guru.
 
@@ -436,6 +437,7 @@ def render_glassy_table(
             hide_index=not show_index,
             disabled=True,
             column_config=column_config,
+            key=key,
         )
 
 
