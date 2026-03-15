@@ -367,7 +367,7 @@ try:
                 st.markdown(header_html, unsafe_allow_html=True)
 
 
-            # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação desc ----------
+            # ---------- Padrão: FINALIZADOS = últimos 3 dias + ordenação asc ----------
             has_date_col = ("date" in df.columns) and df["date"].notna().any()
             if has_date_col:
                 _min_all = df["date"].dropna().min().date()
@@ -393,8 +393,11 @@ try:
                 else:
                     df_fin = df_fin_full
 
+            if "date" in df_ag.columns:
+                df_ag = df_ag.sort_values("date", ascending=True, na_position="last")
+
             if "date" in df_fin.columns:
-                df_fin = df_fin.sort_values("date", ascending=False, na_position="last")
+                df_fin = df_fin.sort_values("date", ascending=True, na_position="last")
 
             # Recalcula o recorte exportável após possíveis ajustes automáticos em finalizados
             if status_view.startswith("🗓️"):
