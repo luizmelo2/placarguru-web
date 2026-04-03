@@ -1,7 +1,11 @@
 import pandas as pd
 
 from analysis_service import compute_hit_columns
-from analysis import get_best_model_by_market, build_model_ranking_by_market
+from analysis import (
+    get_best_model_by_market,
+    build_model_ranking_by_market,
+    build_weekly_accuracy_by_model,
+)
 from insights_service import metric_stats_for
 
 
@@ -123,3 +127,32 @@ def test_build_model_ranking_by_market_returns_sorted_tables():
 def test_build_model_ranking_by_market_handles_empty_input():
     out = build_model_ranking_by_market(pd.DataFrame())
     assert out == {}
+
+
+def test_build_weekly_accuracy_by_model_groups_by_week_and_model():
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-09"]),
+            "model": ["A", "A", "B"],
+            "status": ["finished"] * 3,
+            "result_home": [1, 2, 0],
+            "result_away": [0, 0, 1],
+            "result_predicted": ["H", "H", "A"],
+            "bet_suggestion": ["H", "H", "A"],
+            "goal_bet_suggestion": ["over_1_5", "over_1_5", "under_1_5"],
+            "btts_suggestion": ["btts_no", "btts_no", "btts_no"],
+            "score_predicted": ["1-0", "2-0", "0-1"],
+        }
+    )
+
+    weekly = build_weekly_accuracy_by_model(df, market_label="Resultado")
+
+    assert not weekly.empty
+    assert set(["Semana", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
+    assert weekly["Total"].sum() == 3
+
+
+def test_build_weekly_accuracy_by_model_returns_empty_for_invalid_market():
+    df = pd.DataFrame({"date": pd.to_datetime(["2026-01-01"]), "model": ["A"]})
+    out = build_weekly_accuracy_by_model(df, market_label="Mercado Inexistente")
+    assert out.empty

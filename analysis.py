@@ -246,6 +246,51 @@ def build_model_ranking_by_market(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
     return rankings
 
+
+def build_weekly_accuracy_by_model(
+    df: pd.DataFrame,
+    market_label: str = "Resultado",
+) -> pd.DataFrame:
+    """Calcula evolução semanal de acerto por modelo para um mercado selecionado."""
+
+    if df.empty or "model" not in df.columns or "date" not in df.columns:
+        return pd.DataFrame()
+
+    market_map = {
+        "Resultado": "hit_result",
+        "Sugestão de Aposta": "hit_bet",
+        "Sugestão de Gols": "hit_goal",
+        "Ambos Marcam": "hit_btts",
+        "Sugestão Combo": "hit_combo",
+        "Placar Previsto": "hit_score",
+    }
+    hit_col = market_map.get(market_label)
+    if not hit_col:
+        return pd.DataFrame()
+
+    df_eval = _ensure_eval_df(df)
+    if hit_col not in df_eval.columns:
+        return pd.DataFrame()
+
+    sub = df_eval[["date", "model", hit_col]].copy()
+    sub["date"] = pd.to_datetime(sub["date"], errors="coerce")
+    sub = sub.dropna(subset=["date", hit_col])
+    if sub.empty:
+        return pd.DataFrame()
+
+    sub["Semana"] = sub["date"].dt.to_period("W-MON").dt.start_time
+    agg = sub.groupby(["Semana", "model"], as_index=False).agg(
+        Acertos=(hit_col, "sum"),
+        Total=(hit_col, "count"),
+    )
+    agg = agg[agg["Total"] > 0]
+    if agg.empty:
+        return pd.DataFrame()
+
+    agg["Acerto (%)"] = (agg["Acertos"] / agg["Total"] * 100).round(2)
+    return agg.rename(columns={"model": "Modelo"}).sort_values(["Semana", "Modelo"]).reset_index(drop=True)
+
+
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
     """Agrupa o resumo por **campeonato e modelo**, mantendo o recorte de mercado.
 

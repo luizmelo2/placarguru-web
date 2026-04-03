@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+import altair as alt
 
-from analysis import build_model_ranking_by_market
+from analysis import build_model_ranking_by_market, build_weekly_accuracy_by_model
 from ui_components import render_glassy_table
 from utils import RELEASE_URL, fetch_release_file, load_data, norm_status_key
 
@@ -77,6 +78,38 @@ try:
     if not rankings:
         st.warning("Não foi possível gerar os rankings para o recorte selecionado.")
         st.stop()
+
+    st.subheader("Evolução semanal de acerto por modelo")
+    mercados_disponiveis = list(rankings.keys())
+    mercado_semanal = st.selectbox(
+        "Mercado para evolução semanal",
+        options=mercados_disponiveis,
+        index=0,
+        help="Mostra o percentual de acerto semanal de cada modelo para o mercado selecionado.",
+    )
+
+    weekly_df = build_weekly_accuracy_by_model(recorte, market_label=mercado_semanal)
+    if weekly_df.empty:
+        st.caption("Sem dados suficientes para o gráfico semanal no recorte atual.")
+    else:
+        chart = (
+            alt.Chart(weekly_df)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("Semana:T", title="Semana"),
+                y=alt.Y("Acerto (%):Q", title="Acerto (%)", scale=alt.Scale(domain=[0, 100])),
+                color=alt.Color("Modelo:N", title="Modelo"),
+                tooltip=[
+                    alt.Tooltip("Semana:T", title="Semana", format="%d/%m/%Y"),
+                    "Modelo:N",
+                    alt.Tooltip("Acerto (%):Q", format=".2f"),
+                    "Acertos:Q",
+                    "Total:Q",
+                ],
+            )
+            .properties(height=340)
+        )
+        st.altair_chart(chart, use_container_width=True)
 
     st.subheader("Ranking de acerto por mercado")
     st.caption(
