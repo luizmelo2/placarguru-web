@@ -96,11 +96,23 @@ try:
         )
 
     st.subheader("Evolução de acerto por modelo (Mercado de Gols)")
+    block_size = st.number_input(
+        "Corte por quantidade de jogos",
+        min_value=1,
+        max_value=100,
+        value=10,
+        step=1,
+        help="Cada ponto do gráfico representa um bloco sequencial dessa quantidade de jogos por modelo.",
+    )
     st.caption(
-        "Cada ponto representa um bloco sequencial de 5 jogos por modelo "
+        f"Cada ponto representa um bloco sequencial de {int(block_size)} jogos por modelo "
         "(última data do bloco no eixo X)."
     )
-    weekly_df = build_weekly_accuracy_by_model(recorte, market_label="Sugestão de Gols")
+    weekly_df = build_weekly_accuracy_by_model(
+        recorte,
+        market_label="Sugestão de Gols",
+        block_size=int(block_size),
+    )
     if weekly_df.empty:
         st.caption("Sem dados suficientes para o gráfico de evolução no recorte atual.")
     else:
@@ -122,7 +134,7 @@ try:
                     x=alt.X("Data de Corte:T", title="Data de corte"),
                     y=alt.Y("Acerto (%):Q", title="Acerto no corte (%)"),
                     tooltip=[
-                        alt.Tooltip("Bloco:Q", title="Bloco (5 jogos)"),
+                        alt.Tooltip("Bloco:Q", title=f"Bloco ({int(block_size)} jogos)"),
                         alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
                         "Modelo:N",
                         alt.Tooltip("Acerto (%):Q", format=".2f"),

@@ -250,10 +250,13 @@ def build_model_ranking_by_market(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
 def build_weekly_accuracy_by_model(
     df: pd.DataFrame,
     market_label: str = "Sugestão de Gols",
+    block_size: int = 10,
 ) -> pd.DataFrame:
-    """Calcula acerto por modelo em blocos de 5 jogos."""
+    """Calcula acerto por modelo em blocos sequenciais de jogos."""
 
     if df.empty or "model" not in df.columns or "date" not in df.columns:
+        return pd.DataFrame()
+    if block_size <= 0:
         return pd.DataFrame()
 
     market_map = {
@@ -280,7 +283,7 @@ def build_weekly_accuracy_by_model(
 
     sub = sub.sort_values(["model", "date"]).reset_index(drop=True)
     sub["idx_modelo"] = sub.groupby("model").cumcount()
-    sub["Bloco"] = (sub["idx_modelo"] // 5) + 1
+    sub["Bloco"] = (sub["idx_modelo"] // int(block_size)) + 1
 
     agg = sub.groupby(["Bloco", "model"], as_index=False).agg(
         **{"Data de Corte": ("date", "max")},

@@ -147,7 +147,7 @@ def test_build_weekly_accuracy_by_model_groups_by_week_and_model():
         }
     )
 
-    weekly = build_weekly_accuracy_by_model(df, market_label="Sugestão de Gols")
+    weekly = build_weekly_accuracy_by_model(df, market_label="Sugestão de Gols", block_size=5)
 
     assert not weekly.empty
     assert set(["Bloco", "Data de Corte", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
@@ -159,4 +159,10 @@ def test_build_weekly_accuracy_by_model_groups_by_week_and_model():
 def test_build_weekly_accuracy_by_model_returns_empty_for_invalid_market():
     df = pd.DataFrame({"date": pd.to_datetime(["2026-01-01"]), "model": ["A"]})
     out = build_weekly_accuracy_by_model(df, market_label="Mercado Inexistente")
+    assert out.empty
+
+
+def test_build_weekly_accuracy_by_model_returns_empty_for_invalid_block_size():
+    df = pd.DataFrame({"date": pd.to_datetime(["2026-01-01"]), "model": ["A"]})
+    out = build_weekly_accuracy_by_model(df, market_label="Sugestão de Gols", block_size=0)
     assert out.empty
