@@ -251,7 +251,7 @@ def build_weekly_accuracy_by_model(
     df: pd.DataFrame,
     market_label: str = "Sugestão de Gols",
 ) -> pd.DataFrame:
-    """Calcula evolução acumulada de acerto por modelo em datas de corte (qua/sex/dom)."""
+    """Calcula acerto por modelo em cortes semanais (qua/sex/dom)."""
 
     if df.empty or "model" not in df.columns or "date" not in df.columns:
         return pd.DataFrame()
@@ -294,9 +294,6 @@ def build_weekly_accuracy_by_model(
     if agg.empty:
         return pd.DataFrame()
 
-    agg = agg.sort_values(["model", "Data de Corte"]).reset_index(drop=True)
-    agg["Acertos"] = agg.groupby("model")["Acertos"].cumsum()
-    agg["Total"] = agg.groupby("model")["Total"].cumsum()
     agg["Acerto (%)"] = (agg["Acertos"] / agg["Total"] * 100).round(2)
 
     return (

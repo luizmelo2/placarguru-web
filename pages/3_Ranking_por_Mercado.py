@@ -95,8 +95,11 @@ try:
             key=safe_key,
         )
 
-    st.subheader("Evolução acumulada de acerto por modelo (Mercado de Gols)")
-    st.caption("Agrupamento por cortes em quarta, sexta e domingo, sempre acumulando os resultados anteriores.")
+    st.subheader("Evolução de acerto por modelo (Mercado de Gols)")
+    st.caption(
+        "Cortes fixos: quarta (seg-ter-qua), sexta (qui-sex) e domingo (sáb-dom). "
+        "Cada ponto mostra somente o acumulado do próprio corte."
+    )
     weekly_df = build_weekly_accuracy_by_model(recorte, market_label="Sugestão de Gols")
     if weekly_df.empty:
         st.caption("Sem dados suficientes para o gráfico de evolução no recorte atual.")
@@ -117,13 +120,13 @@ try:
                 .mark_line(point=alt.OverlayMarkDef(size=70))
                 .encode(
                     x=alt.X("Data de Corte:T", title="Data de corte"),
-                    y=alt.Y("Acerto (%):Q", title="Acerto acumulado (%)"),
+                    y=alt.Y("Acerto (%):Q", title="Acerto no corte (%)"),
                     tooltip=[
                         alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
                         "Modelo:N",
                         alt.Tooltip("Acerto (%):Q", format=".2f"),
-                        alt.Tooltip("Acertos:Q", title="Acertos acumulados"),
-                        alt.Tooltip("Total:Q", title="Total acumulado"),
+                        alt.Tooltip("Acertos:Q", title="Acertos no corte"),
+                        alt.Tooltip("Total:Q", title="Total no corte"),
                     ],
                 )
                 .properties(height=170)

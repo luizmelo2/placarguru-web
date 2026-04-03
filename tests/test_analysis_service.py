@@ -149,10 +149,9 @@ def test_build_weekly_accuracy_by_model_groups_by_week_and_model():
 
     assert not weekly.empty
     assert set(["Data de Corte", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
-    assert weekly.iloc[-1]["Total"] == 3
     assert list(weekly["Data de Corte"].dt.dayofweek.unique()) == [4, 6]
-    assert list(weekly["Acertos"]) == [1, 2]
-    assert list(weekly["Total"]) == [2, 3]
+    assert list(weekly["Acertos"]) == [1, 1]
+    assert list(weekly["Total"]) == [2, 1]
 
 
 def test_build_weekly_accuracy_by_model_returns_empty_for_invalid_market():
