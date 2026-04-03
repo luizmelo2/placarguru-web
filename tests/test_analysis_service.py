@@ -132,24 +132,27 @@ def test_build_model_ranking_by_market_handles_empty_input():
 def test_build_weekly_accuracy_by_model_groups_by_week_and_model():
     df = pd.DataFrame(
         {
-            "date": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-09"]),
-            "model": ["A", "A", "B"],
+            "date": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-04"]),
+            "model": ["A", "A", "A"],
             "status": ["finished"] * 3,
-            "result_home": [1, 2, 0],
-            "result_away": [0, 0, 1],
-            "result_predicted": ["H", "H", "A"],
-            "bet_suggestion": ["H", "H", "A"],
-            "goal_bet_suggestion": ["over_1_5", "over_1_5", "under_1_5"],
+            "result_home": [1, 1, 1],
+            "result_away": [0, 0, 0],
+            "result_predicted": ["H", "H", "H"],
+            "bet_suggestion": ["H", "H", "H"],
+            "goal_bet_suggestion": ["under_1_5", "over_1_5", "under_1_5"],
             "btts_suggestion": ["btts_no", "btts_no", "btts_no"],
-            "score_predicted": ["1-0", "2-0", "0-1"],
+            "score_predicted": ["1-0", "1-0", "1-0"],
         }
     )
 
-    weekly = build_weekly_accuracy_by_model(df, market_label="Resultado")
+    weekly = build_weekly_accuracy_by_model(df, market_label="Sugestão de Gols")
 
     assert not weekly.empty
-    assert set(["Semana", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
-    assert weekly["Total"].sum() == 3
+    assert set(["Data de Corte", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
+    assert weekly.iloc[-1]["Total"] == 3
+    assert list(weekly["Data de Corte"].dt.dayofweek.unique()) == [4, 6]
+    assert list(weekly["Acertos"]) == [1, 2]
+    assert list(weekly["Total"]) == [2, 3]
 
 
 def test_build_weekly_accuracy_by_model_returns_empty_for_invalid_market():

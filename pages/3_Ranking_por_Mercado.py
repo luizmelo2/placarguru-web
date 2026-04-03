@@ -79,38 +79,6 @@ try:
         st.warning("Não foi possível gerar os rankings para o recorte selecionado.")
         st.stop()
 
-    st.subheader("Evolução semanal de acerto por modelo")
-    mercados_disponiveis = list(rankings.keys())
-    mercado_semanal = st.selectbox(
-        "Mercado para evolução semanal",
-        options=mercados_disponiveis,
-        index=0,
-        help="Mostra o percentual de acerto semanal de cada modelo para o mercado selecionado.",
-    )
-
-    weekly_df = build_weekly_accuracy_by_model(recorte, market_label=mercado_semanal)
-    if weekly_df.empty:
-        st.caption("Sem dados suficientes para o gráfico semanal no recorte atual.")
-    else:
-        chart = (
-            alt.Chart(weekly_df)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("Semana:T", title="Semana"),
-                y=alt.Y("Acerto (%):Q", title="Acerto (%)", scale=alt.Scale(domain=[0, 100])),
-                color=alt.Color("Modelo:N", title="Modelo"),
-                tooltip=[
-                    alt.Tooltip("Semana:T", title="Semana", format="%d/%m/%Y"),
-                    "Modelo:N",
-                    alt.Tooltip("Acerto (%):Q", format=".2f"),
-                    "Acertos:Q",
-                    "Total:Q",
-                ],
-            )
-            .properties(height=340)
-        )
-        st.altair_chart(chart, use_container_width=True)
-
     st.subheader("Ranking de acerto por mercado")
     st.caption(
         "Observação: o filtro usa quantidade de jogos únicos. "
@@ -126,6 +94,31 @@ try:
             caption=f"Ranking por modelo — {market_name}",
             key=safe_key,
         )
+
+    st.subheader("Evolução acumulada de acerto por modelo (Mercado de Gols)")
+    st.caption("Agrupamento por cortes em quarta, sexta e domingo, sempre acumulando os resultados anteriores.")
+    weekly_df = build_weekly_accuracy_by_model(recorte, market_label="Sugestão de Gols")
+    if weekly_df.empty:
+        st.caption("Sem dados suficientes para o gráfico de evolução no recorte atual.")
+    else:
+        chart = (
+            alt.Chart(weekly_df)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("Data de Corte:T", title="Data de corte"),
+                y=alt.Y("Acerto (%):Q", title="Acerto acumulado (%)", scale=alt.Scale(domain=[0, 100])),
+                color=alt.Color("Modelo:N", title="Modelo"),
+                tooltip=[
+                    alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
+                    "Modelo:N",
+                    alt.Tooltip("Acerto (%):Q", format=".2f"),
+                    alt.Tooltip("Acertos:Q", title="Acertos acumulados"),
+                    alt.Tooltip("Total:Q", title="Total acumulado"),
+                ],
+            )
+            .properties(height=340)
+        )
+        st.altair_chart(chart, use_container_width=True)
 
 except Exception as exc:
     st.error(f"Erro inesperado ao montar ranking por mercado: {exc}")

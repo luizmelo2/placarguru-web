@@ -249,9 +249,9 @@ def build_model_ranking_by_market(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 def build_weekly_accuracy_by_model(
     df: pd.DataFrame,
-    market_label: str = "Resultado",
+    market_label: str = "Sugestão de Gols",
 ) -> pd.DataFrame:
-    """Calcula evolução semanal de acerto por modelo para um mercado selecionado."""
+    """Calcula evolução acumulada de acerto por modelo em datas de corte (qua/sex/dom)."""
 
     if df.empty or "model" not in df.columns or "date" not in df.columns:
         return pd.DataFrame()
@@ -278,8 +278,15 @@ def build_weekly_accuracy_by_model(
     if sub.empty:
         return pd.DataFrame()
 
-    sub["Semana"] = sub["date"].dt.to_period("W-MON").dt.start_time
-    agg = sub.groupby(["Semana", "model"], as_index=False).agg(
+    checkpoints = (2, 4, 6)  # quarta, sexta e domingo
+
+    def next_checkpoint(dt: pd.Timestamp) -> pd.Timestamp:
+        weekday = dt.weekday()
+        delta = min(((cp - weekday) % 7) for cp in checkpoints)
+        return (dt + pd.Timedelta(days=delta)).normalize()
+
+    sub["Data de Corte"] = sub["date"].map(next_checkpoint)
+    agg = sub.groupby(["Data de Corte", "model"], as_index=False).agg(
         Acertos=(hit_col, "sum"),
         Total=(hit_col, "count"),
     )
@@ -287,8 +294,16 @@ def build_weekly_accuracy_by_model(
     if agg.empty:
         return pd.DataFrame()
 
+    agg = agg.sort_values(["model", "Data de Corte"]).reset_index(drop=True)
+    agg["Acertos"] = agg.groupby("model")["Acertos"].cumsum()
+    agg["Total"] = agg.groupby("model")["Total"].cumsum()
     agg["Acerto (%)"] = (agg["Acertos"] / agg["Total"] * 100).round(2)
-    return agg.rename(columns={"model": "Modelo"}).sort_values(["Semana", "Modelo"]).reset_index(drop=True)
+
+    return (
+        agg.rename(columns={"model": "Modelo"})
+        .sort_values(["Data de Corte", "Modelo"])
+        .reset_index(drop=True)
+    )
 
 
 def create_summary_pivot_table(best_model_df: pd.DataFrame) -> pd.DataFrame:
