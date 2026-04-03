@@ -132,26 +132,28 @@ def test_build_model_ranking_by_market_handles_empty_input():
 def test_build_weekly_accuracy_by_model_groups_by_week_and_model():
     df = pd.DataFrame(
         {
-            "date": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-04"]),
-            "model": ["A", "A", "A"],
-            "status": ["finished"] * 3,
-            "result_home": [1, 1, 1],
-            "result_away": [0, 0, 0],
-            "result_predicted": ["H", "H", "H"],
-            "bet_suggestion": ["H", "H", "H"],
-            "goal_bet_suggestion": ["under_1_5", "over_1_5", "under_1_5"],
-            "btts_suggestion": ["btts_no", "btts_no", "btts_no"],
-            "score_predicted": ["1-0", "1-0", "1-0"],
+            "date": pd.to_datetime(
+                ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"]
+            ),
+            "model": ["A", "A", "A", "A", "A", "A"],
+            "status": ["finished"] * 6,
+            "result_home": [1, 1, 1, 1, 1, 1],
+            "result_away": [0, 0, 0, 0, 0, 0],
+            "result_predicted": ["H", "H", "H", "H", "H", "H"],
+            "bet_suggestion": ["H", "H", "H", "H", "H", "H"],
+            "goal_bet_suggestion": ["under_1_5", "over_1_5", "under_1_5", "over_1_5", "under_1_5", "under_1_5"],
+            "btts_suggestion": ["btts_no"] * 6,
+            "score_predicted": ["1-0"] * 6,
         }
     )
 
     weekly = build_weekly_accuracy_by_model(df, market_label="Sugestão de Gols")
 
     assert not weekly.empty
-    assert set(["Data de Corte", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
-    assert list(weekly["Data de Corte"].dt.dayofweek.unique()) == [4, 6]
-    assert list(weekly["Acertos"]) == [1, 1]
-    assert list(weekly["Total"]) == [2, 1]
+    assert set(["Bloco", "Data de Corte", "Modelo", "Acerto (%)", "Acertos", "Total"]).issubset(weekly.columns)
+    assert list(weekly["Bloco"]) == [1, 2]
+    assert list(weekly["Acertos"]) == [3, 1]
+    assert list(weekly["Total"]) == [5, 1]
 
 
 def test_build_weekly_accuracy_by_model_returns_empty_for_invalid_market():

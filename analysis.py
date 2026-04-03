@@ -251,7 +251,7 @@ def build_weekly_accuracy_by_model(
     df: pd.DataFrame,
     market_label: str = "Sugestão de Gols",
 ) -> pd.DataFrame:
-    """Calcula acerto por modelo em cortes semanais (qua/sex/dom)."""
+    """Calcula acerto por modelo em blocos de 5 jogos."""
 
     if df.empty or "model" not in df.columns or "date" not in df.columns:
         return pd.DataFrame()
@@ -278,15 +278,12 @@ def build_weekly_accuracy_by_model(
     if sub.empty:
         return pd.DataFrame()
 
-    checkpoints = (2, 4, 6)  # quarta, sexta e domingo
+    sub = sub.sort_values(["model", "date"]).reset_index(drop=True)
+    sub["idx_modelo"] = sub.groupby("model").cumcount()
+    sub["Bloco"] = (sub["idx_modelo"] // 5) + 1
 
-    def next_checkpoint(dt: pd.Timestamp) -> pd.Timestamp:
-        weekday = dt.weekday()
-        delta = min(((cp - weekday) % 7) for cp in checkpoints)
-        return (dt + pd.Timedelta(days=delta)).normalize()
-
-    sub["Data de Corte"] = sub["date"].map(next_checkpoint)
-    agg = sub.groupby(["Data de Corte", "model"], as_index=False).agg(
+    agg = sub.groupby(["Bloco", "model"], as_index=False).agg(
+        **{"Data de Corte": ("date", "max")},
         Acertos=(hit_col, "sum"),
         Total=(hit_col, "count"),
     )

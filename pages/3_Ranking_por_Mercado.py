@@ -97,8 +97,8 @@ try:
 
     st.subheader("Evolução de acerto por modelo (Mercado de Gols)")
     st.caption(
-        "Cortes fixos: quarta (seg-ter-qua), sexta (qui-sex) e domingo (sáb-dom). "
-        "Cada ponto mostra somente o acumulado do próprio corte."
+        "Cada ponto representa um bloco sequencial de 5 jogos por modelo "
+        "(última data do bloco no eixo X)."
     )
     weekly_df = build_weekly_accuracy_by_model(recorte, market_label="Sugestão de Gols")
     if weekly_df.empty:
@@ -122,6 +122,7 @@ try:
                     x=alt.X("Data de Corte:T", title="Data de corte"),
                     y=alt.Y("Acerto (%):Q", title="Acerto no corte (%)"),
                     tooltip=[
+                        alt.Tooltip("Bloco:Q", title="Bloco (5 jogos)"),
                         alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
                         "Modelo:N",
                         alt.Tooltip("Acerto (%):Q", format=".2f"),
