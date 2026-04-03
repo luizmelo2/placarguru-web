@@ -101,24 +101,38 @@ try:
     if weekly_df.empty:
         st.caption("Sem dados suficientes para o gráfico de evolução no recorte atual.")
     else:
-        chart = (
-            alt.Chart(weekly_df)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("Data de Corte:T", title="Data de corte"),
-                y=alt.Y("Acerto (%):Q", title="Acerto acumulado (%)", scale=alt.Scale(domain=[0, 100])),
-                color=alt.Color("Modelo:N", title="Modelo"),
-                tooltip=[
-                    alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
-                    "Modelo:N",
-                    alt.Tooltip("Acerto (%):Q", format=".2f"),
-                    alt.Tooltip("Acertos:Q", title="Acertos acumulados"),
-                    alt.Tooltip("Total:Q", title="Total acumulado"),
-                ],
-            )
-            .properties(height=340)
+        modelos_disponiveis = sorted(weekly_df["Modelo"].dropna().unique().tolist())
+        modelos_sel = st.multiselect(
+            "Modelos exibidos no gráfico",
+            options=modelos_disponiveis,
+            default=modelos_disponiveis,
+            help="Filtre modelos para melhorar a comparação visual.",
         )
-        st.altair_chart(chart, use_container_width=True)
+        if not modelos_sel:
+            st.caption("Selecione ao menos um modelo para exibir o gráfico.")
+        else:
+            weekly_filtered = weekly_df[weekly_df["Modelo"].isin(modelos_sel)]
+            base = (
+                alt.Chart(weekly_filtered)
+                .mark_line(point=alt.OverlayMarkDef(size=70))
+                .encode(
+                    x=alt.X("Data de Corte:T", title="Data de corte"),
+                    y=alt.Y("Acerto (%):Q", title="Acerto acumulado (%)"),
+                    tooltip=[
+                        alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
+                        "Modelo:N",
+                        alt.Tooltip("Acerto (%):Q", format=".2f"),
+                        alt.Tooltip("Acertos:Q", title="Acertos acumulados"),
+                        alt.Tooltip("Total:Q", title="Total acumulado"),
+                    ],
+                )
+                .properties(height=170)
+            )
+            chart = base.facet(
+                facet=alt.Facet("Modelo:N", title=None),
+                columns=2,
+            ).resolve_scale(y="independent")
+            st.altair_chart(chart, use_container_width=True)
 
 except Exception as exc:
     st.error(f"Erro inesperado ao montar ranking por mercado: {exc}")
