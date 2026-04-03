@@ -95,7 +95,6 @@ try:
             key=safe_key,
         )
 
-    st.subheader("Evolução de acerto por modelo (Mercado de Gols)")
     block_size = st.number_input(
         "Corte por quantidade de jogos",
         min_value=1,
@@ -104,51 +103,68 @@ try:
         step=1,
         help="Cada ponto do gráfico representa um bloco sequencial dessa quantidade de jogos por modelo.",
     )
-    st.caption(
-        f"Cada ponto representa um bloco sequencial de {int(block_size)} jogos por modelo "
-        "(última data do bloco no eixo X)."
-    )
-    weekly_df = build_weekly_accuracy_by_model(
-        recorte,
-        market_label="Sugestão de Gols",
-        block_size=int(block_size),
-    )
-    if weekly_df.empty:
-        st.caption("Sem dados suficientes para o gráfico de evolução no recorte atual.")
-    else:
-        modelos_disponiveis = sorted(weekly_df["Modelo"].dropna().unique().tolist())
+    
+    def render_market_chart(market_label: str, section_title: str, select_key: str) -> None:
+        st.subheader(section_title)
+        st.caption(
+            f"Cada ponto representa um bloco sequencial de {int(block_size)} jogos por modelo "
+            "(última data do bloco no eixo X)."
+        )
+        chart_df = build_weekly_accuracy_by_model(
+            recorte,
+            market_label=market_label,
+            block_size=int(block_size),
+        )
+        if chart_df.empty:
+            st.caption("Sem dados suficientes para o gráfico de evolução no recorte atual.")
+            return
+
+        modelos_disponiveis = sorted(chart_df["Modelo"].dropna().unique().tolist())
         modelos_sel = st.multiselect(
             "Modelos exibidos no gráfico",
             options=modelos_disponiveis,
             default=modelos_disponiveis,
+            key=select_key,
             help="Filtre modelos para melhorar a comparação visual.",
         )
         if not modelos_sel:
             st.caption("Selecione ao menos um modelo para exibir o gráfico.")
-        else:
-            weekly_filtered = weekly_df[weekly_df["Modelo"].isin(modelos_sel)]
-            base = (
-                alt.Chart(weekly_filtered)
-                .mark_line(point=alt.OverlayMarkDef(size=70))
-                .encode(
-                    x=alt.X("Data de Corte:T", title="Data de corte"),
-                    y=alt.Y("Acerto (%):Q", title="Acerto no corte (%)"),
-                    tooltip=[
-                        alt.Tooltip("Bloco:Q", title=f"Bloco ({int(block_size)} jogos)"),
-                        alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
-                        "Modelo:N",
-                        alt.Tooltip("Acerto (%):Q", format=".2f"),
-                        alt.Tooltip("Acertos:Q", title="Acertos no corte"),
-                        alt.Tooltip("Total:Q", title="Total no corte"),
-                    ],
-                )
-                .properties(height=170)
+            return
+
+        weekly_filtered = chart_df[chart_df["Modelo"].isin(modelos_sel)]
+        base = (
+            alt.Chart(weekly_filtered)
+            .mark_line(point=alt.OverlayMarkDef(size=70))
+            .encode(
+                x=alt.X("Data de Corte:T", title="Data de corte"),
+                y=alt.Y("Acerto (%):Q", title="Acerto no corte (%)"),
+                tooltip=[
+                    alt.Tooltip("Bloco:Q", title=f"Bloco ({int(block_size)} jogos)"),
+                    alt.Tooltip("Data de Corte:T", title="Data de corte", format="%d/%m/%Y"),
+                    "Modelo:N",
+                    alt.Tooltip("Acerto (%):Q", format=".2f"),
+                    alt.Tooltip("Acertos:Q", title="Acertos no corte"),
+                    alt.Tooltip("Total:Q", title="Total no corte"),
+                ],
             )
-            chart = base.facet(
-                facet=alt.Facet("Modelo:N", title=None),
-                columns=2,
-            ).resolve_scale(y="independent")
-            st.altair_chart(chart, use_container_width=True)
+            .properties(height=170)
+        )
+        chart = base.facet(
+            facet=alt.Facet("Modelo:N", title=None),
+            columns=2,
+        ).resolve_scale(y="independent")
+        st.altair_chart(chart, use_container_width=True)
+
+    render_market_chart(
+        market_label="Resultado",
+        section_title="Evolução de acerto por modelo (Mercado de Resultado)",
+        select_key="modelos_grafico_resultado",
+    )
+    render_market_chart(
+        market_label="Sugestão de Gols",
+        section_title="Evolução de acerto por modelo (Mercado de Gols)",
+        select_key="modelos_grafico_gols",
+    )
 
 except Exception as exc:
     st.error(f"Erro inesperado ao montar ranking por mercado: {exc}")
