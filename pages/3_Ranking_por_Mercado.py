@@ -50,7 +50,8 @@ try:
         st.stop()
 
     if "date" in df_finished.columns:
-        df_finished = df_finished.sort_values("date", ascending=False)
+        # Mantém os jogos em ordem cronológica crescente para consistência visual.
+        df_finished = df_finished.sort_values("date", ascending=True, na_position="last")
 
     df_finished["_game_key"] = _game_key(df_finished)
     jogos_unicos = df_finished["_game_key"].drop_duplicates().tolist()
@@ -66,7 +67,8 @@ try:
         help="Define quantos jogos finalizados mais recentes serão usados na análise.",
     )
 
-    selected_game_keys = set(jogos_unicos[: int(qtd_jogos)])
+    # Como a lista está crescente, os "últimos" jogos ficam no final.
+    selected_game_keys = set(jogos_unicos[-int(qtd_jogos):])
     recorte = df_finished[df_finished["_game_key"].isin(selected_game_keys)].copy()
 
     st.info(
